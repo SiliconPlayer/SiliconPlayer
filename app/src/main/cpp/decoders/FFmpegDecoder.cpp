@@ -1021,6 +1021,7 @@ int FFmpegDecoder::read(float* buffer, int numFrames) {
                     if (!seekInternalLocked(loopStartSeconds)) {
                         break;
                     }
+                    notifyLoopPointWrap();
                     framesForPosition = 0;
                     continue;
                 }

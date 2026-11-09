@@ -259,7 +259,7 @@ private fun writeAudioPass(file: File, frameCount: Long) {
         while (remaining > 0) {
             val frames = minOf(4096L, remaining).toInt()
             val samples = FloatArray(frames * EXPORT_AUDIO_CHANNELS)
-            check(NativeBridge.renderOfflineAudioFrames(samples, frames, EXPORT_AUDIO_RATE)) {
+            check(NativeBridge.renderOfflineAudioFrames(samples, frames, EXPORT_AUDIO_RATE) >= 0) {
                 "Offline audio rendering failed."
             }
             val bytes = ByteBuffer.allocate(samples.size * 4).order(ByteOrder.LITTLE_ENDIAN)
@@ -277,7 +277,7 @@ private fun renderAudioDiscarding(frameCount: Long) {
         check(
             NativeBridge.renderOfflineAudioFrames(
                 FloatArray(frames * EXPORT_AUDIO_CHANNELS), frames, EXPORT_AUDIO_RATE
-            )
+            ) >= 0
         ) { "Offline audio rendering failed." }
         remaining -= frames
     }

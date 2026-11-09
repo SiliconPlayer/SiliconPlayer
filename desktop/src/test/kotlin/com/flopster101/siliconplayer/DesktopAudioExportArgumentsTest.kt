@@ -6,6 +6,7 @@ import com.flopster101.siliconplayer.export.AudioExportContainer
 import com.flopster101.siliconplayer.export.AudioExportDialogSource
 import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportFfmpegMode
+import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
 import com.flopster101.siliconplayer.export.easyFfmpegOutputArguments
@@ -30,11 +31,27 @@ class DesktopAudioExportArgumentsTest {
 
         assertEquals("3", arguments.valueAfter("--subtune"))
         assertEquals("2", arguments.valueAfter("--repeatCount"))
+        assertEquals("Repeat", arguments.valueAfter("--loopType"))
         assertEquals("false", arguments.valueAfter("--useGain"))
         assertEquals("false", arguments.valueAfter("--useEffects"))
         assertEquals("ffmpeg-custom", arguments.valueAfter("--ffmpeg"))
         assertEquals("-c:a flac", arguments.valueAfter("--ffmpegArgs"))
         assertFalse(arguments.contains("--force"))
+    }
+
+    @Test
+    fun mapsFixedLoopDuration() {
+        val input = tempFolder.newFile("song.sid")
+        val arguments = buildDesktopAudioExportArguments(
+            request(input.absolutePath).copy(
+                loopType = AudioExportLoopType.Duration,
+                repeatCount = 1,
+                loopDurationSeconds = 95.5
+            )
+        )
+
+        assertEquals("Duration", arguments.valueAfter("--loopType"))
+        assertEquals("95.5", arguments.valueAfter("--loopDuration"))
     }
 
     @Test
@@ -75,7 +92,9 @@ class DesktopAudioExportArgumentsTest {
         externalBinaryLocation = "ffmpeg-custom",
         destinationLocation = tempFolder.root.resolve("out.flac").absolutePath,
         includeMetadata = true,
+        loopType = AudioExportLoopType.Repeat,
         repeatCount = 2,
+        loopDurationSeconds = null,
         renderOptions = AudioExportRenderOptions(useActiveGain = false, useActiveEffects = false)
     )
 

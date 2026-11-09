@@ -285,17 +285,33 @@ int XmpDecoder::read(float* buffer, int numFrames) {
         mixBuffer.resize(static_cast<size_t>(numFrames) * 2);
     }
 
+    struct xmp_frame_info loopFrameInfo {};
+    int previousLoopCount = 0;
+    if (repeatMode == 2) {
+        xmp_get_frame_info(context, &loopFrameInfo);
+        previousLoopCount = loopFrameInfo.loop_count;
+    }
+
     const int loopBudget = (repeatMode == 2) ? 0 : 1;
     int ret = xmp_play_buffer(context, mixBuffer.data(), bytes, loopBudget);
     if (ret < 0) {
         if (repeatMode == 2) {
             xmp_restart_module(context);
             xmp_play_buffer(context, nullptr, 0, 0);
+            xmp_get_frame_info(context, &loopFrameInfo);
+            previousLoopCount = loopFrameInfo.loop_count;
             ret = xmp_play_buffer(context, mixBuffer.data(), bytes, loopBudget);
         }
         if (ret < 0) {
             ended = true;
             return 0;
+        }
+    }
+
+    if (repeatMode == 2) {
+        xmp_get_frame_info(context, &loopFrameInfo);
+        for (int loop = previousLoopCount; loop < loopFrameInfo.loop_count; ++loop) {
+            notifyLoopPointWrap();
         }
     }
 

@@ -782,6 +782,7 @@ int FurnaceDecoder::read(float* buffer, int numFrames) {
     std::fill_n(leftScratch.data(), numFrames, 0.0f);
     std::fill_n(rightScratch.data(), numFrames, 0.0f);
     float* planarOut[2] = { leftScratch.data(), rightScratch.data() };
+    const double previousCoreSeconds = engine->getCurTime().toDouble();
     engine->nextBuf(nullptr, planarOut, 0, 2, static_cast<unsigned int>(numFrames));
 
     for (int i = 0; i < numFrames; ++i) {
@@ -804,6 +805,9 @@ int FurnaceDecoder::read(float* buffer, int numFrames) {
     }
 
     const double rawPlaybackSeconds = std::max(0.0, engine->getCurTime().toDouble());
+    if (mode == 2 && rawPlaybackSeconds < previousCoreSeconds) {
+        notifyLoopPointWrap();
+    }
 
     if ((mode == 1 || mode == 3) && durationReliable && durationSeconds > 0.0) {
         if (!trackRepeatVirtualInitialized) {

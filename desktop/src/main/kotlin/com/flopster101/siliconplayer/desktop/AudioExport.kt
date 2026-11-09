@@ -5,8 +5,10 @@ import com.flopster101.siliconplayer.DomainStoreDirs
 import com.flopster101.siliconplayer.EndFadeCurve
 import com.flopster101.siliconplayer.GmeDefaults
 import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.REPEAT_CAP_LOOP_POINT
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.applyStoredPluginConfigurationsToNative
+import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
@@ -36,6 +38,8 @@ internal data class AudioExportOptions(
     val output: File,
     val subtuneIndex: Int?,
     val repeatCount: Int = 1,
+    val loopType: AudioExportLoopType = AudioExportLoopType.Repeat,
+    val loopDurationSeconds: Double? = null,
     val renderOptions: AudioExportRenderOptions,
     val ffmpegPath: File?,
     val ffmpegArguments: List<String>,
@@ -114,7 +118,13 @@ internal fun runAudioExport(
             useActiveGain = options.renderOptions.useActiveGain,
             useActiveEffects = options.renderOptions.useActiveEffects
         )
-        fun loadPass(): String {
+        fun applyRepeatMode(loopPoint: Boolean, counted: Boolean) {
+            NativeBridge.setRepeatMode(
+                if (loopPoint) RepeatMode.LoopPoint.nativeValue else RepeatMode.None.nativeValue
+            )
+            NativeBridge.setOfflineLoopPointRepeatPasses(if (loopPoint && counted) options.repeatCount else 0)
+        }
+        fun loadPass(loopPoint: Boolean = false, counted: Boolean = false): String {
             session.audioExportOptions = options.renderOptions.copy(endFadeDurationMs = 0)
             check(session.loadFile(input, autoStart = false, initialSubtuneIndex = options.subtuneIndex)) {
                 "Could not load input: $input"
@@ -131,7 +141,7 @@ internal fun runAudioExport(
                 decoder,
                 useActiveGain = options.renderOptions.useActiveGain
             )
-            NativeBridge.setRepeatMode(RepeatMode.None.nativeValue)
+            applyRepeatMode(loopPoint, counted)
             return decoder
         }
         val decoderName = loadPass()
@@ -155,7 +165,42 @@ internal fun runAudioExport(
         val framesPerPass = rawFrameCount.toLong()
         check(framesPerPass > 0L) { "Track is too short to export." }
         check(framesPerPass <= Long.MAX_VALUE / options.repeatCount) { "Track is too long to export." }
-        val totalFrames = framesPerPass * options.repeatCount
+        val wholeTrackFrames = framesPerPass * options.repeatCount
+        val loopPointSupported = NativeBridge.getRepeatModeCapabilities() and REPEAT_CAP_LOOP_POINT != 0
+        var useLoopPoint = false
+        var totalFrames = wholeTrackFrames
+        if (options.loopType == AudioExportLoopType.Duration) {
+            val duration = requireNotNull(options.loopDurationSeconds) { "Loop duration is required." }
+            val rawFrames = ceil(duration * options.renderOptions.sampleRateHz)
+            check(rawFrames > 0.0 && rawFrames <= Long.MAX_VALUE.toDouble()) { "Invalid loop duration." }
+            totalFrames = rawFrames.toLong()
+            if (loopPointSupported) {
+                useLoopPoint = true
+                applyRepeatMode(loopPoint = true, counted = false)
+            }
+        } else if (options.repeatCount > 1 && loopPointSupported) {
+            applyRepeatMode(loopPoint = true, counted = true)
+            var probedFrames = 0L
+            val samples = FloatArray(EXPORT_CHUNK_FRAMES * EXPORT_CHANNELS)
+            while (probedFrames < wholeTrackFrames) {
+                if (Thread.currentThread().isInterrupted) throw CancellationException("Audio export cancelled.")
+                val frames = minOf(EXPORT_CHUNK_FRAMES.toLong(), wholeTrackFrames - probedFrames).toInt()
+                val rendered = NativeBridge.renderOfflineAudioFrames(
+                    samples,
+                    frames,
+                    options.renderOptions.sampleRateHz
+                )
+                check(rendered >= 0) { "Offline audio rendering failed." }
+                if (rendered == 0) break
+                probedFrames += rendered
+                if (probedFrames >= framesPerPass && NativeBridge.getOfflineLoopPointWrapCount() == 0) break
+            }
+            if (probedFrames >= framesPerPass && NativeBridge.getOfflineLoopPointWrapCount() >= options.repeatCount) {
+                useLoopPoint = true
+                totalFrames = probedFrames
+            }
+            loadPass(loopPoint = useLoopPoint, counted = useLoopPoint)
+        }
         if (ffmpegExecutable == null) {
             val bytesPerFrame = EXPORT_CHANNELS * options.renderOptions.sampleFormat.bytesPerSample
             require(totalFrames <= (0xffffffffL - 64L) / bytesPerFrame) {
@@ -194,29 +239,46 @@ internal fun runAudioExport(
         exportWriter.use { writer ->
             var remaining = totalFrames
             var framesLeftInPass = framesPerPass
-            var currentPass = 1
             var lastProgressNs = 0L
             while (remaining > 0L) {
                 if (Thread.currentThread().isInterrupted) throw CancellationException("Audio export cancelled.")
-                val frames = minOf(EXPORT_CHUNK_FRAMES.toLong(), remaining, framesLeftInPass).toInt()
+                val frames = minOf(
+                    EXPORT_CHUNK_FRAMES.toLong(),
+                    remaining,
+                    if (useLoopPoint) remaining else framesLeftInPass
+                ).toInt()
                 val samples = FloatArray(frames * EXPORT_CHANNELS)
-                check(NativeBridge.renderOfflineAudioFrames(samples, frames, options.renderOptions.sampleRateHz)) {
-                    "Offline audio rendering failed at frame ${totalFrames - remaining}."
+                var rendered = NativeBridge.renderOfflineAudioFrames(
+                    samples,
+                    frames,
+                    options.renderOptions.sampleRateHz
+                )
+                if (rendered == 0 && useLoopPoint && options.loopType == AudioExportLoopType.Duration) {
+                    useLoopPoint = false
+                    loadPass()
+                    framesLeftInPass = framesPerPass
+                    rendered = NativeBridge.renderOfflineAudioFrames(
+                        samples,
+                        frames,
+                        options.renderOptions.sampleRateHz
+                    )
+                }
+                check(rendered > 0) {
+                    "Offline audio rendering produced no frames at ${totalFrames - remaining}."
                 }
                 applyAudioExportFade(
                     samples = samples,
                     frameOffset = totalFrames - remaining,
-                    frameCount = frames,
+                    frameCount = rendered,
                     totalFrames = totalFrames,
                     fadeDurationMs = options.renderOptions.endFadeDurationMs ?: 0,
                     fadeCurve = options.renderOptions.endFadeCurve ?: EndFadeCurve.Linear,
                     sampleRateHz = options.renderOptions.sampleRateHz
                 )
-                writer.write(samples, frames)
-                remaining -= frames
-                framesLeftInPass -= frames
-                if (framesLeftInPass == 0L && remaining > 0L) {
-                    currentPass += 1
+                writer.write(samples, rendered)
+                remaining -= rendered
+                framesLeftInPass -= rendered
+                if (!useLoopPoint && framesLeftInPass == 0L && remaining > 0L) {
                     loadPass()
                     framesLeftInPass = framesPerPass
                 }
@@ -354,7 +416,7 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
         }
         require(name in setOf(
             "input", "output", "subtune", "sampleRate", "sampleFormat", "duration",
-            "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount",
+            "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount", "loopType", "loopDuration",
             "useGain", "useEffects", "ffmpeg", "ffmpegArgs"
         )) { "Unknown option: --$name" }
         require(index + 1 < args.size) { "Missing value for --$name" }
@@ -363,6 +425,9 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
     }
     fun requiredPath(name: String): File {
         return requireNotNull(values[name]) { "Missing --$name <path>." }.let(::expandAudioExportPath)
+    }
+    fun doubleValue(name: String): Double? = values[name]?.let { raw ->
+        raw.toDoubleOrNull() ?: throw IllegalArgumentException("--$name must be a number: $raw")
     }
     fun intValue(name: String): Int? = values[name]?.let { raw ->
         requireNotNull(raw.toIntOrNull()) { "--$name must be an integer." }
@@ -397,6 +462,13 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
         subtuneIndex = subtuneIndex,
         repeatCount = (intValue("repeatCount") ?: 1).also {
             require(it > 0) { "--repeatCount must be positive." }
+        },
+        loopType = values["loopType"]?.let { raw ->
+            AudioExportLoopType.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
+                ?: throw IllegalArgumentException("--loopType must be Repeat or Duration.")
+        } ?: AudioExportLoopType.Repeat,
+        loopDurationSeconds = doubleValue("loopDuration").also {
+            require(it == null || it.isFinite() && it > 0.0) { "--loopDuration must be positive." }
         },
         ffmpegPath = values["ffmpeg"]?.let(::expandAudioExportPath),
         ffmpegArguments = values["ffmpegArgs"]?.let(::parseFfmpegArgumentList).orEmpty(),
@@ -461,7 +533,9 @@ private fun printAudioExportHelp() {
           -PfadeMs=<0|100..120000>       Export-only fade duration; 0 disables
           -PfadeCurve=<curve>             linear, ease_in, or ease_out
           -PfadeAll=<true|false>          Apply fade to reliable-duration tracks
-          -PrepeatCount=<1+>              Total whole-track passes (default 1)
+          -PrepeatCount=<1+>              Total loop-point/track passes (default 1)
+          -PloopType=Repeat|Duration      Counted passes or fixed total duration
+          -PloopDuration=<seconds>     Required with loopType=Duration
           -PuseGain=<true|false>          Use active master/core/song gain
           -PuseEffects=<true|false>       Use active DSP effects
           -Pffmpeg=<path>                 Use a specific FFmpeg executable

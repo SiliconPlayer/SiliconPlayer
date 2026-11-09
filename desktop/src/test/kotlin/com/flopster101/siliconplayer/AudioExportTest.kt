@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer
 import com.flopster101.siliconplayer.desktop.moveCompletedExport
 import com.flopster101.siliconplayer.desktop.parseAudioExportOptions
 import com.flopster101.siliconplayer.desktop.resolveFfmpegExecutable
+import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
@@ -160,6 +161,19 @@ class AudioExportTest {
                 arrayOf("--input", "song.sid", "--output", "out.flac", "--repeatCount", "0")
             )
         }
+    }
+
+    @Test
+    fun parsesFixedLoopDuration() {
+        val options = parseAudioExportOptions(
+            arrayOf(
+                "--input", "song.sid", "--output", "out.flac",
+                "--loopType", "Duration", "--loopDuration", "95.5"
+            )
+        )
+
+        assertEquals(AudioExportLoopType.Duration, options.loopType)
+        assertEquals(95.5, options.loopDurationSeconds!!, 0.0001)
     }
 
     @Test

@@ -1197,7 +1197,20 @@ int Sc68Decoder::read(float* buffer, int numFrames) {
     if (gateVirtualEof && durationSeconds >= 1.0 && playbackPositionSeconds >= durationSeconds) {
         return 0;
     }
-    int produced = processIntoLocked(buffer, numFrames);
+    auto processRead = [&]() {
+        const int previousTrack = currentTrack1Based;
+        const int previousLoop = mode == 2 ? sc68_cntl(handle, SC68_GET_LOOP) : 0;
+        const int producedFrames = processIntoLocked(buffer, numFrames);
+        if (mode == 2 && previousTrack == currentTrack1Based) {
+            const int currentLoop = sc68_cntl(handle, SC68_GET_LOOP);
+            for (int loop = previousLoop; loop < currentLoop; ++loop) {
+                notifyLoopPointWrap();
+            }
+        }
+        return producedFrames;
+    };
+
+    int produced = processRead();
     if (produced > 0) {
         return produced;
     }
@@ -1205,7 +1218,7 @@ int Sc68Decoder::read(float* buffer, int numFrames) {
     // SC68 can occasionally emit transient 0-frame reads on startup/state
     // transitions. Retry a few times before signaling terminal EOF.
     for (int retry = 0; retry < 4; ++retry) {
-        produced = processIntoLocked(buffer, numFrames);
+        produced = processRead();
         if (produced > 0) {
             return produced;
         }

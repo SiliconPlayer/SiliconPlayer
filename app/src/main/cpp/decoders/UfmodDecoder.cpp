@@ -94,6 +94,7 @@ int UfmodDecoder::read(float* buffer, int numFrames) {
 
     const int scopeChannels = std::clamp(moduleChannels, 1, 64);
     scopeScratch.resize(static_cast<size_t>(scopeChannels) * static_cast<size_t>(numFrames));
+    const int previousLoopCount = ufmod_get_loop_count(context);
     const size_t rendered = ufmod_render_with_scope(
             context,
             pcmBuffer.data(),
@@ -101,6 +102,12 @@ int UfmodDecoder::read(float* buffer, int numFrames) {
             scopeScratch.data(),
             static_cast<size_t>(scopeChannels)
     );
+    const int loopCount = ufmod_get_loop_count(context);
+    if (repeatMode == 2) {
+        for (int loop = previousLoopCount; loop < loopCount; ++loop) {
+            notifyLoopPointWrap();
+        }
+    }
     const int frames = static_cast<int>(rendered);
     for (int i = 0; i < frames * 2; ++i) {
         buffer[i] = static_cast<float>(pcmBuffer[i]) / 32768.0f;

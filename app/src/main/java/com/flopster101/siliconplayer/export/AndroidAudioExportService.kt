@@ -25,6 +25,7 @@ import com.flopster101.siliconplayer.GmeDefaults
 import com.flopster101.siliconplayer.GmeOptionKeys
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.R
+import com.flopster101.siliconplayer.REPEAT_CAP_LOOP_POINT
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.SidPlayFpOptionKeys
 import com.flopster101.siliconplayer.UadeOptionKeys
@@ -127,7 +128,13 @@ class AndroidAudioExportService : Service() {
             val repeatCount = request.repeatCount.also { require(it > 0) { "Repeat count must be positive." } }
             var framesPerPass = 0L
             var metadata = AudioExportMetadata()
-            fun loadPass() {
+            fun applyRepeatMode(loopPoint: Boolean, counted: Boolean) {
+                NativeBridge.setRepeatMode(
+                    if (loopPoint) RepeatMode.LoopPoint.nativeValue else RepeatMode.None.nativeValue
+                )
+                NativeBridge.setOfflineLoopPointRepeatPasses(if (loopPoint && counted) repeatCount else 0)
+            }
+            fun loadPass(loopPoint: Boolean = false, counted: Boolean = false) {
                 pushStoredAndroidTrackOptions(prefs, request.renderOptions)
                 NativeBridge.stopEngineSyncNative()
                 NativeBridge.loadAudio(input.absolutePath)
@@ -143,7 +150,7 @@ class AndroidAudioExportService : Service() {
                     useActiveGain = request.renderOptions.useActiveGain,
                     useActiveEffects = request.renderOptions.useActiveEffects
                 )
-                NativeBridge.setRepeatMode(RepeatMode.None.nativeValue)
+                applyRepeatMode(loopPoint, counted)
                 val duration = if (request.renderOptions.durationCapSeconds != null) {
                     val cap = requireNotNull(request.renderOptions.durationCapSeconds)
                     val decodedDuration = NativeBridge.getDurationImpl()
@@ -167,7 +174,44 @@ class AndroidAudioExportService : Service() {
             }
             loadPass()
             check(framesPerPass > 0L && framesPerPass <= Long.MAX_VALUE / repeatCount) { "Invalid track length." }
-            val totalFrames = framesPerPass * repeatCount
+            val wholeTrackFrames = framesPerPass * repeatCount
+            val loopPointSupported = NativeBridge.getRepeatModeCapabilities() and REPEAT_CAP_LOOP_POINT != 0
+            var useLoopPoint = false
+            var totalFrames = wholeTrackFrames
+            if (request.loopType == AudioExportLoopType.Duration) {
+                val duration = requireNotNull(request.loopDurationSeconds)
+                val rawFrames = ceil(duration * request.renderOptions.sampleRateHz)
+                check(rawFrames > 0.0 && rawFrames <= Long.MAX_VALUE.toDouble()) { "Invalid loop duration." }
+                totalFrames = rawFrames.toLong()
+                if (loopPointSupported) {
+                    useLoopPoint = true
+                    applyRepeatMode(loopPoint = true, counted = false)
+                }
+            } else if (repeatCount > 1 && loopPointSupported) {
+                applyRepeatMode(loopPoint = true, counted = true)
+                var probedFrames = 0L
+                val samples = FloatArray(4096 * 2)
+                while (probedFrames < wholeTrackFrames) {
+                    if (cancelled.get() || Thread.currentThread().isInterrupted) {
+                        throw CancellationException("Audio export cancelled")
+                    }
+                    val frames = minOf(4096L, wholeTrackFrames - probedFrames).toInt()
+                    val rendered = NativeBridge.renderOfflineAudioFrames(
+                        samples,
+                        frames,
+                        request.renderOptions.sampleRateHz
+                    )
+                    check(rendered >= 0) { "Offline rendering failed." }
+                    if (rendered == 0) break
+                    probedFrames += rendered
+                    if (probedFrames >= framesPerPass && NativeBridge.getOfflineLoopPointWrapCount() == 0) break
+                }
+                if (probedFrames >= framesPerPass && NativeBridge.getOfflineLoopPointWrapCount() >= repeatCount) {
+                    useLoopPoint = true
+                    totalFrames = probedFrames
+                }
+                loadPass(loopPoint = useLoopPoint, counted = useLoopPoint)
+            }
             val outputFile = File.createTempFile("audio-export-", ".${request.container.extension}", cacheDir)
             temporary = outputFile
             val writer = when (request.encoder) {
@@ -199,35 +243,46 @@ class AndroidAudioExportService : Service() {
             writer.use { output ->
                 var remaining = totalFrames
                 var framesLeftInPass = framesPerPass
-                var currentPass = 1
                 var lastProgressNs = 0L
                 while (remaining > 0L) {
                     if (cancelled.get() || Thread.currentThread().isInterrupted) {
                         throw CancellationException("Audio export cancelled")
                     }
-                    val frames = minOf(4096L, remaining, framesLeftInPass).toInt()
+                    val frames = minOf(
+                        4096L,
+                        remaining,
+                        if (useLoopPoint) remaining else framesLeftInPass
+                    ).toInt()
                     val samples = FloatArray(frames * 2)
-                    check(
-                        NativeBridge.renderOfflineAudioFrames(
+                    var rendered = NativeBridge.renderOfflineAudioFrames(
+                        samples,
+                        frames,
+                        request.renderOptions.sampleRateHz
+                    )
+                    if (rendered == 0 && useLoopPoint && request.loopType == AudioExportLoopType.Duration) {
+                        useLoopPoint = false
+                        loadPass()
+                        framesLeftInPass = framesPerPass
+                        rendered = NativeBridge.renderOfflineAudioFrames(
                             samples,
                             frames,
                             request.renderOptions.sampleRateHz
                         )
-                    ) { "Offline rendering failed." }
+                    }
+                    check(rendered > 0) { "Offline rendering ended before the planned duration." }
                     applyAudioExportFade(
                         samples = samples,
                         frameOffset = totalFrames - remaining,
-                        frameCount = frames,
+                        frameCount = rendered,
                         totalFrames = totalFrames,
                         fadeDurationMs = request.renderOptions.endFadeDurationMs ?: 0,
                         fadeCurve = request.renderOptions.endFadeCurve ?: EndFadeCurve.Linear,
                         sampleRateHz = request.renderOptions.sampleRateHz
                     )
-                    output.write(samples, frames)
-                    remaining -= frames
-                    framesLeftInPass -= frames
-                    if (framesLeftInPass == 0L && remaining > 0L) {
-                        currentPass += 1
+                    output.write(samples, rendered)
+                    remaining -= rendered
+                    framesLeftInPass -= rendered
+                    if (!useLoopPoint && framesLeftInPass == 0L && remaining > 0L) {
                         loadPass()
                         framesLeftInPass = framesPerPass
                     }
@@ -508,7 +563,9 @@ private fun Intent.putExportRequest(request: AudioExportUiRequest): Intent = app
     putExtra("externalBinary", request.externalBinaryLocation)
     putExtra("destination", request.destinationLocation)
     putExtra("includeMetadata", request.includeMetadata)
+    putExtra("loopType", request.loopType.name)
     putExtra("repeat", request.repeatCount)
+    putExtra("loopDuration", request.loopDurationSeconds ?: 0.0)
     putExtra("sampleRate", request.renderOptions.sampleRateHz)
     putExtra("sampleFormat", request.renderOptions.sampleFormat.storageValue)
     putExtra("durationCap", request.renderOptions.durationCapSeconds ?: 0.0)
@@ -542,7 +599,9 @@ private fun Intent.readAudioExportRequest(): AudioExportUiRequest {
         externalBinaryLocation = getStringExtra("externalBinary"),
         destinationLocation = getStringExtra("destination")!!,
         includeMetadata = getBooleanExtra("includeMetadata", true),
+        loopType = AudioExportLoopType.valueOf(getStringExtra("loopType") ?: AudioExportLoopType.Repeat.name),
         repeatCount = getIntExtra("repeat", 1),
+        loopDurationSeconds = getDoubleExtra("loopDuration", 0.0).takeIf { it > 0.0 },
         renderOptions = AudioExportRenderOptions(
             sampleRateHz = getIntExtra("sampleRate", 48_000),
             sampleFormat = AudioExportSampleFormat.fromStorage(getStringExtra("sampleFormat"))

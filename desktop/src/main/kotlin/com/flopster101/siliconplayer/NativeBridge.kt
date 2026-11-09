@@ -458,8 +458,10 @@ object NativeBridge {
     external fun getVisualizationBars(): FloatArray
     external fun getVisualizationVuLevels(): FloatArray
     external fun getVisualizationChannelCount(): Int
-    external fun renderOfflineAudioFrames(output: FloatArray, numFrames: Int, sampleRateHz: Int): Boolean
+    external fun renderOfflineAudioFrames(output: FloatArray, numFrames: Int, sampleRateHz: Int): Int
     external fun setOfflineRenderMode(enabled: Boolean)
+    external fun setOfflineLoopPointRepeatPasses(passes: Int)
+    external fun getOfflineLoopPointWrapCount(): Int
     external fun attachAudioEngineToVisualizer(visHandle: Long)
     external fun setChannelScopeVisualizerActive(active: Boolean)
 

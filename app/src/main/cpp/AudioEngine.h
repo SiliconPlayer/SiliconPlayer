@@ -36,7 +36,9 @@ public:
     void teardownOutputStreamForSwitch();
     void releaseCurrentDecoder();
     bool isEnginePlaying() const;
-    bool renderOfflineAudioFrames(float* outputStereo, int numFrames, int sampleRateHz);
+    int renderOfflineAudioFrames(float* outputStereo, int numFrames, int sampleRateHz);
+    void setOfflineLoopPointRepeatPasses(int passes);
+    int getOfflineLoopPointWrapCount();
     void setOfflineRenderMode(bool enabled);
     bool isOfflineRenderMode() const { return offlineRenderMode.load(std::memory_order_relaxed); }
     void restart();
@@ -586,6 +588,7 @@ private:
     std::atomic<bool> endFadeApplyToAllTracks { false };
     std::atomic<int> endFadeDurationMs { 10000 };
     std::atomic<int> endFadeCurve { 0 }; // 0 linear, 1 ease-in, 2 ease-out
+    std::atomic<int> offlineLoopPointRepeatPasses { 0 };
     mutable std::mutex visualizationMutex;
     std::array<float, 256> visualizationWaveformLeft {};
     std::array<float, 256> visualizationWaveformRight {};
@@ -650,8 +653,8 @@ private:
     bool ensureOutputSoxrContextLocked(int channels, int inputRate, int outputRate);
     void freeOutputSoxrContextLocked();
     int readFromDecoderLocked(float* buffer, int numFrames, int channels, bool& reachedEnd);
-    void renderResampledLocked(float* outputData, int32_t numFrames, int channels, int streamRate, bool& reachedEnd);
-    void renderSoxrResampledLocked(float* outputData, int32_t numFrames, int channels, int streamRate, int renderRate, bool& reachedEnd);
+    void renderResampledLocked(float* outputData, int32_t numFrames, int channels, int streamRate, bool& reachedEnd, int* renderedFrames = nullptr);
+    void renderSoxrResampledLocked(float* outputData, int32_t numFrames, int channels, int streamRate, int renderRate, bool& reachedEnd, int* renderedFrames = nullptr);
     void recoverStreamIfNeeded();
     void recoverStreamIfNeededLocked();
     void primeRenderQueueForStreamStart();

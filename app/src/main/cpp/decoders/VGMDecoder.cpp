@@ -398,6 +398,7 @@ int VGMDecoder::read(float* buffer, int numFrames) {
 
     std::vector<int16_t> int16Buffer(numFrames * channels);
     int framesRendered = 0;
+    const uint32_t previousLoopCount = player->GetCurLoop();
     PlayerBase* playerBase = player->GetPlayer();
     VGMPlayer* vgmPlayer = playerBase ? dynamic_cast<VGMPlayer*>(playerBase) : nullptr;
 
@@ -431,6 +432,11 @@ int VGMDecoder::read(float* buffer, int numFrames) {
     }
 
     const uint32_t loopCount = player->GetCurLoop();
+    if (repeatMode.load() == 2) {
+        for (uint32_t loop = previousLoopCount; loop < loopCount; ++loop) {
+            notifyLoopPointWrap();
+        }
+    }
     if (loopCount > currentLoop) {
         currentLoop = loopCount;
         hasLooped = true;

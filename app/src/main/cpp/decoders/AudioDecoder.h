@@ -76,6 +76,8 @@ public:
     virtual int getSourceChannelCount() { return getChannelCount(); }
     virtual void setRepeatMode(int /*mode*/) {}
     virtual int getRepeatModeCapabilities() const { return REPEAT_CAP_TRACK; }
+    int getLoopPointWrapCount() const { return loopPointWrapCount.load(std::memory_order_relaxed); }
+    void resetLoopPointWrapCount() { loopPointWrapCount.store(0, std::memory_order_relaxed); }
     virtual int getPlaybackCapabilities() const {
         return PLAYBACK_CAP_SEEK |
                PLAYBACK_CAP_RELIABLE_DURATION |
@@ -129,8 +131,12 @@ public:
         dynamicLibraryLease = std::move(lease);
     }
 
+protected:
+    void notifyLoopPointWrap() { loopPointWrapCount.fetch_add(1, std::memory_order_relaxed); }
+
 private:
     std::shared_ptr<void> dynamicLibraryLease;
+    std::atomic<int> loopPointWrapCount { 0 };
 };
 
 #endif //SILICONPLAYER_AUDIODECODER_H

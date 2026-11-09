@@ -80,6 +80,7 @@ import com.flopster101.siliconplayer.export.AudioExportDialogSource
 import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportExecutionState
 import com.flopster101.siliconplayer.export.AudioExportFfmpegMode
+import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportPlatformAdapter
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
@@ -90,6 +91,7 @@ import com.flopster101.siliconplayer.export.defaultAudioExportBitrate
 import com.flopster101.siliconplayer.export.easyFfmpegOutputArguments
 import com.flopster101.siliconplayer.export.formatAudioExportBitrate
 import com.flopster101.siliconplayer.export.formatAudioExportSizeEstimate
+import com.flopster101.siliconplayer.export.parseAudioExportTime
 import com.flopster101.siliconplayer.export.suggestedAudioExportFileName
 import com.flopster101.siliconplayer.export.supportedAudioExportContainers
 import com.flopster101.siliconplayer.formatTime
@@ -130,7 +132,9 @@ internal fun AudioExportDialog(
     var useActiveEffects by rememberSaveable { mutableStateOf(true) }
     var customDuration by rememberSaveable { mutableStateOf(false) }
     var durationSecondsText by rememberSaveable { mutableStateOf("120") }
+    var loopType by rememberSaveable { mutableStateOf(AudioExportLoopType.Repeat) }
     var repeatCountText by rememberSaveable { mutableStateOf("1") }
+    var loopDurationText by rememberSaveable(source.sourceId) { mutableStateOf(formatTime(source.durationSeconds)) }
     var fadeDurationMs by rememberSaveable { mutableIntStateOf(0) }
     var fadeCurve by rememberSaveable { mutableStateOf(EndFadeCurve.EaseOut) }
     var timingExpanded by rememberSaveable { mutableStateOf(false) }
@@ -139,7 +143,10 @@ internal fun AudioExportDialog(
     val durationCapSeconds = if (customDuration) durationSecondsText.toDoubleOrNull() else null
     val invalidDuration = customDuration && (durationCapSeconds == null || durationCapSeconds <= 0.0)
     val repeatCount = repeatCountText.toIntOrNull()
-    val invalidRepeat = repeatCount == null || repeatCount <= 0
+    val invalidRepeat = loopType == AudioExportLoopType.Repeat && (repeatCount == null || repeatCount <= 0)
+    val loopDurationSeconds = parseAudioExportTime(loopDurationText)
+    val invalidLoopDuration = loopType == AudioExportLoopType.Duration &&
+        (loopDurationSeconds == null || loopDurationSeconds <= 0.0)
     val externalBinaryMissing = encoder == AudioExportEncoder.ExternalFfmpeg &&
         platform.externalBinaryLocation == null
     val destinationLocation = platform.destinationLocation
@@ -151,6 +158,7 @@ internal fun AudioExportDialog(
         }
     }
     val canExport = destinationLocation != null && !externalBinaryMissing && !invalidDuration && !invalidRepeat &&
+        !invalidLoopDuration &&
         (encoder != AudioExportEncoder.MediaCodec || platform.supportedMediaCodecs.contains(codec)) &&
         container in containersFor(codec)
     val isLossless = codec == AudioExportCodec.Flac || codec == AudioExportCodec.Pcm24
@@ -159,7 +167,11 @@ internal fun AudioExportDialog(
         platform.resetDestination(suggestedFileName)
     }
     val sizeEstimate = formatAudioExportSizeEstimate(
-        durationSeconds = (durationCapSeconds ?: source.durationSeconds) * (repeatCount ?: 1),
+        durationSeconds = if (loopType == AudioExportLoopType.Duration) {
+            loopDurationSeconds ?: source.durationSeconds
+        } else {
+            (durationCapSeconds ?: source.durationSeconds) * (repeatCount ?: 1)
+        },
         container = container,
         codec = codec,
         sampleRateHz = sampleRateHz,
@@ -428,16 +440,33 @@ internal fun AudioExportDialog(
                                         onValueChange = { customDuration = it },
                                         modifier = Modifier.weight(1f)
                                     )
-                                    AudioExportNumericField(
-                                        label = "Repeats",
-                                        value = repeatCountText,
-                                        onValueChange = { value ->
-                                            if (value.all(Char::isDigit)) repeatCountText = value
-                                        },
-                                        isError = invalidRepeat,
+                                    AudioExportDropdown(
+                                        label = "Loop type",
+                                        value = loopType,
+                                        values = AudioExportLoopType.entries,
+                                        valueLabel = { it.label },
+                                        onValueChange = { loopType = it },
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
+                                AudioExportInputField(
+                                    label = if (loopType == AudioExportLoopType.Repeat) "Repeats" else "Loop duration",
+                                    value = if (loopType == AudioExportLoopType.Repeat) repeatCountText else loopDurationText,
+                                    onValueChange = { value ->
+                                        if (loopType == AudioExportLoopType.Repeat) {
+                                            if (value.all(Char::isDigit)) repeatCountText = value
+                                        } else if (value.all { it.isDigit() || it == ':' || it == '.' }) {
+                                            loopDurationText = value
+                                        }
+                                    },
+                                    isError = invalidRepeat || invalidLoopDuration,
+                                    keyboardType = if (loopType == AudioExportLoopType.Repeat) {
+                                        KeyboardType.Number
+                                    } else {
+                                        KeyboardType.Text
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                                 if (customDuration) {
                                     OutlinedTextField(
                                         value = durationSecondsText,
@@ -598,7 +627,17 @@ internal fun AudioExportDialog(
                                         externalBinaryLocation = platform.externalBinaryLocation,
                                         destinationLocation = destination,
                                         includeMetadata = includeMetadata && container != AudioExportContainer.Amr,
-                                        repeatCount = requireNotNull(repeatCount),
+                                        loopType = loopType,
+                                        repeatCount = if (loopType == AudioExportLoopType.Repeat) {
+                                            requireNotNull(repeatCount)
+                                        } else {
+                                            1
+                                        },
+                                        loopDurationSeconds = if (loopType == AudioExportLoopType.Duration) {
+                                            requireNotNull(loopDurationSeconds)
+                                        } else {
+                                            null
+                                        },
                                         renderOptions = AudioExportRenderOptions(
                                             sampleRateHz = sampleRateHz,
                                             sampleFormat = AudioExportSampleFormat.Pcm24,
@@ -744,12 +783,13 @@ private fun AudioExportFieldLabel(text: String) {
 }
 
 @Composable
-private fun AudioExportNumericField(
+private fun AudioExportInputField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
     isError: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Number
 ) {
     Column(modifier = modifier) {
         AudioExportFieldLabel(label)
@@ -770,7 +810,7 @@ private fun AudioExportNumericField(
                     color = MaterialTheme.colorScheme.onSurface
                 ),
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 decorationBox = { innerTextField ->
                     Box(

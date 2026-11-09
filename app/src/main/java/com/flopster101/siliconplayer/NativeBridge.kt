@@ -730,7 +730,9 @@ object NativeBridge {
     external fun setUadeRuntimePaths(baseDir: String, uadeCorePath: String)
 
     external fun setOfflineRenderMode(enabled: Boolean)
-    external fun renderOfflineAudioFrames(samples: FloatArray, frames: Int, sampleRateHz: Int): Boolean
+    external fun setOfflineLoopPointRepeatPasses(passes: Int)
+    external fun getOfflineLoopPointWrapCount(): Int
+    external fun renderOfflineAudioFrames(samples: FloatArray, frames: Int, sampleRateHz: Int): Int
     external fun stopEngineSyncNative()
     external fun teardownOutputStream()
 }

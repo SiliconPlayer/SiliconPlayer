@@ -339,7 +339,14 @@ int LibOpenMPTDecoder::read(float* buffer, int numFrames) {
                     static_cast<int32_t>(module->get_channel_scope_write_pos(ch));
         }
     }
+    const int previousOrder = repeatMode == 2 ? module->get_current_order() : -1;
     size_t count = module->read_interleaved_stereo(renderSampleRate, numFrames, buffer);
+    if (count > 0 && previousOrder >= 0) {
+        const int currentOrder = module->get_current_order();
+        if (currentOrder >= 0 && currentOrder < previousOrder) {
+            notifyLoopPointWrap();
+        }
+    }
     if (count > 0) {
         if (channelScopeState) {
             const int channels = std::max(moduleChannels, 0);

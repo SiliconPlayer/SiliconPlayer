@@ -2983,16 +2983,27 @@ Java_com_flopster101_siliconplayer_NativeBridge_getVisualizationChannelCount(JNI
     return static_cast<jint>(audioEngine->getVisualizationChannelCount());
 }
 
-extern "C" JNIEXPORT jboolean JNICALL
+extern "C" JNIEXPORT jint JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_renderOfflineAudioFrames(
         JNIEnv* env, jobject, jfloatArray output, jint numFrames, jint sampleRateHz) {
     if (!audioEngine || !output || numFrames <= 0 ||
-        env->GetArrayLength(output) < numFrames * 2) return JNI_FALSE;
+        env->GetArrayLength(output) < numFrames * 2) return -1;
     jfloat* samples = env->GetFloatArrayElements(output, nullptr);
-    if (!samples) return JNI_FALSE;
-    const bool rendered = audioEngine->renderOfflineAudioFrames(samples, numFrames, sampleRateHz);
+    if (!samples) return -1;
+    const int rendered = audioEngine->renderOfflineAudioFrames(samples, numFrames, sampleRateHz);
     env->ReleaseFloatArrayElements(output, samples, 0);
-    return rendered ? JNI_TRUE : JNI_FALSE;
+    return rendered;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_setOfflineLoopPointRepeatPasses(
+        JNIEnv*, jobject, jint passes) {
+    if (audioEngine) audioEngine->setOfflineLoopPointRepeatPasses(passes);
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getOfflineLoopPointWrapCount(JNIEnv*, jobject) {
+    return audioEngine ? audioEngine->getOfflineLoopPointWrapCount() : 0;
 }
 
 extern "C" JNIEXPORT void JNICALL

@@ -1119,6 +1119,7 @@ int GmeDecoder::read(float* buffer, int numFrames) {
     }
 
     int framesRead = 0;
+    bool restartedAfterTrackEnd = false;
     std::vector<short> pcmBlock(kRenderBlockFrames * channels);
 
     while (framesRead < numFrames) {
@@ -1168,12 +1169,14 @@ int GmeDecoder::read(float* buffer, int numFrames) {
                 }
                 applyCoreOptionsLocked();
                 applyToggleChannelMutesLocked();
+                restartedAfterTrackEnd = true;
                 int scopeRestartMs = 0;
                 if (hasLoopPoint && loopStartMs >= 0) {
                     const gme_err_t loopSeekErr = gme_seek(emu, loopStartMs);
                     if (loopSeekErr != nullptr) {
                         LOGE("gme_seek(loop) failed: %s", loopSeekErr);
                     } else {
+                        notifyLoopPointWrap();
                         playbackPositionSeconds = static_cast<double>(loopStartMs) / 1000.0;
                         lastTellMs = loopStartMs;
                         scopeRestartMs = loopStartMs;
@@ -1194,6 +1197,9 @@ int GmeDecoder::read(float* buffer, int numFrames) {
     if (framesRead > 0) {
         const int currentTellMs = gme_tell(emu);
         if (repeatMode.load() == 2) {
+            if (!restartedAfterTrackEnd && lastTellMs >= 0 && currentTellMs < lastTellMs) {
+                notifyLoopPointWrap();
+            }
             if (lastTellMs < 0 || currentTellMs > lastTellMs) {
                 playbackPositionSeconds = static_cast<double>(currentTellMs) / 1000.0;
             } else {

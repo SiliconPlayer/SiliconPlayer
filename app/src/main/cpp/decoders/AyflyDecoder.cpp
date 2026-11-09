@@ -237,6 +237,7 @@ int AyflyDecoder::read(float* buffer, int numFrames) {
             if (repeatMode == 2 && !resumedAfterStop) {
                 resumedAfterStop = true;
                 ay_seeksong(song, static_cast<long>(ay_getsongloop(song)));
+                notifyLoopPointWrap();
                 applyOptionsLocked();
                 continue;
             }

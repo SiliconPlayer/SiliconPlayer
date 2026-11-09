@@ -469,8 +469,16 @@ int HivelyTrackerDecoder::read(float* buffer, int numFrames) {
             if (stopAfterPendingDrain) {
                 break;
             }
+            const int previousPosition = tune->ht_PosNr;
+            const bool songEndBefore = tune->ht_SongEndReached != 0;
             if (!decodeFrameIntoPendingLocked()) {
                 break;
+            }
+            const bool songEndAfter = tune->ht_SongEndReached != 0;
+            if (mode == 2 &&
+                (tune->ht_PosNr < previousPosition ||
+                 (!songEndBefore && songEndAfter && tune->ht_Tempo > 0))) {
+                notifyLoopPointWrap();
             }
         }
 

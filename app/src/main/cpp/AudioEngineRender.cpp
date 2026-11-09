@@ -177,8 +177,17 @@ int AudioEngine::readFromDecoderLocked(float* buffer, int numFrames, int channel
     if (!decoder || !buffer || numFrames <= 0 || channels <= 0) return 0;
 
     const int mode = repeatMode.load();
+    const int loopPassLimit = offlineLoopPointRepeatPasses.load(std::memory_order_relaxed);
+    auto readDecoderFrames = [&](float* destination, int frameCount) -> int {
+        if (offlineRenderMode.load(std::memory_order_relaxed) && mode == 2 && loopPassLimit > 0 &&
+            decoder->getLoopPointWrapCount() >= loopPassLimit) {
+            reachedEnd = true;
+            return 0;
+        }
+        return decoder->read(destination, frameCount);
+    };
 
-    int framesRead = decoder->read(buffer, numFrames);
+    int framesRead = readDecoderFrames(buffer, numFrames);
     if (framesRead > 0) {
         if (mode == 2 && framesRead < numFrames) {
             // Keep filling in loop-point mode to avoid inserting silence when a
@@ -188,7 +197,7 @@ int AudioEngine::readFromDecoderLocked(float* buffer, int numFrames, int channel
             for (int round = 0; round < kMaxTopUpRounds && total < numFrames; ++round) {
                 float* writePtr = buffer + static_cast<size_t>(total) * channels;
                 const int remaining = numFrames - total;
-                int more = decoder->read(writePtr, remaining);
+                int more = readDecoderFrames(writePtr, remaining);
                 if (more > 0) {
                     total += more;
                     continue;
@@ -196,7 +205,7 @@ int AudioEngine::readFromDecoderLocked(float* buffer, int numFrames, int channel
 
                 bool recovered = false;
                 for (int retry = 0; retry < 8; ++retry) {
-                    more = decoder->read(writePtr, remaining);
+                    more = readDecoderFrames(writePtr, remaining);
                     if (more > 0) {
                         total += more;
                         recovered = true;
@@ -239,7 +248,7 @@ int AudioEngine::readFromDecoderLocked(float* buffer, int numFrames, int channel
     if (mode == 2) {
         // Loop-point mode can return transient 0-frame reads at wrap boundaries.
         for (int retry = 0; retry < 32; ++retry) {
-            framesRead = decoder->read(buffer, numFrames);
+            framesRead = readDecoderFrames(buffer, numFrames);
             if (framesRead > 0) {
                 return framesRead;
             }
@@ -262,7 +271,7 @@ int AudioEngine::readFromDecoderLocked(float* buffer, int numFrames, int channel
         outputClockSeconds = 0.0;
         timelineSmoothedSeconds = 0.0;
         timelineSmootherInitialized = false;
-        framesRead = decoder->read(buffer, numFrames);
+        framesRead = readDecoderFrames(buffer, numFrames);
         if (framesRead > 0) {
             return framesRead;
         }
@@ -291,7 +300,7 @@ int AudioEngine::readFromDecoderLocked(float* buffer, int numFrames, int channel
             outputClockSeconds = 0.0;
             timelineSmoothedSeconds = 0.0;
             timelineSmootherInitialized = false;
-            framesRead = decoder->read(buffer, numFrames);
+            framesRead = readDecoderFrames(buffer, numFrames);
             if (framesRead > 0) {
                 return framesRead;
             }
@@ -303,7 +312,7 @@ int AudioEngine::readFromDecoderLocked(float* buffer, int numFrames, int channel
             outputClockSeconds = 0.0;
             timelineSmoothedSeconds = 0.0;
             timelineSmootherInitialized = false;
-            framesRead = decoder->read(buffer, numFrames);
+            framesRead = readDecoderFrames(buffer, numFrames);
             if (framesRead > 0) {
                 return framesRead;
             }
@@ -321,7 +330,9 @@ void AudioEngine::renderResampledLocked(
         int32_t numFrames,
         int channels,
         int streamRate,
-        bool& reachedEnd) {
+        bool& reachedEnd,
+        int* renderedFrames) {
+    if (renderedFrames) *renderedFrames = 0;
     if (!decoder || !outputData || numFrames <= 0 || channels <= 0) {
         if (outputData && numFrames > 0) {
             memset(outputData, 0, numFrames * std::max(channels, 1) * sizeof(float));
@@ -342,6 +353,7 @@ void AudioEngine::renderResampledLocked(
             resamplerNoOpLoggedForCurrentTrack = true;
         }
         int framesRead = readFromDecoderLocked(outputData, numFrames, channels, reachedEnd);
+        if (renderedFrames) *renderedFrames = std::max(0, framesRead);
         if (framesRead < numFrames) {
             memset(
                     outputData + (framesRead * channels),
@@ -365,7 +377,7 @@ void AudioEngine::renderResampledLocked(
             );
             resamplerPathLoggedForCurrentTrack = true;
         }
-        renderSoxrResampledLocked(outputData, numFrames, channels, streamRate, renderRate, reachedEnd);
+        renderSoxrResampledLocked(outputData, numFrames, channels, streamRate, renderRate, reachedEnd, renderedFrames);
         return;
     }
 
@@ -473,22 +485,36 @@ void AudioEngine::renderResampledLocked(
         );
         resampleInputStartFrame = 0;
     }
+    if (renderedFrames) *renderedFrames = outFrame;
 }
 
-bool AudioEngine::renderOfflineAudioFrames(float* outputStereo, int numFrames, int sampleRateHz) {
-    if (!outputStereo || numFrames <= 0 || sampleRateHz <= 0) return false;
+void AudioEngine::setOfflineLoopPointRepeatPasses(int passes) {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    offlineLoopPointRepeatPasses.store(std::max(0, passes), std::memory_order_relaxed);
+    if (decoder) decoder->resetLoopPointWrapCount();
+}
+
+int AudioEngine::getOfflineLoopPointWrapCount() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    return decoder ? decoder->getLoopPointWrapCount() : 0;
+}
+
+int AudioEngine::renderOfflineAudioFrames(float* outputStereo, int numFrames, int sampleRateHz) {
+    if (!outputStereo || numFrames <= 0 || sampleRateHz <= 0) return -1;
 
     std::lock_guard<std::mutex> lock(decoderMutex);
-    if (!decoder) return false;
+    if (!decoder) return -1;
 
     const int decodeChannels = std::clamp(decoder->getChannelCount(), 1, 16);
     std::vector<float> buffer(static_cast<size_t>(numFrames) * decodeChannels);
     bool reachedEnd = false;
-    renderResampledLocked(buffer.data(), numFrames, decodeChannels, sampleRateHz, reachedEnd);
+    int renderedFrames = 0;
+    renderResampledLocked(buffer.data(), numFrames, decodeChannels, sampleRateHz, reachedEnd, &renderedFrames);
+    renderedFrames = std::clamp(renderedFrames, 0, numFrames);
 
     if (decodeChannels != 2) {
         if (decodeChannels > 2) {
-            for (int frame = 0; frame < numFrames; ++frame) {
+            for (int frame = 0; frame < renderedFrames; ++frame) {
                 const float* src = buffer.data() + static_cast<size_t>(frame) * decodeChannels;
                 outputStereo[frame * 2] = 0.0f;
                 outputStereo[frame * 2 + 1] = 0.0f;
@@ -504,31 +530,31 @@ bool AudioEngine::renderOfflineAudioFrames(float* outputStereo, int numFrames, i
                 outputStereo[frame * 2 + 1] /= static_cast<float>(rightCount);
             }
         } else {
-            for (int frame = 0; frame < numFrames; ++frame) {
+            for (int frame = 0; frame < renderedFrames; ++frame) {
                 outputStereo[frame * 2] = buffer[frame];
                 outputStereo[frame * 2 + 1] = buffer[frame];
             }
         }
     } else {
-        std::copy(buffer.begin(), buffer.end(), outputStereo);
+        std::copy(buffer.begin(), buffer.begin() + renderedFrames * 2, outputStereo);
     }
 
     const double nextPosition = positionSeconds.load(std::memory_order_relaxed) +
-            static_cast<double>(numFrames) / sampleRateHz;
+            static_cast<double>(renderedFrames) / sampleRateHz;
     const double duration = decoder->getDuration();
     positionSeconds.store(duration > 0.0 ? std::min(nextPosition, duration) : nextPosition,
                           std::memory_order_relaxed);
     const float endFadeGain = computeEndFadeGainLocked(positionSeconds.load(std::memory_order_relaxed));
-    applyGain(outputStereo, numFrames, 2, endFadeGain);
-    applyMasterChannelRouting(outputStereo, numFrames, 2);
-    applyOpenMptDspEffects(outputStereo, numFrames, 2, sampleRateHz);
-    applyMonoDownmix(outputStereo, numFrames, 2);
-    applyOutputLimiter(outputStereo, numFrames, 2);
-    applyLookaheadClipper(outputStereo, numFrames, 2, sampleRateHz);
-    for (int i = 0; i < numFrames * 2; ++i) {
+    applyGain(outputStereo, renderedFrames, 2, endFadeGain);
+    applyMasterChannelRouting(outputStereo, renderedFrames, 2);
+    applyOpenMptDspEffects(outputStereo, renderedFrames, 2, sampleRateHz);
+    applyMonoDownmix(outputStereo, renderedFrames, 2);
+    applyOutputLimiter(outputStereo, renderedFrames, 2);
+    applyLookaheadClipper(outputStereo, renderedFrames, 2, sampleRateHz);
+    for (int i = 0; i < renderedFrames * 2; ++i) {
         outputStereo[i] = std::clamp(outputStereo[i], -1.0f, 1.0f);
     }
-    return true;
+    return renderedFrames;
 }
 
 void AudioEngine::renderSoxrResampledLocked(
@@ -537,11 +563,13 @@ void AudioEngine::renderSoxrResampledLocked(
         int channels,
         int streamRate,
         int renderRate,
-        bool& reachedEnd) {
+        bool& reachedEnd,
+        int* renderedFrames) {
+    if (renderedFrames) *renderedFrames = 0;
     if (!ensureOutputSoxrContextLocked(channels, renderRate, streamRate)) {
         outputSoxrUnavailable = true;
         LOGE("SoX resampler unavailable in current native build, falling back to built-in resampler");
-        renderResampledLocked(outputData, numFrames, channels, streamRate, reachedEnd);
+        renderResampledLocked(outputData, numFrames, channels, streamRate, reachedEnd, renderedFrames);
         return;
     }
 
@@ -631,6 +659,7 @@ void AudioEngine::renderSoxrResampledLocked(
                 (numFrames - outFrame) * channels * sizeof(float)
         );
     }
+    if (renderedFrames) *renderedFrames = outFrame;
 }
 
 void AudioEngine::clearRenderQueue() {
