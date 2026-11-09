@@ -103,15 +103,49 @@ class AndroidMp4MetadataTest {
     }
 
     @Test
-    fun rejects64BitAtomsWithoutChangingFile() {
-        val original = byteArrayOf(0, 0, 0, 1) + "moov".toByteArray() + ByteArray(8)
-        val file = mp4File("64-bit.m4a", original)
+    fun preserves64BitMediaAtoms() {
+        val prefix = atom("ftyp", ByteArray(4)) + largeAtom("mdat", byteArrayOf(5, 6, 7))
+        val originalMoov = atom("moov", atom("mvhd", ByteArray(4)))
+        val file = mp4File("64-bit-media.m4a", prefix + originalMoov)
 
-        assertThrows(IllegalArgumentException::class.java) {
-            writeAndroidMp4Metadata(file, AudioExportMetadata(title = "Song"))
+        writeAndroidMp4Metadata(file, AudioExportMetadata(title = "Song"))
+
+        val bytes = file.readBytes()
+        assertArrayEquals(prefix, bytes.copyOfRange(0, prefix.size))
+        assertContains(bytes, "Song".toByteArray())
+    }
+
+    @Test
+    fun rewrites64BitMoovAndChildrenWithNormalOuterHeader() {
+        val extendedChild = largeAtom("trak", atom("tkhd", ByteArray(4)))
+        val originalMoov = largeAtom("moov", atom("mvhd", ByteArray(4)), extendedChild)
+        val prefix = atom("ftyp", ByteArray(4))
+        val file = mp4File("64-bit-moov.m4a", prefix + originalMoov)
+
+        writeAndroidMp4Metadata(file, AudioExportMetadata(title = "Song"))
+
+        val bytes = file.readBytes()
+        assertArrayEquals(prefix, bytes.copyOfRange(0, prefix.size))
+        assertEquals(bytes.size - prefix.size, readInt(bytes, prefix.size))
+        assertArrayEquals("moov".toByteArray(), bytes.copyOfRange(prefix.size + 4, prefix.size + 8))
+        assertContains(bytes, extendedChild)
+        assertContains(bytes, "Song".toByteArray())
+    }
+
+    @Test
+    fun rejectsMalformed64BitAtomsWithoutChangingFile() {
+        val originals = listOf(
+            byteArrayOf(0, 0, 0, 1) + "moov".toByteArray() + ByteArray(8),
+            byteArrayOf(0, 0, 0, 1) + "moov".toByteArray() + ByteArray(4)
+        )
+
+        originals.forEachIndexed { index, original ->
+            val file = mp4File("bad-64-bit-$index.m4a", original)
+            assertThrows(IllegalArgumentException::class.java) {
+                writeAndroidMp4Metadata(file, AudioExportMetadata(title = "Song"))
+            }
+            assertArrayEquals(original, file.readBytes())
         }
-
-        assertArrayEquals(original, file.readBytes())
     }
 
     @Test
@@ -158,6 +192,17 @@ class AndroidMp4MetadataTest {
         val output = DataOutputStream(bytes)
         output.writeInt(size)
         output.write(type.toByteArray(Charsets.ISO_8859_1))
+        payloads.forEach(output::write)
+        return bytes.toByteArray()
+    }
+
+    private fun largeAtom(type: String, vararg payloads: ByteArray): ByteArray {
+        val size = 16 + payloads.sumOf { it.size }
+        val bytes = ByteArrayOutputStream(size)
+        val output = DataOutputStream(bytes)
+        output.writeInt(1)
+        output.write(type.toByteArray(Charsets.ISO_8859_1))
+        output.writeLong(size.toLong())
         payloads.forEach(output::write)
         return bytes.toByteArray()
     }

@@ -29,7 +29,7 @@ internal fun writeAndroidMp4Metadata(file: File, metadata: AudioExportMetadata) 
     val ilst = mp4Atom("ilst", *items.toTypedArray())
     val meta = mp4Atom("meta", ByteArray(4), mp4MetadataHandlerAtom(), ilst)
     val udta = mp4Atom("udta", meta)
-    val newMoovSize = moov.bytes.size.toLong() + udta.size
+    val newMoovSize = ATOM_HEADER_SIZE + moov.bytes.size - moov.headerSize + udta.size
     require(newMoovSize <= MAX_ATOM_SIZE) { "MP4 metadata is too large." }
 
     val directory = file.absoluteFile.parentFile ?: throw IOException("MP4 file has no parent directory.")
@@ -47,7 +47,12 @@ internal fun writeAndroidMp4Metadata(file: File, metadata: AudioExportMetadata) 
                     remaining -= count
                 }
                 output.writeInt(newMoovSize.toInt())
-                output.write(moov.bytes, 4, moov.bytes.size - 4)
+                output.write(moov.bytes, 4, 4)
+                output.write(
+                    moov.bytes,
+                    moov.headerSize,
+                    moov.bytes.size - moov.headerSize
+                )
                 output.write(udta)
             }
         }
@@ -58,7 +63,7 @@ internal fun writeAndroidMp4Metadata(file: File, metadata: AudioExportMetadata) 
     }
 }
 
-private data class FinalMoovAtom(val offset: Long, val bytes: ByteArray)
+private data class FinalMoovAtom(val offset: Long, val bytes: ByteArray, val headerSize: Int)
 
 private fun readFinalMoovAtom(input: RandomAccessFile): FinalMoovAtom {
     val fileSize = input.length()
@@ -69,10 +74,19 @@ private fun readFinalMoovAtom(input: RandomAccessFile): FinalMoovAtom {
         require(remaining >= ATOM_HEADER_SIZE) { "Truncated MP4 atom header." }
         input.seek(offset)
         val declaredSize = input.readInt().toUnsignedLong()
-        require(declaredSize != 1L) { "64-bit MP4 atoms are not supported." }
         val type = input.readInt()
-        val atomSize = if (declaredSize == 0L) remaining else declaredSize
-        require(atomSize >= ATOM_HEADER_SIZE && atomSize <= remaining) { "Invalid MP4 atom size." }
+        val headerSize = if (declaredSize == 1L) {
+            require(remaining >= EXTENDED_ATOM_HEADER_SIZE) { "Truncated 64-bit MP4 atom header." }
+            EXTENDED_ATOM_HEADER_SIZE
+        } else {
+            ATOM_HEADER_SIZE
+        }
+        val atomSize = when (declaredSize) {
+            0L -> remaining
+            1L -> input.readLong().also { require(it >= 0L) { "MP4 atom is too large." } }
+            else -> declaredSize
+        }
+        require(atomSize >= headerSize && atomSize <= remaining) { "Invalid MP4 atom size." }
         if (type == MOOV_TYPE) {
             require(moov == null) { "MP4 file contains multiple moov atoms." }
             require(atomSize == remaining) { "The MP4 moov atom must be the final atom." }
@@ -80,23 +94,32 @@ private fun readFinalMoovAtom(input: RandomAccessFile): FinalMoovAtom {
             val bytes = ByteArray(atomSize.toInt())
             input.seek(offset)
             input.readFully(bytes)
-            validateMoovChildren(bytes)
-            moov = FinalMoovAtom(offset, bytes)
+            validateMoovChildren(bytes, headerSize.toInt())
+            moov = FinalMoovAtom(offset, bytes, headerSize.toInt())
         }
         offset += atomSize
     }
     return requireNotNull(moov) { "MP4 file has no moov atom." }
 }
 
-private fun validateMoovChildren(moov: ByteArray) {
-    var offset = ATOM_HEADER_SIZE.toInt()
+private fun validateMoovChildren(moov: ByteArray, moovHeaderSize: Int) {
+    var offset = moovHeaderSize
     while (offset < moov.size) {
         val remaining = moov.size - offset
         require(remaining >= ATOM_HEADER_SIZE) { "Truncated atom inside MP4 moov." }
         val declaredSize = readUnsignedInt(moov, offset)
-        require(declaredSize != 1L) { "64-bit atoms inside MP4 moov are not supported." }
-        val atomSize = if (declaredSize == 0L) remaining.toLong() else declaredSize
-        require(atomSize >= ATOM_HEADER_SIZE && atomSize <= remaining) {
+        val headerSize = if (declaredSize == 1L) {
+            require(remaining >= EXTENDED_ATOM_HEADER_SIZE) { "Truncated 64-bit atom inside MP4 moov." }
+            EXTENDED_ATOM_HEADER_SIZE
+        } else {
+            ATOM_HEADER_SIZE
+        }
+        val atomSize = when (declaredSize) {
+            0L -> remaining.toLong()
+            1L -> readLong(moov, offset + ATOM_HEADER_SIZE.toInt())
+            else -> declaredSize
+        }
+        require(atomSize >= headerSize && atomSize <= remaining) {
             "Invalid atom size inside MP4 moov."
         }
         offset += atomSize.toInt()
@@ -155,9 +178,18 @@ private fun readUnsignedInt(bytes: ByteArray, offset: Int): Long {
         (bytes[offset + 3].toLong() and 0xffL)
 }
 
+private fun readLong(bytes: ByteArray, offset: Int): Long {
+    var value = 0L
+    repeat(8) { index ->
+        value = (value shl 8) or (bytes[offset + index].toLong() and 0xffL)
+    }
+    return value
+}
+
 private fun Int.toUnsignedLong(): Long = toLong() and 0xffffffffL
 
 private const val ATOM_HEADER_SIZE = 8L
+private const val EXTENDED_ATOM_HEADER_SIZE = 16L
 private const val MAX_ATOM_SIZE = 0xffffffffL
 private const val MOOV_TYPE = 0x6d6f6f76
 private const val COPY_BUFFER_SIZE = 64 * 1024
