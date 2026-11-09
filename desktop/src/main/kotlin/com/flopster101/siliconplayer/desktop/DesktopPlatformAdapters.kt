@@ -15,7 +15,6 @@ import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportExecutionState
 import com.flopster101.siliconplayer.export.AudioExportPlatformAdapter
 import com.flopster101.siliconplayer.export.AudioExportProgress
-import com.flopster101.siliconplayer.export.AudioExportRepeatChoice
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
 import com.flopster101.siliconplayer.export.LocalAudioExportPlatformAdapter
 import com.flopster101.siliconplayer.library.defaultMusicScanRoot
@@ -353,7 +352,7 @@ private class DesktopAudioExportPlatformAdapter(
         val fraction = match.groupValues[1].toDoubleOrNull()?.div(100.0)?.coerceIn(0.0, 1.0) ?: return
         val totalSeconds = (
             request.renderOptions.durationCapSeconds ?: request.source.durationSeconds
-        ).coerceAtLeast(0.0) * if (request.repeatChoice == AudioExportRepeatChoice.TrackTwice) 2 else 1
+        ).coerceAtLeast(0.0) * request.repeatCount
         val totalFrames = (totalSeconds * request.renderOptions.sampleRateHz).toLong()
         executionState = executionState.copy(
             status = "Encoding audio",
@@ -407,7 +406,7 @@ internal fun buildDesktopAudioExportArguments(request: AudioExportUiRequest): Li
         add(it.toString())
     }
     add("--repeatCount")
-    add(if (request.repeatChoice == AudioExportRepeatChoice.TrackTwice) "2" else "1")
+    add(request.repeatCount.toString())
     add("--useGain")
     add(request.renderOptions.useActiveGain.toString())
     add("--useEffects")

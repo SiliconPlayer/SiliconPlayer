@@ -122,7 +122,7 @@ class AndroidAudioExportService : Service() {
             NativeBridge.setOfflineRenderMode(true)
             applyStoredPluginConfigurationsToNative(prefs)
             pushStoredCoreOptionsToNative(prefs)
-            val repeatCount = if (request.repeatChoice == AudioExportRepeatChoice.TrackTwice) 2 else 1
+            val repeatCount = request.repeatCount.also { require(it > 0) { "Repeat count must be positive." } }
             var framesPerPass = 0L
             var metadata = AudioExportMetadata()
             fun loadPass(finalPass: Boolean) {
@@ -518,7 +518,7 @@ private fun Intent.putExportRequest(request: AudioExportUiRequest): Intent = app
     putExtra("externalBinary", request.externalBinaryLocation)
     putExtra("destination", request.destinationLocation)
     putExtra("includeMetadata", request.includeMetadata)
-    putExtra("repeat", request.repeatChoice.name)
+    putExtra("repeat", request.repeatCount)
     putExtra("sampleRate", request.renderOptions.sampleRateHz)
     putExtra("sampleFormat", request.renderOptions.sampleFormat.storageValue)
     putExtra("durationCap", request.renderOptions.durationCapSeconds ?: 0.0)
@@ -552,7 +552,7 @@ private fun Intent.readAudioExportRequest(): AudioExportUiRequest {
         externalBinaryLocation = getStringExtra("externalBinary"),
         destinationLocation = getStringExtra("destination")!!,
         includeMetadata = getBooleanExtra("includeMetadata", true),
-        repeatChoice = AudioExportRepeatChoice.valueOf(getStringExtra("repeat")!!),
+        repeatCount = getIntExtra("repeat", 1),
         renderOptions = AudioExportRenderOptions(
             sampleRateHz = getIntExtra("sampleRate", 48_000),
             sampleFormat = AudioExportSampleFormat.fromStorage(getStringExtra("sampleFormat"))

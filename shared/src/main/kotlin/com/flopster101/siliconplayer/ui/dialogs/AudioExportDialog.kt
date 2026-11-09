@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -60,8 +62,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -78,7 +82,6 @@ import com.flopster101.siliconplayer.export.AudioExportExecutionState
 import com.flopster101.siliconplayer.export.AudioExportFfmpegMode
 import com.flopster101.siliconplayer.export.AudioExportPlatformAdapter
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
-import com.flopster101.siliconplayer.export.AudioExportRepeatChoice
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
 import com.flopster101.siliconplayer.export.audioExportBitrates
@@ -127,7 +130,7 @@ internal fun AudioExportDialog(
     var useActiveEffects by rememberSaveable { mutableStateOf(true) }
     var customDuration by rememberSaveable { mutableStateOf(false) }
     var durationSecondsText by rememberSaveable { mutableStateOf("120") }
-    var repeatChoice by rememberSaveable { mutableStateOf(AudioExportRepeatChoice.None) }
+    var repeatCountText by rememberSaveable { mutableStateOf("1") }
     var fadeDurationMs by rememberSaveable { mutableIntStateOf(0) }
     var fadeCurve by rememberSaveable { mutableStateOf(EndFadeCurve.EaseOut) }
     var timingExpanded by rememberSaveable { mutableStateOf(false) }
@@ -135,6 +138,8 @@ internal fun AudioExportDialog(
 
     val durationCapSeconds = if (customDuration) durationSecondsText.toDoubleOrNull() else null
     val invalidDuration = customDuration && (durationCapSeconds == null || durationCapSeconds <= 0.0)
+    val repeatCount = repeatCountText.toIntOrNull()
+    val invalidRepeat = repeatCount == null || repeatCount <= 0
     val externalBinaryMissing = encoder == AudioExportEncoder.ExternalFfmpeg &&
         platform.externalBinaryLocation == null
     val destinationLocation = platform.destinationLocation
@@ -145,7 +150,7 @@ internal fun AudioExportDialog(
                 platform.mediaCodecSupportsWebM
         }
     }
-    val canExport = destinationLocation != null && !externalBinaryMissing && !invalidDuration &&
+    val canExport = destinationLocation != null && !externalBinaryMissing && !invalidDuration && !invalidRepeat &&
         (encoder != AudioExportEncoder.MediaCodec || platform.supportedMediaCodecs.contains(codec)) &&
         container in containersFor(codec)
     val isLossless = codec == AudioExportCodec.Flac || codec == AudioExportCodec.Pcm24
@@ -154,7 +159,7 @@ internal fun AudioExportDialog(
         platform.resetDestination(suggestedFileName)
     }
     val sizeEstimate = formatAudioExportSizeEstimate(
-        durationSeconds = durationCapSeconds ?: source.durationSeconds,
+        durationSeconds = (durationCapSeconds ?: source.durationSeconds) * (repeatCount ?: 1),
         container = container,
         codec = codec,
         sampleRateHz = sampleRateHz,
@@ -423,15 +428,13 @@ internal fun AudioExportDialog(
                                         onValueChange = { customDuration = it },
                                         modifier = Modifier.weight(1f)
                                     )
-                                    AudioExportDropdown(
+                                    AudioExportNumericField(
                                         label = "Repeats",
-                                        value = repeatChoice,
-                                        values = listOf(
-                                            AudioExportRepeatChoice.None,
-                                            AudioExportRepeatChoice.TrackTwice
-                                        ),
-                                        valueLabel = { it.label },
-                                        onValueChange = { repeatChoice = it },
+                                        value = repeatCountText,
+                                        onValueChange = { value ->
+                                            if (value.all(Char::isDigit)) repeatCountText = value
+                                        },
+                                        isError = invalidRepeat,
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
@@ -595,7 +598,7 @@ internal fun AudioExportDialog(
                                         externalBinaryLocation = platform.externalBinaryLocation,
                                         destinationLocation = destination,
                                         includeMetadata = includeMetadata && container != AudioExportContainer.Amr,
-                                        repeatChoice = repeatChoice,
+                                        repeatCount = requireNotNull(repeatCount),
                                         renderOptions = AudioExportRenderOptions(
                                             sampleRateHz = sampleRateHz,
                                             sampleFormat = AudioExportSampleFormat.Pcm24,
@@ -738,6 +741,51 @@ private fun AudioExportFieldLabel(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
     )
+}
+
+@Composable
+private fun AudioExportNumericField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    isError: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        AudioExportFieldLabel(label)
+        Surface(
+            modifier = Modifier.fillMaxWidth().clip(Radius.Control),
+            shape = Radius.Control,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant
+            )
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        innerTextField()
+                    }
+                }
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

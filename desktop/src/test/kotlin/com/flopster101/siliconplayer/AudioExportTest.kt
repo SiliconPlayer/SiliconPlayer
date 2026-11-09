@@ -148,11 +148,11 @@ class AudioExportTest {
         val options = parseAudioExportOptions(
             arrayOf(
                 "--input", "song.sid", "--output", "out.flac",
-                "--repeatCount", "2", "--useGain", "false", "--useEffects", "false"
+                "--repeatCount", "1000", "--useGain", "false", "--useEffects", "false"
             )
         )
 
-        assertEquals(2, options.repeatCount)
+        assertEquals(1000, options.repeatCount)
         assertFalse(options.renderOptions.useActiveGain)
         assertFalse(options.renderOptions.useActiveEffects)
         assertThrows(IllegalArgumentException::class.java) {

@@ -93,7 +93,7 @@ internal fun runAudioExport(
     DesktopPaths.install()
     DomainStoreDirs.configDir = DesktopPaths.configDir()
     val prefs = DesktopPreferencesProvider().getPreferences(AppPreferenceKeys.PREFS_NAME)
-    require(options.repeatCount in 1..8) { "Repeat count must be between 1 and 8." }
+    require(options.repeatCount > 0) { "Repeat count must be positive." }
     val session = DesktopPlaybackSession().apply {
         trackOptionsPrefs = prefs
         persistLoadCrashGuard = false
@@ -388,7 +388,7 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
         output = output,
         subtuneIndex = subtuneIndex,
         repeatCount = (intValue("repeatCount") ?: 1).also {
-            require(it in 1..8) { "--repeatCount must be between 1 and 8." }
+            require(it > 0) { "--repeatCount must be positive." }
         },
         ffmpegPath = values["ffmpeg"]?.let(::expandAudioExportPath),
         ffmpegArguments = values["ffmpegArgs"]?.let(::parseFfmpegArgumentList).orEmpty(),
@@ -453,7 +453,7 @@ private fun printAudioExportHelp() {
           -PfadeMs=<0|100..120000>       Export-only fade duration; 0 disables
           -PfadeCurve=<curve>             linear, ease_in, or ease_out
           -PfadeAll=<true|false>          Apply fade to reliable-duration tracks
-          -PrepeatCount=<1..8>            Total whole-track passes (default 1)
+          -PrepeatCount=<1+>              Total whole-track passes (default 1)
           -PuseGain=<true|false>          Use active master/core/song gain
           -PuseEffects=<true|false>       Use active DSP effects
           -Pffmpeg=<path>                 Use a specific FFmpeg executable

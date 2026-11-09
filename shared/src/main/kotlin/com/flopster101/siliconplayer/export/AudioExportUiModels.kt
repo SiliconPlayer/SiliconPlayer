@@ -37,12 +37,6 @@ internal enum class AudioExportCodec(val label: String) {
     Pcm24("PCM 24-bit")
 }
 
-internal enum class AudioExportRepeatChoice(val label: String) {
-    None("None"),
-    TrackTwice("Track ×2"),
-    LoopPointTwice("Loop points ×2")
-}
-
 internal data class AudioExportDialogSource(
     val sourceId: String?,
     val filePath: String?,
@@ -65,7 +59,7 @@ internal data class AudioExportUiRequest(
     val externalBinaryLocation: String?,
     val destinationLocation: String,
     val includeMetadata: Boolean,
-    val repeatChoice: AudioExportRepeatChoice,
+    val repeatCount: Int,
     val renderOptions: AudioExportRenderOptions
 )
 

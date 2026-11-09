@@ -7,7 +7,6 @@ import com.flopster101.siliconplayer.export.AudioExportDialogSource
 import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportFfmpegMode
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
-import com.flopster101.siliconplayer.export.AudioExportRepeatChoice
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
 import com.flopster101.siliconplayer.export.easyFfmpegOutputArguments
 import org.junit.Assert.assertEquals
@@ -76,7 +75,7 @@ class DesktopAudioExportArgumentsTest {
         externalBinaryLocation = "ffmpeg-custom",
         destinationLocation = tempFolder.root.resolve("out.flac").absolutePath,
         includeMetadata = true,
-        repeatChoice = AudioExportRepeatChoice.TrackTwice,
+        repeatCount = 2,
         renderOptions = AudioExportRenderOptions(useActiveGain = false, useActiveEffects = false)
     )
 
