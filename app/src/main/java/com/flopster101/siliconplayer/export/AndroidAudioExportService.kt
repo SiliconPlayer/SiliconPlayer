@@ -41,6 +41,7 @@ import com.flopster101.siliconplayer.audio.resolveEffectiveDspSettings
 import com.flopster101.siliconplayer.hasReliableDuration
 import com.flopster101.siliconplayer.platform.AndroidAppPreferences
 import com.flopster101.siliconplayer.pushStoredCoreOptionsToNative
+import com.flopster101.siliconplayer.pushStoredCorePreferencesToNative
 import com.flopster101.siliconplayer.readPluginVolumeForDecoder
 import java.io.File
 import java.io.OutputStream
@@ -122,6 +123,7 @@ class AndroidAudioExportService : Service() {
             NativeBridge.setOfflineRenderMode(true)
             applyStoredPluginConfigurationsToNative(prefs)
             pushStoredCoreOptionsToNative(prefs)
+            pushStoredCorePreferencesToNative(prefs)
             val repeatCount = request.repeatCount.also { require(it > 0) { "Repeat count must be positive." } }
             var framesPerPass = 0L
             var metadata = AudioExportMetadata()
