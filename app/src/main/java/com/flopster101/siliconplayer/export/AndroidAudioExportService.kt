@@ -487,8 +487,8 @@ private fun readAndroidExportMetadata(source: AudioExportDialogSource): AudioExp
     }
     return AudioExportMetadata(
         title = subtuneTitle
-            ?: NativeBridge.getTrackTitle().trim().takeIf { it.isNotEmpty() }
-            ?: source.title,
+            ?: source.title.trim().takeIf { it.isNotEmpty() }
+            ?: NativeBridge.getTrackTitle().trim().takeIf { it.isNotEmpty() },
         artist = subtuneArtist ?: NativeBridge.getTrackArtist().trim().takeIf { it.isNotEmpty() },
         album = NativeBridge.getTrackAlbum().trim().takeIf { it.isNotEmpty() },
         composer = NativeBridge.getTrackComposer().trim().takeIf { it.isNotEmpty() },
