@@ -125,8 +125,8 @@ class AndroidAudioExportService : Service() {
             val repeatCount = request.repeatCount.also { require(it > 0) { "Repeat count must be positive." } }
             var framesPerPass = 0L
             var metadata = AudioExportMetadata()
-            fun loadPass(finalPass: Boolean) {
-                pushStoredAndroidTrackOptions(prefs, request.renderOptions, finalPass)
+            fun loadPass() {
+                pushStoredAndroidTrackOptions(prefs, request.renderOptions)
                 NativeBridge.stopEngineSyncNative()
                 NativeBridge.loadAudio(input.absolutePath)
                 if (request.source.subtuneCount > 1) {
@@ -163,7 +163,7 @@ class AndroidAudioExportService : Service() {
                 if (framesPerPass == 0L) framesPerPass = frames else check(framesPerPass == frames)
                 metadata = readAndroidExportMetadata(request.source)
             }
-            loadPass(finalPass = repeatCount == 1)
+            loadPass()
             check(framesPerPass > 0L && framesPerPass <= Long.MAX_VALUE / repeatCount) { "Invalid track length." }
             val totalFrames = framesPerPass * repeatCount
             val outputFile = File.createTempFile("audio-export-", ".${request.container.extension}", cacheDir)
@@ -212,12 +212,21 @@ class AndroidAudioExportService : Service() {
                             request.renderOptions.sampleRateHz
                         )
                     ) { "Offline rendering failed." }
+                    applyAudioExportFade(
+                        samples = samples,
+                        frameOffset = totalFrames - remaining,
+                        frameCount = frames,
+                        totalFrames = totalFrames,
+                        fadeDurationMs = request.renderOptions.endFadeDurationMs ?: 0,
+                        fadeCurve = request.renderOptions.endFadeCurve ?: EndFadeCurve.Linear,
+                        sampleRateHz = request.renderOptions.sampleRateHz
+                    )
                     output.write(samples, frames)
                     remaining -= frames
                     framesLeftInPass -= frames
                     if (framesLeftInPass == 0L && remaining > 0L) {
                         currentPass += 1
-                        loadPass(finalPass = currentPass == repeatCount)
+                        loadPass()
                         framesLeftInPass = framesPerPass
                     }
                     val now = System.nanoTime()
@@ -402,8 +411,7 @@ private fun androidExportMimeType(container: AudioExportContainer): String = whe
 
 private fun pushStoredAndroidTrackOptions(
     prefs: AndroidAppPreferences,
-    options: AudioExportRenderOptions,
-    finalPass: Boolean
+    options: AudioExportRenderOptions
 ) {
     val unknownDuration = options.unknownDurationSeconds ?: prefs.getInt(
         AppPreferenceKeys.UNKNOWN_TRACK_DURATION_SECONDS,
@@ -417,27 +425,7 @@ private fun pushStoredAndroidTrackOptions(
     ).forEach { (decoder, key) ->
         NativeBridge.setCoreOption(decoder, key, unknownDuration.toString())
     }
-    NativeBridge.setEndFadeApplyToAllTracks(
-        options.endFadeApplyToAllTracks ?: prefs.getBoolean(
-            AppPreferenceKeys.END_FADE_APPLY_TO_ALL_TRACKS,
-            AppDefaults.Player.endFadeApplyToAllTracks
-        )
-    )
-    NativeBridge.setEndFadeDurationMs(
-        if (finalPass) {
-            options.endFadeDurationMs ?: prefs.getInt(
-                AppPreferenceKeys.END_FADE_DURATION_MS,
-                AppDefaults.Player.endFadeDurationMs
-            )
-        } else {
-            0
-        }
-    )
-    NativeBridge.setEndFadeCurve(
-        (options.endFadeCurve ?: EndFadeCurve.fromStorage(
-            prefs.getString(AppPreferenceKeys.END_FADE_CURVE, AppDefaults.Player.endFadeCurve.storageValue)
-        )).nativeValue
-    )
+    NativeBridge.setEndFadeDurationMs(0)
 }
 
 private fun applyAndroidExportAudioSettings(

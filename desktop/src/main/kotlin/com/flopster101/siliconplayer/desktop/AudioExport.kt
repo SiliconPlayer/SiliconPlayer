@@ -13,6 +13,7 @@ import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import com.flopster101.siliconplayer.export.AudioExportWriter
 import com.flopster101.siliconplayer.export.FfmpegExportWriter
+import com.flopster101.siliconplayer.export.applyAudioExportFade
 import com.flopster101.siliconplayer.export.ffmpegMetadataArguments
 import com.flopster101.siliconplayer.export.parseFfmpegArgumentList
 import com.flopster101.siliconplayer.pushStoredCoreOptionsToNative
@@ -113,10 +114,8 @@ internal fun runAudioExport(
             useActiveGain = options.renderOptions.useActiveGain,
             useActiveEffects = options.renderOptions.useActiveEffects
         )
-        fun loadPass(finalPass: Boolean): String {
-            session.audioExportOptions = options.renderOptions.copy(
-                endFadeDurationMs = if (finalPass) options.renderOptions.endFadeDurationMs else 0
-            )
+        fun loadPass(): String {
+            session.audioExportOptions = options.renderOptions.copy(endFadeDurationMs = 0)
             check(session.loadFile(input, autoStart = false, initialSubtuneIndex = options.subtuneIndex)) {
                 "Could not load input: $input"
             }
@@ -135,7 +134,7 @@ internal fun runAudioExport(
             NativeBridge.setRepeatMode(RepeatMode.None.nativeValue)
             return decoder
         }
-        val decoderName = loadPass(finalPass = options.repeatCount == 1)
+        val decoderName = loadPass()
         val metadata = readDecoderMetadata(session)
 
         val unknownDurationSeconds = options.renderOptions.unknownDurationSeconds
@@ -204,12 +203,21 @@ internal fun runAudioExport(
                 check(NativeBridge.renderOfflineAudioFrames(samples, frames, options.renderOptions.sampleRateHz)) {
                     "Offline audio rendering failed at frame ${totalFrames - remaining}."
                 }
+                applyAudioExportFade(
+                    samples = samples,
+                    frameOffset = totalFrames - remaining,
+                    frameCount = frames,
+                    totalFrames = totalFrames,
+                    fadeDurationMs = options.renderOptions.endFadeDurationMs ?: 0,
+                    fadeCurve = options.renderOptions.endFadeCurve ?: EndFadeCurve.Linear,
+                    sampleRateHz = options.renderOptions.sampleRateHz
+                )
                 writer.write(samples, frames)
                 remaining -= frames
                 framesLeftInPass -= frames
                 if (framesLeftInPass == 0L && remaining > 0L) {
                     currentPass += 1
-                    loadPass(finalPass = currentPass == options.repeatCount)
+                    loadPass()
                     framesLeftInPass = framesPerPass
                 }
                 val now = System.nanoTime()
