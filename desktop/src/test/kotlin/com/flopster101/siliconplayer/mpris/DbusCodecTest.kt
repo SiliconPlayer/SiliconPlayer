@@ -165,7 +165,10 @@ class DbusCodecTest {
 
     @Test
     fun frameRemainderIncludesAlignmentPadding() {
+        // The fixed header ends on an 8-byte boundary, so only a field block
+        // that pushes past it needs padding before the body starts.
         assertEquals(8, dbusFrameRemainderSize(4L, 0L))
-        assertEquals(16, dbusFrameRemainderSize(0L, 8L))
+        assertEquals(16, dbusFrameRemainderSize(4L, 8L))
+        assertEquals(8, dbusFrameRemainderSize(0L, 8L))
     }
 }
