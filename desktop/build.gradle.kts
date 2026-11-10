@@ -252,7 +252,7 @@ tasks.register<JavaExec>("exportAudio") {
     mainClass.set("com.flopster101.siliconplayer.desktop.AudioExportKt")
     val exportArguments = listOf(
         "input", "output", "subtune", "sampleRate", "sampleFormat", "duration",
-        "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount", "loopType", "loopDuration",
+        "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount", "loopType", "loopDuration", "repeatMode",
         "useGain",
         "useEffects", "ffmpeg", "ffmpegArgs"
     )

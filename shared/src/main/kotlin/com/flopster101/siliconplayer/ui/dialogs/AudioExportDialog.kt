@@ -83,6 +83,7 @@ import com.flopster101.siliconplayer.export.AudioExportFfmpegMode
 import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportPlatformAdapter
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
+import com.flopster101.siliconplayer.export.AudioExportRepeatMode
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
 import com.flopster101.siliconplayer.export.audioExportBitrates
@@ -133,6 +134,7 @@ internal fun AudioExportDialog(
     var customDuration by rememberSaveable { mutableStateOf(false) }
     var durationSecondsText by rememberSaveable { mutableStateOf("120") }
     var loopType by rememberSaveable { mutableStateOf(AudioExportLoopType.Repeat) }
+    var repeatMode by rememberSaveable { mutableStateOf(AudioExportRepeatMode.LoopPoint) }
     var repeatCountText by rememberSaveable { mutableStateOf("1") }
     var loopDurationText by rememberSaveable(source.sourceId) { mutableStateOf(formatTime(source.durationSeconds)) }
     var fadeDurationMs by rememberSaveable { mutableIntStateOf(0) }
@@ -449,24 +451,34 @@ internal fun AudioExportDialog(
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
-                                AudioExportInputField(
-                                    label = if (loopType == AudioExportLoopType.Repeat) "Repeats" else "Loop duration",
-                                    value = if (loopType == AudioExportLoopType.Repeat) repeatCountText else loopDurationText,
-                                    onValueChange = { value ->
-                                        if (loopType == AudioExportLoopType.Repeat) {
-                                            if (value.all(Char::isDigit)) repeatCountText = value
-                                        } else if (value.all { it.isDigit() || it == ':' || it == '.' }) {
-                                            loopDurationText = value
-                                        }
-                                    },
-                                    isError = invalidRepeat || invalidLoopDuration,
-                                    keyboardType = if (loopType == AudioExportLoopType.Repeat) {
-                                        KeyboardType.Number
-                                    } else {
-                                        KeyboardType.Text
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    AudioExportInputField(
+                                        label = if (loopType == AudioExportLoopType.Repeat) "Repeats" else "Loop duration",
+                                        value = if (loopType == AudioExportLoopType.Repeat) repeatCountText else loopDurationText,
+                                        onValueChange = { value ->
+                                            if (loopType == AudioExportLoopType.Repeat) {
+                                                if (value.all(Char::isDigit)) repeatCountText = value
+                                            } else if (value.all { it.isDigit() || it == ':' || it == '.' }) {
+                                                loopDurationText = value
+                                            }
+                                        },
+                                        isError = invalidRepeat || invalidLoopDuration,
+                                        keyboardType = if (loopType == AudioExportLoopType.Repeat) {
+                                            KeyboardType.Number
+                                        } else {
+                                            KeyboardType.Text
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    AudioExportDropdown(
+                                        label = "Repeat mode",
+                                        value = repeatMode,
+                                        values = AudioExportRepeatMode.entries,
+                                        valueLabel = { it.label },
+                                        onValueChange = { repeatMode = it },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                                 if (customDuration) {
                                     OutlinedTextField(
                                         value = durationSecondsText,
@@ -628,6 +640,7 @@ internal fun AudioExportDialog(
                                         destinationLocation = destination,
                                         includeMetadata = includeMetadata && container != AudioExportContainer.Amr,
                                         loopType = loopType,
+                                        repeatMode = repeatMode,
                                         repeatCount = if (loopType == AudioExportLoopType.Repeat) {
                                             requireNotNull(repeatCount)
                                         } else {

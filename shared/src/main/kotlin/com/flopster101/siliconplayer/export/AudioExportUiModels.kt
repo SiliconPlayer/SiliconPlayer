@@ -42,6 +42,11 @@ internal enum class AudioExportLoopType(val label: String) {
     Duration("Duration")
 }
 
+internal enum class AudioExportRepeatMode(val label: String, val storageValue: String) {
+    Track("Track", "track"),
+    LoopPoint("Loop point", "loop_point")
+}
+
 internal data class AudioExportDialogSource(
     val sourceId: String?,
     val filePath: String?,
@@ -65,6 +70,7 @@ internal data class AudioExportUiRequest(
     val destinationLocation: String,
     val includeMetadata: Boolean,
     val loopType: AudioExportLoopType,
+    val repeatMode: AudioExportRepeatMode,
     val repeatCount: Int,
     val loopDurationSeconds: Double?,
     val renderOptions: AudioExportRenderOptions

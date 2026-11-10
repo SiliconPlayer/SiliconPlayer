@@ -8,6 +8,7 @@ import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportFfmpegMode
 import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
+import com.flopster101.siliconplayer.export.AudioExportRepeatMode
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
 import com.flopster101.siliconplayer.export.easyFfmpegOutputArguments
 import org.junit.Assert.assertEquals
@@ -32,6 +33,7 @@ class DesktopAudioExportArgumentsTest {
         assertEquals("3", arguments.valueAfter("--subtune"))
         assertEquals("2", arguments.valueAfter("--repeatCount"))
         assertEquals("Repeat", arguments.valueAfter("--loopType"))
+        assertEquals("loop_point", arguments.valueAfter("--repeatMode"))
         assertEquals("false", arguments.valueAfter("--useGain"))
         assertEquals("false", arguments.valueAfter("--useEffects"))
         assertEquals("ffmpeg-custom", arguments.valueAfter("--ffmpeg"))
@@ -93,6 +95,7 @@ class DesktopAudioExportArgumentsTest {
         destinationLocation = tempFolder.root.resolve("out.flac").absolutePath,
         includeMetadata = true,
         loopType = AudioExportLoopType.Repeat,
+        repeatMode = AudioExportRepeatMode.LoopPoint,
         repeatCount = 2,
         loopDurationSeconds = null,
         renderOptions = AudioExportRenderOptions(useActiveGain = false, useActiveEffects = false)

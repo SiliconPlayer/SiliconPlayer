@@ -12,6 +12,7 @@ import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
+import com.flopster101.siliconplayer.export.AudioExportRepeatMode
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import com.flopster101.siliconplayer.export.AudioExportWriter
 import com.flopster101.siliconplayer.export.FfmpegExportWriter
@@ -39,6 +40,7 @@ internal data class AudioExportOptions(
     val subtuneIndex: Int?,
     val repeatCount: Int = 1,
     val loopType: AudioExportLoopType = AudioExportLoopType.Repeat,
+    val repeatMode: AudioExportRepeatMode = AudioExportRepeatMode.LoopPoint,
     val loopDurationSeconds: Double? = null,
     val renderOptions: AudioExportRenderOptions,
     val ffmpegPath: File?,
@@ -174,11 +176,12 @@ internal fun runAudioExport(
             val rawFrames = ceil(duration * options.renderOptions.sampleRateHz)
             check(rawFrames > 0.0 && rawFrames <= Long.MAX_VALUE.toDouble()) { "Invalid loop duration." }
             totalFrames = rawFrames.toLong()
-            if (loopPointSupported) {
+            if (loopPointSupported && options.repeatMode == AudioExportRepeatMode.LoopPoint) {
                 useLoopPoint = true
                 applyRepeatMode(loopPoint = true, counted = false)
             }
-        } else if (options.repeatCount > 1 && loopPointSupported) {
+        } else if (options.repeatCount > 1 && loopPointSupported &&
+            options.repeatMode == AudioExportRepeatMode.LoopPoint) {
             applyRepeatMode(loopPoint = true, counted = true)
             var probedFrames = 0L
             val samples = FloatArray(EXPORT_CHUNK_FRAMES * EXPORT_CHANNELS)
@@ -416,7 +419,7 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
         }
         require(name in setOf(
             "input", "output", "subtune", "sampleRate", "sampleFormat", "duration",
-            "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount", "loopType", "loopDuration",
+            "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount", "loopType", "loopDuration", "repeatMode",
             "useGain", "useEffects", "ffmpeg", "ffmpegArgs"
         )) { "Unknown option: --$name" }
         require(index + 1 < args.size) { "Missing value for --$name" }
@@ -467,6 +470,10 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
             AudioExportLoopType.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
                 ?: throw IllegalArgumentException("--loopType must be Repeat or Duration.")
         } ?: AudioExportLoopType.Repeat,
+        repeatMode = values["repeatMode"]?.let { raw ->
+            AudioExportRepeatMode.entries.firstOrNull { it.storageValue == raw }
+                ?: throw IllegalArgumentException("--repeatMode must be track or loop_point.")
+        } ?: AudioExportRepeatMode.LoopPoint,
         loopDurationSeconds = doubleValue("loopDuration").also {
             require(it == null || it.isFinite() && it > 0.0) { "--loopDuration must be positive." }
         },
@@ -536,6 +543,7 @@ private fun printAudioExportHelp() {
           -PrepeatCount=<1+>              Total loop-point/track passes (default 1)
           -PloopType=Repeat|Duration      Counted passes or fixed total duration
           -PloopDuration=<seconds>     Required with loopType=Duration
+          -PrepeatMode=track|loop_point   Repeat mode for counted passes (default loop_point)
           -PuseGain=<true|false>          Use active master/core/song gain
           -PuseEffects=<true|false>       Use active DSP effects
           -Pffmpeg=<path>                 Use a specific FFmpeg executable

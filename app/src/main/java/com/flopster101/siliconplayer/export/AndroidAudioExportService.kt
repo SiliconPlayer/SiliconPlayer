@@ -183,11 +183,12 @@ class AndroidAudioExportService : Service() {
                 val rawFrames = ceil(duration * request.renderOptions.sampleRateHz)
                 check(rawFrames > 0.0 && rawFrames <= Long.MAX_VALUE.toDouble()) { "Invalid loop duration." }
                 totalFrames = rawFrames.toLong()
-                if (loopPointSupported) {
+                if (loopPointSupported && request.repeatMode == AudioExportRepeatMode.LoopPoint) {
                     useLoopPoint = true
                     applyRepeatMode(loopPoint = true, counted = false)
                 }
-            } else if (repeatCount > 1 && loopPointSupported) {
+            } else if (repeatCount > 1 && loopPointSupported &&
+                request.repeatMode == AudioExportRepeatMode.LoopPoint) {
                 applyRepeatMode(loopPoint = true, counted = true)
                 var probedFrames = 0L
                 val samples = FloatArray(4096 * 2)
@@ -564,6 +565,7 @@ private fun Intent.putExportRequest(request: AudioExportUiRequest): Intent = app
     putExtra("destination", request.destinationLocation)
     putExtra("includeMetadata", request.includeMetadata)
     putExtra("loopType", request.loopType.name)
+    putExtra("repeatMode", request.repeatMode.storageValue)
     putExtra("repeat", request.repeatCount)
     putExtra("loopDuration", request.loopDurationSeconds ?: 0.0)
     putExtra("sampleRate", request.renderOptions.sampleRateHz)
@@ -600,6 +602,9 @@ private fun Intent.readAudioExportRequest(): AudioExportUiRequest {
         destinationLocation = getStringExtra("destination")!!,
         includeMetadata = getBooleanExtra("includeMetadata", true),
         loopType = AudioExportLoopType.valueOf(getStringExtra("loopType") ?: AudioExportLoopType.Repeat.name),
+        repeatMode = getStringExtra("repeatMode")?.let { raw ->
+            AudioExportRepeatMode.entries.first { it.storageValue == raw }
+        } ?: AudioExportRepeatMode.LoopPoint,
         repeatCount = getIntExtra("repeat", 1),
         loopDurationSeconds = getDoubleExtra("loopDuration", 0.0).takeIf { it > 0.0 },
         renderOptions = AudioExportRenderOptions(

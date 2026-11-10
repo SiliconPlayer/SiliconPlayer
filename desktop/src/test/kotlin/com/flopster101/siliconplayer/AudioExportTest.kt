@@ -7,6 +7,7 @@ import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
+import com.flopster101.siliconplayer.export.AudioExportRepeatMode
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import com.flopster101.siliconplayer.export.ffmpegMetadataArguments
 import com.flopster101.siliconplayer.export.parseFfmpegArgumentList
@@ -140,7 +141,7 @@ class AudioExportTest {
             parseAudioExportOptions(arrayOf("--input", "in.sid", "--output", "out.wav", "--sampleFormat", "mp3"))
         }
         assertThrows(IllegalArgumentException::class.java) {
-            parseAudioExportOptions(arrayOf("--input", "in.sid", "--output", "out.wav", "--repeatMode", "track"))
+            parseAudioExportOptions(arrayOf("--input", "in.sid", "--output", "out.wav", "--repeatMode", "playlist"))
         }
     }
 
@@ -154,6 +155,7 @@ class AudioExportTest {
         )
 
         assertEquals(1000, options.repeatCount)
+        assertEquals(AudioExportRepeatMode.LoopPoint, options.repeatMode)
         assertFalse(options.renderOptions.useActiveGain)
         assertFalse(options.renderOptions.useActiveEffects)
         assertThrows(IllegalArgumentException::class.java) {
@@ -161,6 +163,19 @@ class AudioExportTest {
                 arrayOf("--input", "song.sid", "--output", "out.flac", "--repeatCount", "0")
             )
         }
+    }
+
+    @Test
+    fun parsesExplicitWholeTrackRepeatMode() {
+        val options = parseAudioExportOptions(
+            arrayOf(
+                "--input", "song.sid", "--output", "out.flac",
+                "--repeatCount", "3", "--repeatMode", "track"
+            )
+        )
+
+        assertEquals(AudioExportRepeatMode.Track, options.repeatMode)
+        assertEquals(3, options.repeatCount)
     }
 
     @Test

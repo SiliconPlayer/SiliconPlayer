@@ -416,6 +416,8 @@ internal fun buildDesktopAudioExportArguments(request: AudioExportUiRequest): Li
     add(request.repeatCount.toString())
     add("--loopType")
     add(request.loopType.name)
+    add("--repeatMode")
+    add(request.repeatMode.storageValue)
     request.loopDurationSeconds?.let {
         add("--loopDuration")
         add(it.toString())
