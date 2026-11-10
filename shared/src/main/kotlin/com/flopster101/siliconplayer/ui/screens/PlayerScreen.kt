@@ -37,6 +37,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -73,6 +75,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.focusable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -94,6 +98,7 @@ import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
@@ -2649,6 +2654,7 @@ private fun PlayerTopBar(
     val audioRouteManager = LocalAudioRouteManager.current
     val outputRouteInfo = audioRouteManager.rememberCurrentRoute()
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showMoreSubmenu by remember { mutableStateOf(false) }
     val routePillFocusRequester = remember { FocusRequester() }
     val playlistFocusRequester = remember { FocusRequester() }
     val moreOptionsFocusRequester = remember { FocusRequester() }
@@ -2811,7 +2817,10 @@ private fun PlayerTopBar(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClick = { showMoreMenu = true }
+                            onClick = {
+                                showMoreSubmenu = false
+                                showMoreMenu = true
+                            }
                         )
                         .focusable(),
                     contentAlignment = Alignment.Center
@@ -2830,196 +2839,266 @@ private fun PlayerTopBar(
                 ) {
                     DropdownMenu(
                         expanded = showMoreMenu,
-                        onDismissRequest = { showMoreMenu = false },
+                        onDismissRequest = {
+                            showMoreMenu = false
+                            showMoreSubmenu = false
+                        },
                         offset = DpOffset(x = 0.dp, y = 8.dp)
                     ) {
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "Add to playlist...",
-                                style = MaterialTheme.typography.bodyLarge
+                    AnimatedContent(
+                        targetState = showMoreSubmenu,
+                        transitionSpec = {
+                            val direction = if (targetState) 1 else -1
+                            val enter = slideInHorizontally(
+                                initialOffsetX = { fullWidth -> fullWidth * direction },
+                                animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
+                            ) + fadeIn(
+                                animationSpec = tween(durationMillis = 120)
                             )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp)
+                            val exit = slideOutHorizontally(
+                                targetOffsetX = { fullWidth -> -fullWidth * direction },
+                                animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
+                            ) + fadeOut(
+                                animationSpec = tween(durationMillis = 120)
                             )
+                            enter togetherWith exit
                         },
-                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                        colors = MenuDefaults.itemColors(
-                            textColor = MaterialTheme.colorScheme.onSurface,
-                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        onClick = {
-                            showMoreMenu = false
-                            onOpenAddToPlaylist()
-                        }
-                    )
-
-                    if (onOpenAudioExport != null) {
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = "Export audio...",
-                                    style = MaterialTheme.typography.bodyLarge
+                        label = "moreMenu"
+                    ) { submenu ->
+                        if (submenu) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                DropdownMenuItem(
+                                    text = { Text("More", style = MaterialTheme.typography.bodyLarge) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = "Back to main menu",
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                    onClick = { showMoreSubmenu = false }
                                 )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.FileDownload,
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                )
+
+                                DropdownMenuItem(
+                                    text = { Text("Export audio...", style = MaterialTheme.typography.bodyLarge) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.FileDownload,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                    onClick = {
+                                        showMoreMenu = false
+                                        showMoreSubmenu = false
+                                        onOpenAudioExport?.invoke()
+                                    }
+                                )
+                            }
+                        } else {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Add to playlist...",
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                    colors = MenuDefaults.itemColors(
+                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    onClick = {
+                                        showMoreMenu = false
+                                        onOpenAddToPlaylist()
+                                    }
+                                )
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                )
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Audio effects",
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Tune,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                    colors = MenuDefaults.itemColors(
+                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    onClick = {
+                                        showMoreMenu = false
+                                        onOpenAudioEffects()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Channel controls",
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = AirwaveIcon,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                    colors = MenuDefaults.itemColors(
+                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    onClick = {
+                                        showMoreMenu = false
+                                        onOpenChannelControls()
+                                    }
+                                )
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                )
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Visualizations",
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.GraphicEq,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                    colors = MenuDefaults.itemColors(
+                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    onClick = {
+                                        showMoreMenu = false
+                                        onOpenVisualizationPicker()
+                                    }
+                                )
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Track and decoder info",
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Info,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                    colors = MenuDefaults.itemColors(
+                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    onClick = {
+                                        showMoreMenu = false
+                                        onOpenTrackInfo()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Decoder settings",
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = SettingsApplicationsIcon,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                    enabled = canOpenCoreSettings,
+                                    colors = MenuDefaults.itemColors(
+                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                    ),
+                                    onClick = {
+                                        showMoreMenu = false
+                                        onOpenCoreSettings()
+                                    }
+                                )
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                )
+
+                                if (onOpenAudioExport != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("More", style = MaterialTheme.typography.bodyLarge) },
+                                        leadingIcon = {
+                                            Icon(
+                                    imageVector = Icons.Default.MoreHoriz,
                                     contentDescription = null,
                                     modifier = Modifier.size(22.dp)
                                 )
-                            },
-                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                            colors = MenuDefaults.itemColors(
-                                textColor = MaterialTheme.colorScheme.onSurface,
-                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            onClick = {
-                                showMoreMenu = false
-                                onOpenAudioExport.invoke()
+                                        },
+                                        trailingIcon = {
+                                            Icon(
+                                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                                null,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        },
+                                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = MaterialTheme.colorScheme.onSurface,
+                                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            trailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        onClick = { showMoreSubmenu = true }
+                                    )
+                                }
                             }
-                        )
+                        }
                     }
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                    )
-
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "Audio effects",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        },
-                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                        colors = MenuDefaults.itemColors(
-                            textColor = MaterialTheme.colorScheme.onSurface,
-                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        onClick = {
-                            showMoreMenu = false
-                            onOpenAudioEffects()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "Channel controls",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = AirwaveIcon,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        },
-                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                        colors = MenuDefaults.itemColors(
-                            textColor = MaterialTheme.colorScheme.onSurface,
-                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        onClick = {
-                            showMoreMenu = false
-                            onOpenChannelControls()
-                        }
-                    )
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                    )
-
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "Visualizations",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.GraphicEq,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        },
-                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                        colors = MenuDefaults.itemColors(
-                            textColor = MaterialTheme.colorScheme.onSurface,
-                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        onClick = {
-                            showMoreMenu = false
-                            onOpenVisualizationPicker()
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "Track and decoder info",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        },
-                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                        colors = MenuDefaults.itemColors(
-                            textColor = MaterialTheme.colorScheme.onSurface,
-                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        onClick = {
-                            showMoreMenu = false
-                            onOpenTrackInfo()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "Decoder settings",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = SettingsApplicationsIcon,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        },
-                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                        enabled = canOpenCoreSettings,
-                        colors = MenuDefaults.itemColors(
-                            textColor = MaterialTheme.colorScheme.onSurface,
-                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                        ),
-                        onClick = {
-                            showMoreMenu = false
-                            onOpenCoreSettings()
-                        }
-                    )
                 }
             }
         }
