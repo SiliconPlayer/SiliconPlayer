@@ -3066,12 +3066,11 @@ private fun PlayerTopBar(
                                     }
                                 )
 
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                                )
-
                                 if (onOpenAudioExport != null) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                    )
                                     DropdownMenuItem(
                                         text = { Text("More", style = MaterialTheme.typography.bodyLarge) },
                                         leadingIcon = {
