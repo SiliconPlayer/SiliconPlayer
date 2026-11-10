@@ -1,7 +1,9 @@
 package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.export.applyAudioExportFade
+import com.flopster101.siliconplayer.export.audioExportFadeFrames
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AudioExportFadeTest {
@@ -65,6 +67,13 @@ class AudioExportFadeTest {
         )
 
         assertArrayEquals(floatArrayOf(1f, 1f, 0.6667f, 0.6667f, 0.3333f, 0.3333f, 0f, 0f), samples, 0.0001f)
+    }
+
+    @Test
+    fun fadeFrameCountRoundsUpWithoutClampingExtension() {
+        assertEquals(0L, audioExportFadeFrames(0, 48_000))
+        assertEquals(48L, audioExportFadeFrames(1, 48_000))
+        assertEquals(48_000L, audioExportFadeFrames(1_000, 48_000))
     }
 
     @Test

@@ -47,6 +47,11 @@ internal enum class AudioExportRepeatMode(val label: String, val storageValue: S
     LoopPoint("Loop point", "loop_point")
 }
 
+enum class AudioExportFadePlacement(val label: String, val storageValue: String) {
+    Tail("Song tail", "tail"),
+    NextLoop("Next loop head", "next_loop")
+}
+
 internal data class AudioExportDialogSource(
     val sourceId: String?,
     val filePath: String?,

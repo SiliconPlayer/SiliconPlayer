@@ -18,10 +18,7 @@ internal fun applyAudioExportFade(
     require(frameOffset <= totalFrames - frameCount) { "Frames exceed the export duration." }
     if (fadeDurationMs <= 0 || totalFrames == 0L) return
     require(sampleRateHz > 0) { "Sample rate must be positive." }
-    val fadeFrames = minOf(
-        totalFrames,
-        (fadeDurationMs.toLong() * sampleRateHz + 999L) / 1_000L
-    )
+    val fadeFrames = minOf(totalFrames, audioExportFadeFrames(fadeDurationMs, sampleRateHz))
     if (fadeFrames <= 0L) return
     val fadeStart = totalFrames - fadeFrames
     val denominator = (fadeFrames - 1L).coerceAtLeast(1L).toDouble()
@@ -38,6 +35,12 @@ internal fun applyAudioExportFade(
         samples[frame * 2] *= gain
         samples[frame * 2 + 1] *= gain
     }
+}
+
+internal fun audioExportFadeFrames(fadeDurationMs: Int, sampleRateHz: Int): Long {
+    if (fadeDurationMs <= 0) return 0L
+    require(sampleRateHz > 0) { "Sample rate must be positive." }
+    return (fadeDurationMs.toLong() * sampleRateHz + 999L) / 1_000L
 }
 
 private const val EXPORT_STEREO_CHANNELS = 2

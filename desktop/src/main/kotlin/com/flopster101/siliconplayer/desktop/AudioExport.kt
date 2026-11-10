@@ -8,6 +8,7 @@ import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.REPEAT_CAP_LOOP_POINT
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.applyStoredPluginConfigurationsToNative
+import com.flopster101.siliconplayer.export.AudioExportFadePlacement
 import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportProgress
@@ -17,6 +18,7 @@ import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import com.flopster101.siliconplayer.export.AudioExportWriter
 import com.flopster101.siliconplayer.export.FfmpegExportWriter
 import com.flopster101.siliconplayer.export.applyAudioExportFade
+import com.flopster101.siliconplayer.export.audioExportFadeFrames
 import com.flopster101.siliconplayer.export.ffmpegMetadataArguments
 import com.flopster101.siliconplayer.export.parseFfmpegArgumentList
 import com.flopster101.siliconplayer.pushStoredCoreOptionsToNative
@@ -120,11 +122,20 @@ internal fun runAudioExport(
             useActiveGain = options.renderOptions.useActiveGain,
             useActiveEffects = options.renderOptions.useActiveEffects
         )
+        val fadeExtensionFrames = if (options.renderOptions.endFadePlacement == AudioExportFadePlacement.NextLoop) {
+            audioExportFadeFrames(
+                options.renderOptions.endFadeDurationMs ?: 0,
+                options.renderOptions.sampleRateHz
+            )
+        } else {
+            0L
+        }
+        var loopPassLimit = options.repeatCount
         fun applyRepeatMode(loopPoint: Boolean, counted: Boolean) {
             NativeBridge.setRepeatMode(
                 if (loopPoint) RepeatMode.LoopPoint.nativeValue else RepeatMode.None.nativeValue
             )
-            NativeBridge.setOfflineLoopPointRepeatPasses(if (loopPoint && counted) options.repeatCount else 0)
+            NativeBridge.setOfflineLoopPointRepeatPasses(if (loopPoint && counted) loopPassLimit else 0)
         }
         fun loadPass(loopPoint: Boolean = false, counted: Boolean = false): String {
             session.audioExportOptions = options.renderOptions.copy(endFadeDurationMs = 0)
@@ -170,17 +181,17 @@ internal fun runAudioExport(
         val wholeTrackFrames = framesPerPass * options.repeatCount
         val loopPointSupported = NativeBridge.getRepeatModeCapabilities() and REPEAT_CAP_LOOP_POINT != 0
         var useLoopPoint = false
-        var totalFrames = wholeTrackFrames
+        var totalFrames = Math.addExact(wholeTrackFrames, fadeExtensionFrames)
         if (options.loopType == AudioExportLoopType.Duration) {
             val duration = requireNotNull(options.loopDurationSeconds) { "Loop duration is required." }
             val rawFrames = ceil(duration * options.renderOptions.sampleRateHz)
             check(rawFrames > 0.0 && rawFrames <= Long.MAX_VALUE.toDouble()) { "Invalid loop duration." }
-            totalFrames = rawFrames.toLong()
+            totalFrames = Math.addExact(rawFrames.toLong(), fadeExtensionFrames)
             if (loopPointSupported && options.repeatMode == AudioExportRepeatMode.LoopPoint) {
                 useLoopPoint = true
                 applyRepeatMode(loopPoint = true, counted = false)
             }
-        } else if (options.repeatCount > 1 && loopPointSupported &&
+        } else if ((options.repeatCount > 1 || fadeExtensionFrames > 0L) && loopPointSupported &&
             options.repeatMode == AudioExportRepeatMode.LoopPoint) {
             applyRepeatMode(loopPoint = true, counted = true)
             var probedFrames = 0L
@@ -200,7 +211,8 @@ internal fun runAudioExport(
             }
             if (probedFrames >= framesPerPass && NativeBridge.getOfflineLoopPointWrapCount() >= options.repeatCount) {
                 useLoopPoint = true
-                totalFrames = probedFrames
+                totalFrames = Math.addExact(probedFrames, fadeExtensionFrames)
+                if (fadeExtensionFrames > 0L) loopPassLimit = Math.addExact(options.repeatCount, 1)
             }
             loadPass(loopPoint = useLoopPoint, counted = useLoopPoint)
         }
@@ -419,7 +431,7 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
         }
         require(name in setOf(
             "input", "output", "subtune", "sampleRate", "sampleFormat", "duration",
-            "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount", "loopType", "loopDuration", "repeatMode",
+            "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount", "loopType", "loopDuration", "repeatMode", "fadePlacement",
             "useGain", "useEffects", "ffmpeg", "ffmpegArgs"
         )) { "Unknown option: --$name" }
         require(index + 1 < args.size) { "Missing value for --$name" }
@@ -487,6 +499,10 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
             endFadeDurationMs = intValue("fadeMs"),
             endFadeCurve = fadeCurve,
             endFadeApplyToAllTracks = fadeAll,
+            endFadePlacement = values["fadePlacement"]?.let { raw ->
+                AudioExportFadePlacement.entries.firstOrNull { it.storageValue == raw }
+                    ?: throw IllegalArgumentException("--fadePlacement must be tail or next_loop.")
+            } ?: AudioExportFadePlacement.Tail,
             useActiveGain = booleanValue("useGain") ?: true,
             useActiveEffects = booleanValue("useEffects") ?: true
         ),
@@ -544,6 +560,7 @@ private fun printAudioExportHelp() {
           -PloopType=Repeat|Duration      Counted passes or fixed total duration
           -PloopDuration=<seconds>     Required with loopType=Duration
           -PrepeatMode=track|loop_point   Repeat mode for counted passes (default loop_point)
+          -PfadePlacement=tail|next_loop  Fade final song tail or next loop head
           -PuseGain=<true|false>          Use active master/core/song gain
           -PuseEffects=<true|false>       Use active DSP effects
           -Pffmpeg=<path>                 Use a specific FFmpeg executable

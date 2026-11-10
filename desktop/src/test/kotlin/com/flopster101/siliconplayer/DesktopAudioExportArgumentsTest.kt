@@ -5,6 +5,7 @@ import com.flopster101.siliconplayer.export.AudioExportCodec
 import com.flopster101.siliconplayer.export.AudioExportContainer
 import com.flopster101.siliconplayer.export.AudioExportDialogSource
 import com.flopster101.siliconplayer.export.AudioExportEncoder
+import com.flopster101.siliconplayer.export.AudioExportFadePlacement
 import com.flopster101.siliconplayer.export.AudioExportFfmpegMode
 import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
@@ -34,6 +35,7 @@ class DesktopAudioExportArgumentsTest {
         assertEquals("2", arguments.valueAfter("--repeatCount"))
         assertEquals("Repeat", arguments.valueAfter("--loopType"))
         assertEquals("loop_point", arguments.valueAfter("--repeatMode"))
+        assertEquals("tail", arguments.valueAfter("--fadePlacement"))
         assertEquals("false", arguments.valueAfter("--useGain"))
         assertEquals("false", arguments.valueAfter("--useEffects"))
         assertEquals("ffmpeg-custom", arguments.valueAfter("--ffmpeg"))

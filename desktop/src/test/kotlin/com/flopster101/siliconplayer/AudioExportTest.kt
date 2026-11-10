@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer
 import com.flopster101.siliconplayer.desktop.moveCompletedExport
 import com.flopster101.siliconplayer.desktop.parseAudioExportOptions
 import com.flopster101.siliconplayer.desktop.resolveFfmpegExecutable
+import com.flopster101.siliconplayer.export.AudioExportFadePlacement
 import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportProgress
@@ -176,6 +177,18 @@ class AudioExportTest {
 
         assertEquals(AudioExportRepeatMode.Track, options.repeatMode)
         assertEquals(3, options.repeatCount)
+    }
+
+    @Test
+    fun parsesNextLoopFadePlacement() {
+        val options = parseAudioExportOptions(
+            arrayOf(
+                "--input", "song.sid", "--output", "out.flac",
+                "--fadeMs", "5000", "--fadePlacement", "next_loop"
+            )
+        )
+
+        assertEquals(AudioExportFadePlacement.NextLoop, options.renderOptions.endFadePlacement)
     }
 
     @Test

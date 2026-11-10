@@ -25,6 +25,7 @@ data class AudioExportRenderOptions(
     val endFadeDurationMs: Int? = null,
     val endFadeCurve: EndFadeCurve? = null,
     val endFadeApplyToAllTracks: Boolean? = null,
+    val endFadePlacement: AudioExportFadePlacement = AudioExportFadePlacement.Tail,
     val useActiveGain: Boolean = true,
     val useActiveEffects: Boolean = true
 ) {

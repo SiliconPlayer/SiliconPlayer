@@ -13,6 +13,7 @@ import com.flopster101.siliconplayer.LocalDecoderPlatform
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportExecutionState
+import com.flopster101.siliconplayer.export.AudioExportFadePlacement
 import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportPlatformAdapter
 import com.flopster101.siliconplayer.export.AudioExportProgress
@@ -359,6 +360,10 @@ private class DesktopAudioExportPlatformAdapter(
             } else {
                 duration * request.repeatCount
             }
+        } + if (request.renderOptions.endFadePlacement == AudioExportFadePlacement.NextLoop) {
+            (request.renderOptions.endFadeDurationMs ?: 0) / 1_000.0
+        } else {
+            0.0
         }
         val totalFrames = (totalSeconds * request.renderOptions.sampleRateHz).toLong()
         executionState = executionState.copy(
@@ -403,6 +408,10 @@ internal fun buildDesktopAudioExportArguments(request: AudioExportUiRequest): Li
     request.renderOptions.endFadeDurationMs?.let {
         add("--fadeMs")
         add(it.toString())
+    }
+    request.renderOptions.endFadePlacement.let {
+        add("--fadePlacement")
+        add(it.storageValue)
     }
     request.renderOptions.endFadeCurve?.let {
         add("--fadeCurve")

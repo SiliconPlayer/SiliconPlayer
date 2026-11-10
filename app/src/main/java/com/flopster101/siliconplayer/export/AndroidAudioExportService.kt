@@ -126,13 +126,24 @@ class AndroidAudioExportService : Service() {
             pushStoredCoreOptionsToNative(prefs)
             pushStoredCorePreferencesToNative(prefs)
             val repeatCount = request.repeatCount.also { require(it > 0) { "Repeat count must be positive." } }
+            val fadeExtensionFrames = if (
+                request.renderOptions.endFadePlacement == AudioExportFadePlacement.NextLoop
+            ) {
+                audioExportFadeFrames(
+                    request.renderOptions.endFadeDurationMs ?: 0,
+                    request.renderOptions.sampleRateHz
+                )
+            } else {
+                0L
+            }
+            var loopPassLimit = repeatCount
             var framesPerPass = 0L
             var metadata = AudioExportMetadata()
             fun applyRepeatMode(loopPoint: Boolean, counted: Boolean) {
                 NativeBridge.setRepeatMode(
                     if (loopPoint) RepeatMode.LoopPoint.nativeValue else RepeatMode.None.nativeValue
                 )
-                NativeBridge.setOfflineLoopPointRepeatPasses(if (loopPoint && counted) repeatCount else 0)
+                NativeBridge.setOfflineLoopPointRepeatPasses(if (loopPoint && counted) loopPassLimit else 0)
             }
             fun loadPass(loopPoint: Boolean = false, counted: Boolean = false) {
                 pushStoredAndroidTrackOptions(prefs, request.renderOptions)
@@ -177,17 +188,17 @@ class AndroidAudioExportService : Service() {
             val wholeTrackFrames = framesPerPass * repeatCount
             val loopPointSupported = NativeBridge.getRepeatModeCapabilities() and REPEAT_CAP_LOOP_POINT != 0
             var useLoopPoint = false
-            var totalFrames = wholeTrackFrames
+            var totalFrames = Math.addExact(wholeTrackFrames, fadeExtensionFrames)
             if (request.loopType == AudioExportLoopType.Duration) {
                 val duration = requireNotNull(request.loopDurationSeconds)
                 val rawFrames = ceil(duration * request.renderOptions.sampleRateHz)
                 check(rawFrames > 0.0 && rawFrames <= Long.MAX_VALUE.toDouble()) { "Invalid loop duration." }
-                totalFrames = rawFrames.toLong()
+                totalFrames = Math.addExact(rawFrames.toLong(), fadeExtensionFrames)
                 if (loopPointSupported && request.repeatMode == AudioExportRepeatMode.LoopPoint) {
                     useLoopPoint = true
                     applyRepeatMode(loopPoint = true, counted = false)
                 }
-            } else if (repeatCount > 1 && loopPointSupported &&
+            } else if ((repeatCount > 1 || fadeExtensionFrames > 0L) && loopPointSupported &&
                 request.repeatMode == AudioExportRepeatMode.LoopPoint) {
                 applyRepeatMode(loopPoint = true, counted = true)
                 var probedFrames = 0L
@@ -209,7 +220,8 @@ class AndroidAudioExportService : Service() {
                 }
                 if (probedFrames >= framesPerPass && NativeBridge.getOfflineLoopPointWrapCount() >= repeatCount) {
                     useLoopPoint = true
-                    totalFrames = probedFrames
+                    totalFrames = Math.addExact(probedFrames, fadeExtensionFrames)
+                    if (fadeExtensionFrames > 0L) loopPassLimit = Math.addExact(repeatCount, 1)
                 }
                 loadPass(loopPoint = useLoopPoint, counted = useLoopPoint)
             }
@@ -574,6 +586,7 @@ private fun Intent.putExportRequest(request: AudioExportUiRequest): Intent = app
     putExtra("unknownDuration", request.renderOptions.unknownDurationSeconds ?: 0)
     putExtra("fadeMs", request.renderOptions.endFadeDurationMs ?: -1)
     putExtra("fadeCurve", request.renderOptions.endFadeCurve?.storageValue)
+    putExtra("fadePlacement", request.renderOptions.endFadePlacement.storageValue)
     putExtra("fadeAll", request.renderOptions.endFadeApplyToAllTracks ?: false)
     putExtra("hasFadeAll", request.renderOptions.endFadeApplyToAllTracks != null)
     putExtra("useGain", request.renderOptions.useActiveGain)
@@ -615,6 +628,9 @@ private fun Intent.readAudioExportRequest(): AudioExportUiRequest {
             unknownDurationSeconds = getIntExtra("unknownDuration", 0).takeIf { it > 0 },
             endFadeDurationMs = getIntExtra("fadeMs", -1).takeIf { it >= 0 },
             endFadeCurve = getStringExtra("fadeCurve")?.let(EndFadeCurve::fromStorage),
+            endFadePlacement = getStringExtra("fadePlacement")?.let { raw ->
+                AudioExportFadePlacement.entries.first { it.storageValue == raw }
+            } ?: AudioExportFadePlacement.Tail,
             endFadeApplyToAllTracks = if (getBooleanExtra("hasFadeAll", false)) {
                 getBooleanExtra("fadeAll", false)
             } else {

@@ -79,6 +79,7 @@ import com.flopster101.siliconplayer.export.AudioExportContainer
 import com.flopster101.siliconplayer.export.AudioExportDialogSource
 import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportExecutionState
+import com.flopster101.siliconplayer.export.AudioExportFadePlacement
 import com.flopster101.siliconplayer.export.AudioExportFfmpegMode
 import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportPlatformAdapter
@@ -139,6 +140,7 @@ internal fun AudioExportDialog(
     var loopDurationText by rememberSaveable(source.sourceId) { mutableStateOf(formatTime(source.durationSeconds)) }
     var fadeDurationMs by rememberSaveable { mutableIntStateOf(0) }
     var fadeCurve by rememberSaveable { mutableStateOf(EndFadeCurve.EaseOut) }
+    var fadePlacement by rememberSaveable { mutableStateOf(AudioExportFadePlacement.Tail) }
     var timingExpanded by rememberSaveable { mutableStateOf(false) }
     var processingExpanded by rememberSaveable { mutableStateOf(false) }
 
@@ -169,11 +171,11 @@ internal fun AudioExportDialog(
         platform.resetDestination(suggestedFileName)
     }
     val sizeEstimate = formatAudioExportSizeEstimate(
-        durationSeconds = if (loopType == AudioExportLoopType.Duration) {
+        durationSeconds = (if (loopType == AudioExportLoopType.Duration) {
             loopDurationSeconds ?: source.durationSeconds
         } else {
             (durationCapSeconds ?: source.durationSeconds) * (repeatCount ?: 1)
-        },
+        }) + if (fadePlacement == AudioExportFadePlacement.NextLoop) fadeDurationMs / 1_000.0 else 0.0,
         container = container,
         codec = codec,
         sampleRateHz = sampleRateHz,
@@ -509,6 +511,16 @@ internal fun AudioExportDialog(
                                         enabled = fadeDurationMs > 0
                                     )
                                 }
+                                if (fadeDurationMs > 0) {
+                                    AudioExportDropdown(
+                                        label = "Fade placement",
+                                        value = fadePlacement,
+                                        values = AudioExportFadePlacement.entries,
+                                        valueLabel = { it.label },
+                                        onValueChange = { fadePlacement = it },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
                             }
                             AudioExportCollapsibleSection(
                                 title = "Audio processing",
@@ -657,6 +669,7 @@ internal fun AudioExportDialog(
                                             durationCapSeconds = durationCapSeconds,
                                             endFadeDurationMs = fadeDurationMs,
                                             endFadeCurve = fadeCurve,
+                                            endFadePlacement = fadePlacement,
                                             useActiveGain = useActiveGain,
                                             useActiveEffects = useActiveEffects
                                         )
