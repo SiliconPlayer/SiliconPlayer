@@ -134,7 +134,9 @@ internal fun rememberAndroidAudioExportPlatformAdapter(
                                     progress = AudioExportProgress(
                                         renderedFrames = resultData.getLong("renderedFrames"),
                                         totalFrames = resultData.getLong("totalFrames"),
-                                        sampleRateHz = resultData.getInt("sampleRate")
+                                        sampleRateHz = resultData.getInt("sampleRate"),
+                                        elapsedSeconds = resultData.getDouble("elapsedSeconds"),
+                                        writtenBytes = resultData.getLong("writtenBytes")
                                     )
                                 )
                             }

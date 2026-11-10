@@ -57,6 +57,7 @@ class AndroidAudioExportService : Service() {
     private val cancelled = AtomicBoolean(false)
     private var future: Future<*>? = null
     private var resultReceiver: ResultReceiver? = null
+    private var exportStartedNs = 0L
     @Volatile
     private var running = false
     private val notificationManager by lazy {
@@ -92,6 +93,7 @@ class AndroidAudioExportService : Service() {
                 val request = intent.readAudioExportRequest()
                 resultReceiver = intent.getParcelableExtra(EXTRA_RESULT_RECEIVER)
                 cancelled.set(false)
+                exportStartedNs = System.nanoTime()
                 running = true
                 startForeground(NOTIFICATION_ID, buildNotification("Exporting audio", 0))
                 future = executor.submit { runExport(request) }
@@ -301,11 +303,17 @@ class AndroidAudioExportService : Service() {
                     }
                     val now = System.nanoTime()
                     if (now - lastProgressNs >= 200_000_000L || remaining == 0L) {
-                        reportProgress(totalFrames - remaining, totalFrames, request.renderOptions.sampleRateHz)
+                        reportProgress(
+                            totalFrames - remaining,
+                            totalFrames,
+                            request.renderOptions.sampleRateHz,
+                            outputFile.length()
+                        )
                         lastProgressNs = now
                     }
                 }
                 output.finish()
+                reportProgress(totalFrames, totalFrames, request.renderOptions.sampleRateHz, outputFile.length())
             }
             if (cancelled.get()) throw CancellationException("Audio export cancelled")
             fun writeToDestination(stream: OutputStream?) {
@@ -381,8 +389,20 @@ class AndroidAudioExportService : Service() {
         }
     }
 
-    private fun reportProgress(renderedFrames: Long, totalFrames: Long, sampleRateHz: Int) {
-        val progress = AudioExportProgress(renderedFrames, totalFrames, sampleRateHz)
+    private fun reportProgress(
+        renderedFrames: Long,
+        totalFrames: Long,
+        sampleRateHz: Int,
+        writtenBytes: Long
+    ) {
+        val elapsedSeconds = (System.nanoTime() - exportStartedNs) / 1_000_000_000.0
+        val progress = AudioExportProgress(
+            renderedFrames,
+            totalFrames,
+            sampleRateHz,
+            elapsedSeconds,
+            writtenBytes
+        )
         val percent = (progress.fraction * 100.0).toInt()
         resultReceiver?.send(
             RESULT_PROGRESS,
@@ -390,6 +410,8 @@ class AndroidAudioExportService : Service() {
                 putLong(EXTRA_RENDERED_FRAMES, renderedFrames)
                 putLong(EXTRA_TOTAL_FRAMES, totalFrames)
                 putInt(EXTRA_SAMPLE_RATE, sampleRateHz)
+                putDouble(EXTRA_ELAPSED_SECONDS, elapsedSeconds)
+                putLong(EXTRA_WRITTEN_BYTES, writtenBytes)
             }
         )
         updateNotification("Exporting audio", percent)
@@ -432,6 +454,8 @@ class AndroidAudioExportService : Service() {
         private const val EXTRA_RENDERED_FRAMES = "renderedFrames"
         private const val EXTRA_TOTAL_FRAMES = "totalFrames"
         private const val EXTRA_SAMPLE_RATE = "sampleRate"
+        private const val EXTRA_ELAPSED_SECONDS = "elapsedSeconds"
+        private const val EXTRA_WRITTEN_BYTES = "writtenBytes"
         const val RESULT_PROGRESS = 1
         const val RESULT_COMPLETE = 2
         const val RESULT_ERROR = 3

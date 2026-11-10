@@ -233,6 +233,7 @@ private class DesktopAudioExportPlatformAdapter(
     private var worker: Process? = null
     @Volatile
     private var cancelRequested = false
+    private var workerStartedNs = 0L
 
     override fun chooseExternalBinary() {
         val chooser = JFileChooser().apply {
@@ -276,6 +277,7 @@ private class DesktopAudioExportPlatformAdapter(
             return
         }
         cancelRequested = false
+        workerStartedNs = System.nanoTime()
         executionState = AudioExportExecutionState(running = true, status = "Starting export…")
         scope.launch { runExportWorker(arguments, request) }
     }
@@ -365,14 +367,22 @@ private class DesktopAudioExportPlatformAdapter(
         } else {
             0.0
         }
-        val totalFrames = (totalSeconds * request.renderOptions.sampleRateHz).toLong()
+        val estimatedTotalFrames = (totalSeconds * request.renderOptions.sampleRateHz).toLong()
+        val frameMatch = Regex("frames=([0-9]+)/([0-9]+)").find(token)
+        val totalFrames = frameMatch?.groupValues?.get(2)?.toLongOrNull() ?: estimatedTotalFrames
+        val renderedFrames = frameMatch?.groupValues?.get(1)?.toLongOrNull()
+            ?: (totalFrames * fraction).toLong()
+        val writtenBytes = Regex("bytes=([0-9]+)").find(token)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+        val elapsedSeconds = (System.nanoTime() - workerStartedNs) / 1_000_000_000.0
         executionState = executionState.copy(
             status = "Encoding audio",
             progress = if (totalFrames > 0L) {
                 AudioExportProgress(
-                    renderedFrames = (totalFrames * fraction).toLong(),
+                    renderedFrames = renderedFrames,
                     totalFrames = totalFrames,
-                    sampleRateHz = request.renderOptions.sampleRateHz
+                    sampleRateHz = request.renderOptions.sampleRateHz,
+                    elapsedSeconds = elapsedSeconds,
+                    writtenBytes = writtenBytes
                 )
             } else {
                 null

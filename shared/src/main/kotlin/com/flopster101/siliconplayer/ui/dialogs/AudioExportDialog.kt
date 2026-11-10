@@ -1,6 +1,8 @@
 package com.flopster101.siliconplayer.ui.dialogs
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -88,10 +90,12 @@ import com.flopster101.siliconplayer.export.AudioExportRepeatMode
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
 import com.flopster101.siliconplayer.export.audioExportBitrates
+import com.flopster101.siliconplayer.export.audioExportEstimatedRemainingSeconds
 import com.flopster101.siliconplayer.export.audioExportSubtuneLabel
 import com.flopster101.siliconplayer.export.defaultAudioExportBitrate
 import com.flopster101.siliconplayer.export.easyFfmpegOutputArguments
 import com.flopster101.siliconplayer.export.formatAudioExportBitrate
+import com.flopster101.siliconplayer.export.formatAudioExportByteRate
 import com.flopster101.siliconplayer.export.formatAudioExportSizeEstimate
 import com.flopster101.siliconplayer.export.parseAudioExportTime
 import com.flopster101.siliconplayer.export.suggestedAudioExportFileName
@@ -199,9 +203,516 @@ internal fun AudioExportDialog(
     )
     val dragToFraction = rememberScrollStateScrollbarDragHandler(scrollState)
 
+    if (showingProgress) {
+        AudioExportProgressDialog(source, platform, executionState, onDismiss)
+    } else {
+        Dialog(onDismissRequest = onDismiss, properties = adaptiveDialogProperties()) {
+            Surface(
+                modifier = adaptiveDialogModifier().heightIn(max = 560.dp),
+                shape = Radius.Dialog,
+                color = MaterialTheme.colorScheme.surfaceContainer
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (showingProgress) "Exporting audio" else "Export",
+                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (showingProgress) Modifier else Modifier.weight(1f, fill = false)
+                            )
+                            .onSizeChangedDeferred { viewportHeightPx = it.height.toFloat() }
+                    ) {
+                        if (showingProgress) {
+                            AudioExportProgressContent(source, executionState)
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(end = 10.dp)
+                                    .verticalScroll(scrollState)
+                                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                AudioExportSourceCard(source)
+                                Column {
+                                    AudioExportSectionLabel("Output")
+                                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                        SegmentedButton(
+                                            selected = true,
+                                            onClick = {},
+                                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                                            icon = {
+                                                Icon(Icons.Default.MusicNote, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            }
+                                        ) {
+                                            Text("Audio")
+                                        }
+                                        SegmentedButton(
+                                            selected = false,
+                                            onClick = {},
+                                            enabled = false,
+                                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                                            icon = {
+                                                Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            }
+                                        ) {
+                                            Text("Video")
+                                        }
+                                    }
+                                }
+
+                                Column {
+                                    AudioExportDropdown(
+                                        label = "Encoder",
+                                        value = encoder,
+                                        values = platform.encoders,
+                                        valueLabel = { it.label },
+                                        onValueChange = {
+                                            encoder = it
+                                            platform.resetDestination(suggestedFileName)
+                                            if (it == AudioExportEncoder.MediaCodec) {
+                                                codec = platform.supportedMediaCodecs.minByOrNull { codec ->
+                                                    codec.ordinal
+                                                } ?: AudioExportCodec.Aac
+                                            }
+                                            container = containersFor(codec).first()
+                                            bitrateBps = defaultAudioExportBitrate(codec) ?: 256_000
+                                            if (codec == AudioExportCodec.AmrNb) sampleRateHz = 8_000
+                                            if (codec == AudioExportCodec.Opus) sampleRateHz = 48_000
+                                        }
+                                    )
+                                    if (encoder == AudioExportEncoder.ExternalFfmpeg) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                                            verticalAlignment = Alignment.Bottom,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                AudioExportFieldLabel("FFmpeg binary")
+                                                Surface(
+                                                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                                    shape = Radius.Control,
+                                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                                    border = androidx.compose.foundation.BorderStroke(
+                                                        1.dp,
+                                                        MaterialTheme.colorScheme.outlineVariant
+                                                    )
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                                                        contentAlignment = Alignment.CenterStart
+                                                    ) {
+                                                        Text(
+                                                            text = platform.externalBinaryLabel ?: "No binary imported",
+                                                            style = MaterialTheme.typography.bodyLarge,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            OutlinedButton(
+                                                onClick = platform::chooseExternalBinary,
+                                                shape = Radius.ControlCompact
+                                            ) {
+                                                Text(platform.externalBinaryActionLabel)
+                                            }
+                                        }
+                                    }
+                                    if (usesFfmpeg) {
+                                        SingleChoiceSegmentedButtonRow(
+                                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                                        ) {
+                                            AudioExportFfmpegMode.entries.forEachIndexed { index, mode ->
+                                                SegmentedButton(
+                                                    selected = ffmpegMode == mode,
+                                                    onClick = { ffmpegMode = mode },
+                                                    shape = SegmentedButtonDefaults.itemShape(
+                                                        index = index,
+                                                        count = AudioExportFfmpegMode.entries.size
+                                                    )
+                                                ) {
+                                                    Text(mode.label)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    AudioExportDropdown(
+                                        label = "Codec",
+                                        value = codec,
+                                        values = if (usesFfmpeg) {
+                                            AudioExportCodec.entries
+                                        } else {
+                                            platform.supportedMediaCodecs.sortedBy { it.ordinal }
+                                        },
+                                        valueLabel = { it.label },
+                                        onValueChange = {
+                                            codec = it
+                                            container = containersFor(it).first()
+                                            bitrateBps = defaultAudioExportBitrate(it) ?: 256_000
+                                            if (it == AudioExportCodec.AmrNb) sampleRateHz = 8_000
+                                            if (it == AudioExportCodec.Opus) sampleRateHz = 48_000
+                                            platform.resetDestination(suggestedFileName)
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    AudioExportDropdown(
+                                        label = "Container",
+                                        value = container,
+                                        values = containersFor(codec),
+                                        valueLabel = { it.label },
+                                        onValueChange = {
+                                            container = it
+                                            platform.resetDestination(suggestedFileName)
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    if (!isLossless) {
+                                        AudioExportDropdown(
+                                            label = "Quality",
+                                            value = bitrateBps,
+                                            values = audioExportBitrates(codec),
+                                            valueLabel = ::formatAudioExportBitrate,
+                                            onValueChange = { bitrateBps = it },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    AudioExportDropdown(
+                                        label = "Sample rate",
+                                        value = sampleRateHz,
+                                        values = when (codec) {
+                                            AudioExportCodec.AmrNb -> listOf(8_000)
+                                            AudioExportCodec.Opus -> listOf(48_000)
+                                            else -> listOf(44_100, 48_000, 96_000)
+                                        },
+                                        valueLabel = { "${it / 1000.0} kHz".replace(".0 ", " ") },
+                                        onValueChange = { sampleRateHz = it },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                if (usesFfmpeg && ffmpegMode == AudioExportFfmpegMode.Advanced) {
+                                    Column {
+                                        AudioExportFieldLabel("Output arguments")
+                                        OutlinedTextField(
+                                            value = ffmpegArguments,
+                                            onValueChange = { ffmpegArguments = it },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textStyle = MaterialTheme.typography.bodyLarge,
+                                            singleLine = true,
+                                            shape = Radius.Control
+                                        )
+                                    }
+                                }
+
+                                AudioExportSwitchRow(
+                                    title = "Include metadata",
+                                    subtitle = if (container == AudioExportContainer.Amr) {
+                                        "Raw AMR does not support metadata"
+                                    } else {
+                                        "Title, artist, album, and other decoder tags"
+                                    },
+                                    checked = includeMetadata,
+                                    enabled = container != AudioExportContainer.Amr,
+                                    onCheckedChange = { includeMetadata = it }
+                                )
+                                AudioExportCollapsibleSection(
+                                    title = "Timing and fades",
+                                    summary = "${formatTime(durationCapSeconds ?: source.durationSeconds)} · " +
+                                        if (fadeDurationMs == 0) "no fade" else "${fadeDurationMs / 1000} s fade",
+                                    expanded = timingExpanded,
+                                    onToggle = { timingExpanded = !timingExpanded }
+                                ) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        AudioExportDropdown(
+                                            label = "Duration",
+                                            value = customDuration,
+                                            values = listOf(false, true),
+                                            valueLabel = { if (it) "Custom" else "Full track" },
+                                            onValueChange = { customDuration = it },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        AudioExportDropdown(
+                                            label = "Loop type",
+                                            value = loopType,
+                                            values = AudioExportLoopType.entries,
+                                            valueLabel = { it.label },
+                                            onValueChange = { loopType = it },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        AudioExportInputField(
+                                            label = if (loopType == AudioExportLoopType.Repeat) "Repeats" else "Loop duration",
+                                            value = if (loopType == AudioExportLoopType.Repeat) repeatCountText else loopDurationText,
+                                            onValueChange = { value ->
+                                                if (loopType == AudioExportLoopType.Repeat) {
+                                                    if (value.all(Char::isDigit)) repeatCountText = value
+                                                } else if (value.all { it.isDigit() || it == ':' || it == '.' }) {
+                                                    loopDurationText = value
+                                                }
+                                            },
+                                            isError = invalidRepeat || invalidLoopDuration,
+                                            keyboardType = if (loopType == AudioExportLoopType.Repeat) {
+                                                KeyboardType.Number
+                                            } else {
+                                                KeyboardType.Text
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        AudioExportDropdown(
+                                            label = "Repeat mode",
+                                            value = repeatMode,
+                                            values = AudioExportRepeatMode.entries,
+                                            valueLabel = { it.label },
+                                            onValueChange = { repeatMode = it },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    if (customDuration) {
+                                        OutlinedTextField(
+                                            value = durationSecondsText,
+                                            onValueChange = { durationSecondsText = it },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            label = { Text("Duration in seconds") },
+                                            isError = invalidDuration,
+                                            singleLine = true,
+                                            shape = Radius.Control
+                                        )
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        AudioExportDropdown(
+                                            label = "End fade",
+                                            value = fadeDurationMs,
+                                            values = listOf(0, 3_000, 5_000, 10_000),
+                                            valueLabel = { if (it == 0) "None" else "${it / 1000} seconds" },
+                                            onValueChange = { fadeDurationMs = it },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        AudioExportDropdown(
+                                            label = "Fade curve",
+                                            value = fadeCurve,
+                                            values = EndFadeCurve.entries,
+                                            valueLabel = { it.label },
+                                            onValueChange = { fadeCurve = it },
+                                            modifier = Modifier.weight(1f),
+                                            enabled = fadeDurationMs > 0
+                                        )
+                                    }
+                                    if (fadeDurationMs > 0) {
+                                        AudioExportDropdown(
+                                            label = "Fade placement",
+                                            value = fadePlacement,
+                                            values = AudioExportFadePlacement.entries,
+                                            valueLabel = { it.label },
+                                            onValueChange = { fadePlacement = it },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+                                AudioExportCollapsibleSection(
+                                    title = "Audio processing",
+                                    summary = "Gain ${if (useActiveGain) "on" else "off"} · effects " +
+                                        if (useActiveEffects) "on" else "off",
+                                    expanded = processingExpanded,
+                                    onToggle = { processingExpanded = !processingExpanded }
+                                ) {
+                                    AudioExportSwitchRow(
+                                        title = "Use active gain",
+                                        checked = useActiveGain,
+                                        onCheckedChange = { useActiveGain = it }
+                                    )
+                                    AudioExportSwitchRow(
+                                        title = "Use active effects",
+                                        checked = useActiveEffects,
+                                        onCheckedChange = { useActiveEffects = it }
+                                    )
+                                }
+                                Column {
+                                    AudioExportSectionLabel("Destination")
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = Radius.Card,
+                                        color = MaterialTheme.colorScheme.surfaceContainerLow
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = platform.destinationLabel ?: suggestedFileName,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = if (destinationLocation == null) {
+                                                        "Choose destination"
+                                                    } else {
+                                                        platform.destinationDescription ?: destinationLocation
+                                                    },
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            IconButton(onClick = { platform.chooseDestination(suggestedFileName) }) {
+                                                Icon(Icons.Default.Folder, contentDescription = "Choose destination")
+                                            }
+                                        }
+                                    }
+                                }
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        text = "Estimated size",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Text(
+                                        text = sizeEstimate,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                        if (scrollState.maxValue > 0 && viewportHeightPx > 0f) {
+                            VerticalScrollbarTrack(
+                                thumbFraction = thumbFraction,
+                                offsetFraction = offsetFraction,
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .width(4.dp)
+                                    .fillMaxHeight()
+                                    .graphicsLayer(alpha = scrollbarAlpha),
+                                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                thumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f),
+                                onDragFractionChanged = dragToFraction
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (showingProgress) {
+                            TextButton(onClick = platform::cancelExport, shape = Radius.ControlCompact) {
+                                Text("Cancel")
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(onClick = onDismiss, shape = Radius.ControlCompact) {
+                                Text("Run in background")
+                            }
+                        } else {
+                            TextButton(onClick = onDismiss, shape = Radius.ControlCompact) {
+                                Text("Cancel")
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    val destination = destinationLocation ?: return@Button
+                                    exportStarted = true
+                                    platform.startExport(
+                                        AudioExportUiRequest(
+                                            source = source,
+                                            encoder = encoder,
+                                            container = container,
+                                            codec = codec,
+                                            bitrateBps = bitrateBps.takeUnless { isLossless },
+                                            ffmpegMode = ffmpegMode,
+                                            ffmpegArguments = if (!usesFfmpeg) {
+                                                ""
+                                            } else if (ffmpegMode == AudioExportFfmpegMode.Advanced) {
+                                                ffmpegArguments
+                                            } else {
+                                                easyFfmpegOutputArguments(codec, bitrateBps.takeUnless { isLossless })
+                                                    .joinToString(" ")
+                                            },
+                                            externalBinaryLocation = platform.externalBinaryLocation,
+                                            destinationLocation = destination,
+                                            includeMetadata = includeMetadata && container != AudioExportContainer.Amr,
+                                            loopType = loopType,
+                                            repeatMode = repeatMode,
+                                            repeatCount = if (loopType == AudioExportLoopType.Repeat) {
+                                                requireNotNull(repeatCount)
+                                            } else {
+                                                1
+                                            },
+                                            loopDurationSeconds = if (loopType == AudioExportLoopType.Duration) {
+                                                requireNotNull(loopDurationSeconds)
+                                            } else {
+                                                null
+                                            },
+                                            renderOptions = AudioExportRenderOptions(
+                                                sampleRateHz = sampleRateHz,
+                                                sampleFormat = AudioExportSampleFormat.Pcm24,
+                                                durationCapSeconds = durationCapSeconds,
+                                                endFadeDurationMs = fadeDurationMs,
+                                                endFadeCurve = fadeCurve,
+                                                endFadePlacement = fadePlacement,
+                                                useActiveGain = useActiveGain,
+                                                useActiveEffects = useActiveEffects
+                                            )
+                                        )
+                                    )
+                                    if (!platform.executionState.running) exportStarted = false
+                                },
+                                enabled = canExport,
+                                shape = Radius.ControlCompact
+                            ) {
+                                Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Export audio")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AudioExportProgressDialog(
+    source: AudioExportDialogSource,
+    platform: AudioExportPlatformAdapter,
+    state: AudioExportExecutionState,
+    onDismiss: () -> Unit
+) {
     Dialog(onDismissRequest = onDismiss, properties = adaptiveDialogProperties()) {
+        val fade = remember { Animatable(0f) }
+        LaunchedEffect(Unit) {
+            fade.animateTo(1f, animationSpec = tween(durationMillis = 120))
+        }
         Surface(
-            modifier = adaptiveDialogModifier().heightIn(max = 560.dp),
+            modifier = adaptiveDialogModifier().graphicsLayer(alpha = fade.value),
             shape = Radius.Dialog,
             color = MaterialTheme.colorScheme.surfaceContainer
         ) {
@@ -213,7 +724,7 @@ internal fun AudioExportDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (showingProgress) "Exporting audio" else "Export",
+                        text = "Exporting audio",
                         style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.weight(1f)
                     )
@@ -221,392 +732,7 @@ internal fun AudioExportDialog(
                         Icon(Icons.Default.Close, contentDescription = "Close")
                     }
                 }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (showingProgress) Modifier else Modifier.weight(1f, fill = false)
-                        )
-                        .onSizeChangedDeferred { viewportHeightPx = it.height.toFloat() }
-                ) {
-                    if (showingProgress) {
-                        AudioExportProgressContent(source, executionState)
-                    } else {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(end = 10.dp)
-                                .verticalScroll(scrollState)
-                                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            AudioExportSourceCard(source)
-                            Column {
-                                AudioExportSectionLabel("Output")
-                                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                                    SegmentedButton(
-                                        selected = true,
-                                        onClick = {},
-                                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                                        icon = {
-                                            Icon(Icons.Default.MusicNote, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        }
-                                    ) {
-                                        Text("Audio")
-                                    }
-                                    SegmentedButton(
-                                        selected = false,
-                                        onClick = {},
-                                        enabled = false,
-                                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                                        icon = {
-                                            Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        }
-                                    ) {
-                                        Text("Video")
-                                    }
-                                }
-                            }
-
-                            Column {
-                                AudioExportDropdown(
-                                    label = "Encoder",
-                                    value = encoder,
-                                    values = platform.encoders,
-                                    valueLabel = { it.label },
-                                    onValueChange = {
-                                        encoder = it
-                                        platform.resetDestination(suggestedFileName)
-                                        if (it == AudioExportEncoder.MediaCodec) {
-                                            codec = platform.supportedMediaCodecs.minByOrNull { codec ->
-                                                codec.ordinal
-                                            } ?: AudioExportCodec.Aac
-                                        }
-                                        container = containersFor(codec).first()
-                                        bitrateBps = defaultAudioExportBitrate(codec) ?: 256_000
-                                        if (codec == AudioExportCodec.AmrNb) sampleRateHz = 8_000
-                                        if (codec == AudioExportCodec.Opus) sampleRateHz = 48_000
-                                    }
-                                )
-                                if (encoder == AudioExportEncoder.ExternalFfmpeg) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                                        verticalAlignment = Alignment.Bottom,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            AudioExportFieldLabel("FFmpeg binary")
-                                            Surface(
-                                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                                                shape = Radius.Control,
-                                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                                border = androidx.compose.foundation.BorderStroke(
-                                                    1.dp,
-                                                    MaterialTheme.colorScheme.outlineVariant
-                                                )
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                                                    contentAlignment = Alignment.CenterStart
-                                                ) {
-                                                    Text(
-                                                        text = platform.externalBinaryLabel ?: "No binary imported",
-                                                        style = MaterialTheme.typography.bodyLarge,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        OutlinedButton(
-                                            onClick = platform::chooseExternalBinary,
-                                            shape = Radius.ControlCompact
-                                        ) {
-                                            Text(platform.externalBinaryActionLabel)
-                                        }
-                                    }
-                                }
-                                if (usesFfmpeg) {
-                                    SingleChoiceSegmentedButtonRow(
-                                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
-                                    ) {
-                                        AudioExportFfmpegMode.entries.forEachIndexed { index, mode ->
-                                            SegmentedButton(
-                                                selected = ffmpegMode == mode,
-                                                onClick = { ffmpegMode = mode },
-                                                shape = SegmentedButtonDefaults.itemShape(
-                                                    index = index,
-                                                    count = AudioExportFfmpegMode.entries.size
-                                                )
-                                            ) {
-                                                Text(mode.label)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                AudioExportDropdown(
-                                    label = "Codec",
-                                    value = codec,
-                                    values = if (usesFfmpeg) {
-                                        AudioExportCodec.entries
-                                    } else {
-                                        platform.supportedMediaCodecs.sortedBy { it.ordinal }
-                                    },
-                                    valueLabel = { it.label },
-                                    onValueChange = {
-                                        codec = it
-                                        container = containersFor(it).first()
-                                        bitrateBps = defaultAudioExportBitrate(it) ?: 256_000
-                                        if (it == AudioExportCodec.AmrNb) sampleRateHz = 8_000
-                                        if (it == AudioExportCodec.Opus) sampleRateHz = 48_000
-                                        platform.resetDestination(suggestedFileName)
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                AudioExportDropdown(
-                                    label = "Container",
-                                    value = container,
-                                    values = containersFor(codec),
-                                    valueLabel = { it.label },
-                                    onValueChange = {
-                                        container = it
-                                        platform.resetDestination(suggestedFileName)
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                if (!isLossless) {
-                                    AudioExportDropdown(
-                                        label = "Quality",
-                                        value = bitrateBps,
-                                        values = audioExportBitrates(codec),
-                                        valueLabel = ::formatAudioExportBitrate,
-                                        onValueChange = { bitrateBps = it },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                AudioExportDropdown(
-                                    label = "Sample rate",
-                                    value = sampleRateHz,
-                                    values = when (codec) {
-                                        AudioExportCodec.AmrNb -> listOf(8_000)
-                                        AudioExportCodec.Opus -> listOf(48_000)
-                                        else -> listOf(44_100, 48_000, 96_000)
-                                    },
-                                    valueLabel = { "${it / 1000.0} kHz".replace(".0 ", " ") },
-                                    onValueChange = { sampleRateHz = it },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            if (usesFfmpeg && ffmpegMode == AudioExportFfmpegMode.Advanced) {
-                                Column {
-                                    AudioExportFieldLabel("Output arguments")
-                                    OutlinedTextField(
-                                        value = ffmpegArguments,
-                                        onValueChange = { ffmpegArguments = it },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        textStyle = MaterialTheme.typography.bodyLarge,
-                                        singleLine = true,
-                                        shape = Radius.Control
-                                    )
-                                }
-                            }
-
-                            AudioExportSwitchRow(
-                                title = "Include metadata",
-                                subtitle = if (container == AudioExportContainer.Amr) {
-                                    "Raw AMR does not support metadata"
-                                } else {
-                                    "Title, artist, album, and other decoder tags"
-                                },
-                                checked = includeMetadata,
-                                enabled = container != AudioExportContainer.Amr,
-                                onCheckedChange = { includeMetadata = it }
-                            )
-                            AudioExportCollapsibleSection(
-                                title = "Timing and fades",
-                                summary = "${formatTime(durationCapSeconds ?: source.durationSeconds)} · " +
-                                    if (fadeDurationMs == 0) "no fade" else "${fadeDurationMs / 1000} s fade",
-                                expanded = timingExpanded,
-                                onToggle = { timingExpanded = !timingExpanded }
-                            ) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    AudioExportDropdown(
-                                        label = "Duration",
-                                        value = customDuration,
-                                        values = listOf(false, true),
-                                        valueLabel = { if (it) "Custom" else "Full track" },
-                                        onValueChange = { customDuration = it },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    AudioExportDropdown(
-                                        label = "Loop type",
-                                        value = loopType,
-                                        values = AudioExportLoopType.entries,
-                                        valueLabel = { it.label },
-                                        onValueChange = { loopType = it },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    AudioExportInputField(
-                                        label = if (loopType == AudioExportLoopType.Repeat) "Repeats" else "Loop duration",
-                                        value = if (loopType == AudioExportLoopType.Repeat) repeatCountText else loopDurationText,
-                                        onValueChange = { value ->
-                                            if (loopType == AudioExportLoopType.Repeat) {
-                                                if (value.all(Char::isDigit)) repeatCountText = value
-                                            } else if (value.all { it.isDigit() || it == ':' || it == '.' }) {
-                                                loopDurationText = value
-                                            }
-                                        },
-                                        isError = invalidRepeat || invalidLoopDuration,
-                                        keyboardType = if (loopType == AudioExportLoopType.Repeat) {
-                                            KeyboardType.Number
-                                        } else {
-                                            KeyboardType.Text
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    AudioExportDropdown(
-                                        label = "Repeat mode",
-                                        value = repeatMode,
-                                        values = AudioExportRepeatMode.entries,
-                                        valueLabel = { it.label },
-                                        onValueChange = { repeatMode = it },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                if (customDuration) {
-                                    OutlinedTextField(
-                                        value = durationSecondsText,
-                                        onValueChange = { durationSecondsText = it },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        label = { Text("Duration in seconds") },
-                                        isError = invalidDuration,
-                                        singleLine = true,
-                                        shape = Radius.Control
-                                    )
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    AudioExportDropdown(
-                                        label = "End fade",
-                                        value = fadeDurationMs,
-                                        values = listOf(0, 3_000, 5_000, 10_000),
-                                        valueLabel = { if (it == 0) "None" else "${it / 1000} seconds" },
-                                        onValueChange = { fadeDurationMs = it },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    AudioExportDropdown(
-                                        label = "Fade curve",
-                                        value = fadeCurve,
-                                        values = EndFadeCurve.entries,
-                                        valueLabel = { it.label },
-                                        onValueChange = { fadeCurve = it },
-                                        modifier = Modifier.weight(1f),
-                                        enabled = fadeDurationMs > 0
-                                    )
-                                }
-                                if (fadeDurationMs > 0) {
-                                    AudioExportDropdown(
-                                        label = "Fade placement",
-                                        value = fadePlacement,
-                                        values = AudioExportFadePlacement.entries,
-                                        valueLabel = { it.label },
-                                        onValueChange = { fadePlacement = it },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                            AudioExportCollapsibleSection(
-                                title = "Audio processing",
-                                summary = "Gain ${if (useActiveGain) "on" else "off"} · effects " +
-                                    if (useActiveEffects) "on" else "off",
-                                expanded = processingExpanded,
-                                onToggle = { processingExpanded = !processingExpanded }
-                            ) {
-                                AudioExportSwitchRow(
-                                    title = "Use active gain",
-                                    checked = useActiveGain,
-                                    onCheckedChange = { useActiveGain = it }
-                                )
-                                AudioExportSwitchRow(
-                                    title = "Use active effects",
-                                    checked = useActiveEffects,
-                                    onCheckedChange = { useActiveEffects = it }
-                                )
-                            }
-                            Column {
-                                AudioExportSectionLabel("Destination")
-                                Surface(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = Radius.Card,
-                                    color = MaterialTheme.colorScheme.surfaceContainerLow
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = platform.destinationLabel ?: suggestedFileName,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Medium,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = if (destinationLocation == null) {
-                                                    "Choose destination"
-                                                } else {
-                                                    platform.destinationDescription ?: destinationLocation
-                                                },
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        IconButton(onClick = { platform.chooseDestination(suggestedFileName) }) {
-                                            Icon(Icons.Default.Folder, contentDescription = "Choose destination")
-                                        }
-                                    }
-                                }
-                            }
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "Estimated size",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
-                                Text(
-                                    text = sizeEstimate,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                    if (scrollState.maxValue > 0 && viewportHeightPx > 0f) {
-                        VerticalScrollbarTrack(
-                            thumbFraction = thumbFraction,
-                            offsetFraction = offsetFraction,
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .width(4.dp)
-                                .fillMaxHeight()
-                                .graphicsLayer(alpha = scrollbarAlpha),
-                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                            thumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f),
-                            onDragFractionChanged = dragToFraction
-                        )
-                    }
-                }
+                AudioExportProgressContent(source, state)
 
                 Row(
                     modifier = Modifier
@@ -615,81 +741,19 @@ internal fun AudioExportDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (showingProgress) {
-                        TextButton(onClick = platform::cancelExport, shape = Radius.ControlCompact) {
-                            Text("Cancel")
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(onClick = onDismiss, shape = Radius.ControlCompact) {
-                            Text("Run in background")
-                        }
-                    } else {
-                        TextButton(onClick = onDismiss, shape = Radius.ControlCompact) {
-                            Text("Cancel")
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                val destination = destinationLocation ?: return@Button
-                                exportStarted = true
-                                platform.startExport(
-                                    AudioExportUiRequest(
-                                        source = source,
-                                        encoder = encoder,
-                                        container = container,
-                                        codec = codec,
-                                        bitrateBps = bitrateBps.takeUnless { isLossless },
-                                        ffmpegMode = ffmpegMode,
-                                        ffmpegArguments = if (!usesFfmpeg) {
-                                            ""
-                                        } else if (ffmpegMode == AudioExportFfmpegMode.Advanced) {
-                                            ffmpegArguments
-                                        } else {
-                                            easyFfmpegOutputArguments(codec, bitrateBps.takeUnless { isLossless })
-                                                .joinToString(" ")
-                                        },
-                                        externalBinaryLocation = platform.externalBinaryLocation,
-                                        destinationLocation = destination,
-                                        includeMetadata = includeMetadata && container != AudioExportContainer.Amr,
-                                        loopType = loopType,
-                                        repeatMode = repeatMode,
-                                        repeatCount = if (loopType == AudioExportLoopType.Repeat) {
-                                            requireNotNull(repeatCount)
-                                        } else {
-                                            1
-                                        },
-                                        loopDurationSeconds = if (loopType == AudioExportLoopType.Duration) {
-                                            requireNotNull(loopDurationSeconds)
-                                        } else {
-                                            null
-                                        },
-                                        renderOptions = AudioExportRenderOptions(
-                                            sampleRateHz = sampleRateHz,
-                                            sampleFormat = AudioExportSampleFormat.Pcm24,
-                                            durationCapSeconds = durationCapSeconds,
-                                            endFadeDurationMs = fadeDurationMs,
-                                            endFadeCurve = fadeCurve,
-                                            endFadePlacement = fadePlacement,
-                                            useActiveGain = useActiveGain,
-                                            useActiveEffects = useActiveEffects
-                                        )
-                                    )
-                                )
-                                if (!platform.executionState.running) exportStarted = false
-                            },
-                            enabled = canExport,
-                            shape = Radius.ControlCompact
-                        ) {
-                            Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Export audio")
-                        }
+                    TextButton(onClick = platform::cancelExport, shape = Radius.ControlCompact) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = onDismiss, shape = Radius.ControlCompact) {
+                        Text("Run in background")
                     }
                 }
             }
         }
     }
 }
+
 
 @Composable
 private fun AudioExportProgressContent(
@@ -726,7 +790,36 @@ private fun AudioExportProgressContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            Row(modifier = Modifier.fillMaxWidth()) {
+                AudioExportProgressStat(
+                    label = "Elapsed",
+                    value = formatTime(progress.elapsedSeconds),
+                    modifier = Modifier.weight(1f)
+                )
+                AudioExportProgressStat(
+                    label = "Est. remaining",
+                    value = audioExportEstimatedRemainingSeconds(progress)?.let(::formatTime) ?: "—",
+                    modifier = Modifier.weight(1f)
+                )
+                AudioExportProgressStat(
+                    label = "Speed",
+                    value = formatAudioExportByteRate(progress.writtenBytes, progress.elapsedSeconds),
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun AudioExportProgressStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(text = value, style = MaterialTheme.typography.titleSmall)
     }
 }
 

@@ -301,15 +301,26 @@ internal fun runAudioExport(
                 if (now - lastProgressNs >= PROGRESS_INTERVAL_NS || remaining == 0L) {
                     onProgress(
                         AudioExportProgress(
-                            totalFrames - remaining,
-                            totalFrames,
-                            options.renderOptions.sampleRateHz
+                            renderedFrames = totalFrames - remaining,
+                            totalFrames = totalFrames,
+                            sampleRateHz = options.renderOptions.sampleRateHz,
+                            elapsedSeconds = (System.nanoTime() - startNs) / 1_000_000_000.0,
+                            writtenBytes = temp.length()
                         )
                     )
                     lastProgressNs = now
                 }
             }
             writer.finish()
+            onProgress(
+                AudioExportProgress(
+                    renderedFrames = totalFrames,
+                    totalFrames = totalFrames,
+                    sampleRateHz = options.renderOptions.sampleRateHz,
+                    elapsedSeconds = (System.nanoTime() - startNs) / 1_000_000_000.0,
+                    writtenBytes = temp.length()
+                )
+            )
         }
         moveCompletedExport(temp, output, options.force)
         completed = true
@@ -532,7 +543,8 @@ private fun printAudioExportProgress(
     print(
         "\rExported ${String.format(Locale.ROOT, "%6.2f", progress.fraction * 100.0)}% " +
             "(${formatSeconds(renderedSeconds)} / ${formatSeconds(totalSeconds)}), " +
-            "${String.format(Locale.ROOT, "%.1f", speed)}x realtime, ETA ${formatSeconds(etaSeconds)}"
+            "${String.format(Locale.ROOT, "%.1f", speed)}x realtime, ETA ${formatSeconds(etaSeconds)} " +
+            "frames=${progress.renderedFrames}/${progress.totalFrames} bytes=${progress.writtenBytes}"
     )
     System.out.flush()
     if (progress.renderedFrames == progress.totalFrames) println()
