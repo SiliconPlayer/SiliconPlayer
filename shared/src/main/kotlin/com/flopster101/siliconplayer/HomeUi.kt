@@ -38,7 +38,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Folder
+import com.flopster101.siliconplayer.export.AudioExportDialogRequests
+import com.flopster101.siliconplayer.export.audioExportSourceForTrack
 import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.ui.icons.FolderZipIcon
 import androidx.compose.material.icons.filled.StarBorder
@@ -986,6 +989,40 @@ internal fun HomeScreen(
                                                                 }
                                                             )
                                                         }
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Text(
+                                                                    text = "Export audio",
+                                                                    style = MaterialTheme.typography.bodyLarge
+                                                                )
+                                                            },
+                                                            leadingIcon = {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.FileDownload,
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(22.dp)
+                                                                )
+                                                            },
+                                                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                            colors = MenuDefaults.itemColors(
+                                                                textColor = MaterialTheme.colorScheme.onSurface,
+                                                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            ),
+                                                            onClick = {
+                                                                pinnedFileActionTarget = null
+                                                                AudioExportDialogRequests.request(
+                                                                    audioExportSourceForTrack(
+                                                                        path = pinnedEntry.path,
+                                                                        title = pinnedEntry.title
+                                                                            ?.takeIf { it.isNotBlank() }
+                                                                            ?: inferredDisplayTitleForName(trackFile.name),
+                                                                        artist = pinnedEntry.artist,
+                                                                        decoderName = pinnedEntry.decoderName,
+                                                                        subtuneIndex = pinnedEntry.subtuneIndex
+                                                                    )
+                                                                )
+                                                            }
+                                                        )
                                                         if (onToggleFavoriteSource != null) {
                                                             val isFavorited = favoriteSourcePaths.any { samePath(it, pinnedEntry.path) }
                                                             val resolvedTitle = pinnedEntry.title?.takeIf { it.isNotBlank() }
@@ -1756,6 +1793,42 @@ internal fun HomeScreen(
                                                                     onClick = {
                                                                         fileActionTargetEntry = null
                                                                         pendingPlaylistAddSource = entry.path to resolvedTitle
+                                                                    }
+                                                                )
+                                                            }
+                                                            if (!entry.isPlaylist) {
+                                                                DropdownMenuItem(
+                                                                    text = {
+                                                                        Text(
+                                                                            text = "Export audio",
+                                                                            style = MaterialTheme.typography.bodyLarge
+                                                                        )
+                                                                    },
+                                                                    leadingIcon = {
+                                                                        Icon(
+                                                                            imageVector = Icons.Default.FileDownload,
+                                                                            contentDescription = null,
+                                                                            modifier = Modifier.size(22.dp)
+                                                                        )
+                                                                    },
+                                                                    contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                                                    colors = MenuDefaults.itemColors(
+                                                                        textColor = MaterialTheme.colorScheme.onSurface,
+                                                                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                    ),
+                                                                    onClick = {
+                                                                        fileActionTargetEntry = null
+                                                                        AudioExportDialogRequests.request(
+                                                                            audioExportSourceForTrack(
+                                                                                path = entry.path,
+                                                                                title = entry.title
+                                                                                    ?.takeIf { it.isNotBlank() }
+                                                                                    ?: inferredDisplayTitleForName(trackFile.name),
+                                                                                artist = entry.artist,
+                                                                                decoderName = entry.decoderName,
+                                                                                subtuneIndex = entry.subtuneIndex
+                                                                            )
+                                                                        )
                                                                     }
                                                                 )
                                                             }

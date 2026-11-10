@@ -151,7 +151,7 @@ class AndroidAudioExportService : Service() {
                 pushStoredAndroidTrackOptions(prefs, request.renderOptions)
                 NativeBridge.stopEngineSyncNative()
                 NativeBridge.loadAudio(input.absolutePath)
-                if (request.source.subtuneCount > 1) {
+                if (request.source.subtuneIndex > 0) {
                     check(NativeBridge.selectSubtune(request.source.subtuneIndex)) { "Subtune is unavailable." }
                 }
                 val decoderName = NativeBridge.getCurrentDecoderNameImpl()

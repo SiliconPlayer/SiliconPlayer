@@ -439,7 +439,7 @@ internal fun buildDesktopAudioExportArguments(request: AudioExportUiRequest): Li
     add(input.absolutePath)
     add("--output")
     add(request.destinationLocation)
-    if (request.source.subtuneCount > 1) {
+    if (request.source.subtuneCount > 1 || request.source.subtuneIndex > 0) {
         add("--subtune")
         add((request.source.subtuneIndex + 1).toString())
     }
@@ -658,7 +658,10 @@ fun ProvideDesktopPlatformAdapters(
                 toastHandler.showToast("Saved ${files.size} file(s)")
             }
         },
-        content = content
+        content = {
+            content()
+            com.flopster101.siliconplayer.ui.dialogs.AudioExportRequestHost()
+        }
     )
 }
 

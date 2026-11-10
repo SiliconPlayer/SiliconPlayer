@@ -562,7 +562,10 @@ fun ProvideAndroidPlatformAdapters(
         LocalAppConfigDir provides context.filesDir,
         LocalStorageLocationsProvider provides storageLocationsProvider,
         LocalFileExportHandler provides fileExportHandler,
-        content = content
+        content = {
+            content()
+            com.flopster101.siliconplayer.ui.dialogs.AudioExportRequestHost()
+        }
     )
 }
 

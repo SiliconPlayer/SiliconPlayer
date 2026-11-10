@@ -46,6 +46,9 @@ import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.flopster101.siliconplayer.parsePlaylistDocument
 import com.flopster101.siliconplayer.duplicateStoredPlaylist
+import com.flopster101.siliconplayer.effectiveTitle
+import com.flopster101.siliconplayer.export.AudioExportDialogRequests
+import com.flopster101.siliconplayer.export.audioExportSourceForTrack
 import com.flopster101.siliconplayer.trackTextInputFocus
 import com.flopster101.siliconplayer.ui.dialogs.ColorPickerDialog
 import com.flopster101.siliconplayer.isSupportedPlaylistFile
@@ -124,6 +127,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
@@ -6083,6 +6087,30 @@ private fun PlaylistHeroCard(
                             }
                         )
                     }
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = "Export audio",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.FileDownload,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                        enabled = false,
+                        colors = MenuDefaults.itemColors(
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        ),
+                        onClick = {}
+                    )
                     if (onSharePlaylist != null) {
                         DropdownMenuItem(
                             text = {
@@ -7640,6 +7668,40 @@ private fun PlaylistTrackRow(
                                 showPlayWith = true
                             }
                         )
+                        if (!isRemoteSource && localEntryFile != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Export audio",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.FileDownload,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                },
+                                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                                colors = MenuDefaults.itemColors(
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                    leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                onClick = {
+                                    menuExpanded = false
+                                    AudioExportDialogRequests.request(
+                                        audioExportSourceForTrack(
+                                            path = localEntryFile.absolutePath,
+                                            title = entry.effectiveTitle,
+                                            artist = entry.artist,
+                                            subtuneIndex = entry.subtuneIndex,
+                                            durationSeconds = entry.durationSecondsOverride
+                                        )
+                                    )
+                                }
+                            )
+                        }
                         if (showPlayAsCachedAction && isRemoteSource) {
                             DropdownMenuItem(
                                 text = {
@@ -8681,6 +8743,30 @@ private fun PlaylistLibraryFlatRow(
                                 }
                             )
                         }
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Export audio",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.FileDownload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            enabled = false,
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                            ),
+                            onClick = {}
+                        )
                         if (onShare != null) {
                             DropdownMenuItem(
                                 text = {

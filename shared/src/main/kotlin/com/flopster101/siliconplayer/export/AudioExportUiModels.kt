@@ -166,7 +166,9 @@ internal fun formatAudioExportSizeEstimate(
 }
 
 internal fun audioExportSubtuneLabel(subtuneIndex: Int, subtuneCount: Int): String? {
-    if (subtuneCount <= 1) return null
+    if (subtuneCount <= 1) {
+        return if (subtuneIndex > 0) "Subtune ${subtuneIndex + 1}" else null
+    }
     return "Subtune ${subtuneIndex + 1} of $subtuneCount"
 }
 

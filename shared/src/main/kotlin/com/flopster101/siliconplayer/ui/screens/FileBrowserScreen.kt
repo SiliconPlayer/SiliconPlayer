@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
@@ -138,6 +139,8 @@ import com.flopster101.siliconplayer.data.parseArchiveLogicalPath
 import com.flopster101.siliconplayer.LocalBrowserListLocation
 import com.flopster101.siliconplayer.LocalBrowserListingAdapter
 import com.flopster101.siliconplayer.data.FileItem
+import com.flopster101.siliconplayer.export.AudioExportDialogRequests
+import com.flopster101.siliconplayer.export.audioExportSourceForTrack
 import com.flopster101.siliconplayer.data.FileRepository
 import com.flopster101.siliconplayer.data.ensureArchiveMounted
 import com.flopster101.siliconplayer.data.resolveArchiveLogicalDirectory
@@ -3360,6 +3363,37 @@ fun FileItemRow(
                             onClick = {
                                 menuExpanded = false
                                 onAddToPlaylist()
+                            }
+                        )
+                    }
+                    if (!item.isDirectory && item.kind == FileItem.Kind.AudioFile) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "Export audio",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.FileDownload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                                leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            onClick = {
+                                menuExpanded = false
+                                AudioExportDialogRequests.request(
+                                    audioExportSourceForTrack(
+                                        path = item.file.absolutePath,
+                                        title = inferredDisplayTitleForName(item.file.name)
+                                    )
+                                )
                             }
                         )
                     }
