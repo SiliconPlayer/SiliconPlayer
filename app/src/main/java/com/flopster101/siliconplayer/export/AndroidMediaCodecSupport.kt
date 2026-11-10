@@ -30,5 +30,24 @@ internal fun androidMediaCodecMime(codec: AudioExportCodec): String = when (code
     else -> throw IllegalArgumentException("$codec is not a MediaCodec output")
 }
 
-internal fun createAndroidMediaCodecEncoder(codec: AudioExportCodec): MediaCodec =
-    MediaCodec.createEncoderByType(androidMediaCodecMime(codec))
+/**
+ * Creates an encoder for [codec], preferring a vendor implementation over a
+ * software one. MediaCodec's default pick is often the generic `c2.android.*`
+ * encoder even when a faster vendor encoder is installed.
+ */
+internal fun createAndroidMediaCodecEncoder(codec: AudioExportCodec): MediaCodec {
+    val mime = androidMediaCodecMime(codec)
+    val candidates = runCatching {
+        MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos
+            .filter { info ->
+                info.isEncoder && runCatching {
+                    info.supportedTypes.any { it.equals(mime, ignoreCase = true) }
+                }.getOrDefault(false)
+            }
+            .sortedBy { it.isSoftwareOnly }
+    }.getOrDefault(emptyList())
+    candidates.forEach { info ->
+        runCatching { return MediaCodec.createByCodecName(info.name) }
+    }
+    return MediaCodec.createEncoderByType(mime)
+}

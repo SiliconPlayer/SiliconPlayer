@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer.export
 
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -14,9 +16,9 @@ class AndroidMediaCodecAacWriterTest {
     @Test
     fun convertFloatsToPcm16Le_clampsScalesAndWritesLittleEndian() {
         val samples = floatArrayOf(-2.0f, -1.0f, -0.5f, 0.0f, 0.5f, 1.0f, 2.0f)
-        val output = ByteArray(samples.size * 2)
+        val buffer = pcmBuffer(samples.size * 2)
 
-        convertFloatsToPcm16Le(samples, 0, samples.size, output)
+        writeFloatsToPcm16Le(buffer, samples, 0, samples.size)
 
         assertArrayEquals(
             byteArrayOf(
@@ -28,7 +30,7 @@ class AndroidMediaCodecAacWriterTest {
                 -1, 127,
                 -1, 127
             ),
-            output
+            buffer.array()
         )
     }
 
@@ -47,10 +49,13 @@ class AndroidMediaCodecAacWriterTest {
     @Test
     fun amrNbConversionDownmixesStereoToMono() {
         val samples = floatArrayOf(-1.0f, 1.0f, 0.5f, 0.5f, -0.5f, 0.0f)
-        val output = ByteArray(6)
+        val buffer = pcmBuffer(6)
 
-        convertFloatStereoToMonoPcm16Le(samples, 0, 3, output)
+        writeFloatStereoToMonoPcm16Le(buffer, samples, 0, 3)
 
-        assertArrayEquals(byteArrayOf(0, 0, 0, 64, 0, -32), output)
+        assertArrayEquals(byteArrayOf(0, 0, 0, 64, 0, -32), buffer.array())
     }
+
+    private fun pcmBuffer(size: Int): ByteBuffer =
+        ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN)
 }

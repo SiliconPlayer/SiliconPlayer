@@ -4,6 +4,10 @@ import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import java.io.File
+import java.nio.ByteBuffer
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.roundToInt
 
 internal class AndroidMediaCodecWriter(
@@ -17,14 +21,20 @@ internal class AndroidMediaCodecWriter(
     private var codec: MediaCodec? = null
     private var sink: AndroidEncodedAudioPacketSink? = null
     private val bufferInfo = MediaCodec.BufferInfo()
-    private val pcmBuffer = ByteArray(PCM_BUFFER_BYTES)
     private val outputChannels = if (codecChoice == AudioExportCodec.AmrNb) 1 else CHANNEL_COUNT
     private val bytesPerFrame = outputChannels * 2
     private var framesQueued = 0L
+    private val queue = ArrayBlockingQueue<FloatArray>(QUEUE_CAPACITY)
+    private val workerFailure = AtomicReference<Throwable?>(null)
+    private lateinit var worker: Thread
+    @Volatile
     private var codecStarted = false
     private var formatStarted = false
+    @Volatile
     private var finished = false
+    @Volatile
     private var closed = false
+    @Volatile
     private var resourcesReleased = false
 
     init {
@@ -60,6 +70,10 @@ internal class AndroidMediaCodecWriter(
             )
             newCodec.start()
             codecStarted = true
+            worker = Thread(::encodeLoop, "audio-export-encoder").apply {
+                isDaemon = true
+                start()
+            }
         } catch (error: Exception) {
             releaseResources()
             throw error
@@ -72,7 +86,33 @@ internal class AndroidMediaCodecWriter(
         require(frameCount <= samples.size / CHANNEL_COUNT) {
             "Stereo input must contain at least frameCount * 2 samples."
         }
+        if (frameCount == 0) return
+        throwIfWorkerFailed()
+        val chunk = samples.copyOf(frameCount * CHANNEL_COUNT)
+        while (!queue.offer(chunk, QUEUE_OFFER_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+            throwIfWorkerFailed()
+            check(!closed) { "MediaCodec writer was closed during encoding." }
+        }
+    }
 
+    /**
+     * Encodes queued chunks on its own thread so native rendering overlaps with
+     * MediaCodec work instead of running strictly one after the other.
+     */
+    private fun encodeLoop() {
+        try {
+            while (true) {
+                val chunk = queue.take()
+                if (chunk.isEmpty()) break
+                encodeChunk(chunk, chunk.size / CHANNEL_COUNT)
+            }
+            finalizeEncoder()
+        } catch (error: Throwable) {
+            workerFailure.compareAndSet(null, error)
+        }
+    }
+
+    private fun encodeChunk(samples: FloatArray, frameCount: Int) {
         var frameOffset = 0
         while (frameOffset < frameCount) {
             val codec = checkNotNull(codec)
@@ -84,20 +124,18 @@ internal class AndroidMediaCodecWriter(
             )
             check(maxFrames > 0) { "MediaCodec input buffer is too small for a stereo frame." }
             val chunkFrames = minOf(frameCount - frameOffset, maxFrames)
-            val chunkSamples = chunkFrames * CHANNEL_COUNT
             val chunkBytes = chunkFrames * bytesPerFrame
+            inputBuffer.clear()
             if (outputChannels == 1) {
-                convertFloatStereoToMonoPcm16Le(samples, frameOffset, chunkFrames, pcmBuffer)
+                writeFloatStereoToMonoPcm16Le(inputBuffer, samples, frameOffset, chunkFrames)
             } else {
-                convertFloatsToPcm16Le(
+                writeFloatsToPcm16Le(
+                    inputBuffer,
                     samples,
                     frameOffset * CHANNEL_COUNT,
-                    chunkSamples,
-                    pcmBuffer
+                    chunkFrames * CHANNEL_COUNT
                 )
             }
-            inputBuffer.clear()
-            inputBuffer.put(pcmBuffer, 0, chunkBytes)
             codec.queueInputBuffer(
                 inputIndex,
                 0,
@@ -114,21 +152,12 @@ internal class AndroidMediaCodecWriter(
     override fun finish() {
         if (finished) return
         check(!closed) { "Cannot finalize a closed MediaCodec writer." }
+        finished = true
         try {
-            val codec = checkNotNull(codec)
-            val inputIndex = dequeueInputBuffer()
-            codec.queueInputBuffer(
-                inputIndex,
-                0,
-                0,
-                presentationTimeUs(framesQueued),
-                MediaCodec.BUFFER_FLAG_END_OF_STREAM
-            )
-            drainEncoder(endOfStream = true)
-            sink?.finish(framesQueued)
-            releaseResources()
+            queue.put(STOP_CHUNK)
+            worker.join()
+            throwIfWorkerFailed()
         } finally {
-            finished = true
             releaseResources()
         }
     }
@@ -136,7 +165,32 @@ internal class AndroidMediaCodecWriter(
     override fun close() {
         if (closed) return
         closed = true
+        if (::worker.isInitialized && worker.isAlive) {
+            queue.clear()
+            queue.offer(STOP_CHUNK)
+            worker.join(CLOSE_JOIN_TIMEOUT_MS)
+        }
         releaseResources()
+    }
+
+    private fun finalizeEncoder() {
+        val codec = checkNotNull(codec)
+        val inputIndex = dequeueInputBuffer()
+        codec.queueInputBuffer(
+            inputIndex,
+            0,
+            0,
+            presentationTimeUs(framesQueued),
+            MediaCodec.BUFFER_FLAG_END_OF_STREAM
+        )
+        drainEncoder(endOfStream = true)
+        sink?.finish(framesQueued)
+    }
+
+    private fun throwIfWorkerFailed() {
+        workerFailure.get()?.let { failure ->
+            throw IllegalStateException("MediaCodec encoding failed: ${failure.message}", failure)
+        }
     }
 
     private fun dequeueInputBuffer(): Int {
@@ -206,42 +260,44 @@ internal class AndroidMediaCodecWriter(
 
     private companion object {
         const val CHANNEL_COUNT = 2
-        const val PCM_BUFFER_BYTES = 16 * 1024
-        const val DEQUEUE_TIMEOUT_US = 10_000L
+        const val PCM_BUFFER_BYTES = 64 * 1024
+        const val QUEUE_CAPACITY = 4
+        const val QUEUE_OFFER_TIMEOUT_MS = 50L
+        const val CLOSE_JOIN_TIMEOUT_MS = 2_000L
+        const val DEQUEUE_TIMEOUT_US = 1_000L
         const val MAX_EOS_EMPTY_POLLS = 500
+        val STOP_CHUNK = FloatArray(0)
     }
 }
 
-internal fun convertFloatStereoToMonoPcm16Le(
+internal fun writeFloatStereoToMonoPcm16Le(
+    output: ByteBuffer,
     samples: FloatArray,
     frameOffset: Int,
-    frameCount: Int,
-    output: ByteArray
+    frameCount: Int
 ) {
     for (frame in 0 until frameCount) {
         val sampleIndex = (frameOffset + frame) * 2
         val mixed = (samples[sampleIndex] + samples[sampleIndex + 1]) * 0.5f
-        val sample = mixed.coerceIn(-1.0f, 1.0f)
-        val scale = if (sample < 0.0f) PCM16_NEGATIVE_FULL_SCALE else PCM16_FULL_SCALE
-        val value = (sample * scale).roundToInt()
-        output[frame * 2] = value.toByte()
-        output[frame * 2 + 1] = (value ushr 8).toByte()
+        output.putShort(pcm16Le(mixed))
     }
 }
 
-internal fun convertFloatsToPcm16Le(
+internal fun writeFloatsToPcm16Le(
+    output: ByteBuffer,
     samples: FloatArray,
     sampleOffset: Int,
-    sampleCount: Int,
-    output: ByteArray
+    sampleCount: Int
 ) {
     for (index in 0 until sampleCount) {
-        val sample = samples[sampleOffset + index].coerceIn(-1.0f, 1.0f)
-        val scale = if (sample < 0.0f) PCM16_NEGATIVE_FULL_SCALE else PCM16_FULL_SCALE
-        val value = (sample * scale).roundToInt()
-        output[index * 2] = value.toByte()
-        output[index * 2 + 1] = (value ushr 8).toByte()
+        output.putShort(pcm16Le(samples[sampleOffset + index]))
     }
+}
+
+private fun pcm16Le(sample: Float): Short {
+    val clamped = sample.coerceIn(-1.0f, 1.0f)
+    val scale = if (clamped < 0.0f) PCM16_NEGATIVE_FULL_SCALE else PCM16_FULL_SCALE
+    return (clamped * scale).roundToInt().toShort()
 }
 
 private const val PCM16_FULL_SCALE = 32_767.0f

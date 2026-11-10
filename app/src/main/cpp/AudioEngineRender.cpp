@@ -404,9 +404,12 @@ void AudioEngine::renderResampledLocked(
     }
 
     const double inputPerOutputFrame = static_cast<double>(renderRate) / static_cast<double>(streamRate);
-    // Offline export publishes channel-scope captures per decode callback, so
-    // keep decode chunks small there for per-frame scope freshness.
-    const int decodeChunkFrames = offlineRenderMode.load(std::memory_order_relaxed) ? 128 : 1024;
+    // Channel-scope captures are published per decode callback so an attached
+    // visualizer sees fresh per-frame data; audio-only exports have no
+    // consumer for them, so they keep the larger chunk and skip that overhead.
+    const bool needsScopeChunks = offlineRenderMode.load(std::memory_order_relaxed) &&
+            channelScopeVisualizerActive.load(std::memory_order_relaxed);
+    const int decodeChunkFrames = needsScopeChunks ? 128 : 1024;
     const size_t neededScratchSize = static_cast<size_t>(decodeChunkFrames) * channels;
     if (resampleDecodeScratch.size() < neededScratchSize) {
         resampleDecodeScratch.resize(neededScratchSize);
@@ -573,9 +576,12 @@ void AudioEngine::renderSoxrResampledLocked(
         return;
     }
 
-    // Offline export publishes channel-scope captures per decode callback, so
-    // keep decode chunks small there for per-frame scope freshness.
-    const int decodeChunkFrames = offlineRenderMode.load(std::memory_order_relaxed) ? 128 : 1024;
+    // Channel-scope captures are published per decode callback so an attached
+    // visualizer sees fresh per-frame data; audio-only exports have no
+    // consumer for them, so they keep the larger chunk and skip that overhead.
+    const bool needsScopeChunks = offlineRenderMode.load(std::memory_order_relaxed) &&
+            channelScopeVisualizerActive.load(std::memory_order_relaxed);
+    const int decodeChunkFrames = needsScopeChunks ? 128 : 1024;
     const size_t neededScratchSize = static_cast<size_t>(decodeChunkFrames) * channels;
     if (resampleDecodeScratch.size() < neededScratchSize) {
         resampleDecodeScratch.resize(neededScratchSize);
