@@ -367,7 +367,30 @@ class AndroidAudioExportService : Service() {
                     )
                 }
             }
-            resultReceiver?.send(RESULT_COMPLETE, Bundle.EMPTY)
+            resultReceiver?.send(
+                RESULT_COMPLETE,
+                Bundle().apply {
+                    putString(EXTRA_OUTPUT_NAME, outputName)
+                    putString(
+                        EXTRA_OUTPUT_LOCATION,
+                        (createdMediaStoreUri ?: Uri.parse(request.destinationLocation)).toString()
+                    )
+                    putString(
+                        EXTRA_FORMAT_LABEL,
+                        "${request.container.label} · ${request.codec.label}"
+                    )
+                    putDouble(
+                        EXTRA_DURATION_SECONDS,
+                        totalFrames.toDouble() / request.renderOptions.sampleRateHz
+                    )
+                    putLong(EXTRA_SIZE_BYTES, outputFile.length())
+                    putDouble(
+                        EXTRA_ELAPSED_SECONDS,
+                        (System.nanoTime() - exportStartedNs) / 1_000_000_000.0
+                    )
+                    putString(EXTRA_TRACK_TITLE, request.source.title)
+                }
+            )
         } catch (error: Throwable) {
             createdMediaStoreUri?.let { uri -> runCatching { contentResolver.delete(uri, null, null) } }
             createdLegacyFile?.delete()
@@ -456,6 +479,12 @@ class AndroidAudioExportService : Service() {
         private const val EXTRA_SAMPLE_RATE = "sampleRate"
         private const val EXTRA_ELAPSED_SECONDS = "elapsedSeconds"
         private const val EXTRA_WRITTEN_BYTES = "writtenBytes"
+        private const val EXTRA_OUTPUT_NAME = "outputName"
+        private const val EXTRA_OUTPUT_LOCATION = "outputLocation"
+        private const val EXTRA_FORMAT_LABEL = "formatLabel"
+        private const val EXTRA_DURATION_SECONDS = "durationSeconds"
+        private const val EXTRA_SIZE_BYTES = "sizeBytes"
+        private const val EXTRA_TRACK_TITLE = "trackTitle"
         const val RESULT_PROGRESS = 1
         const val RESULT_COMPLETE = 2
         const val RESULT_ERROR = 3

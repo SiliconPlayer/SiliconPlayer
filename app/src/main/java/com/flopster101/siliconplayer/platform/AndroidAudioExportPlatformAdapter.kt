@@ -1,6 +1,8 @@
 package com.flopster101.siliconplayer.platform
 
+import android.content.ClipData
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -11,6 +13,7 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,9 +23,13 @@ import androidx.compose.runtime.setValue
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.export.AndroidAudioExportService
 import com.flopster101.siliconplayer.export.AudioExportCodec
+import com.flopster101.siliconplayer.export.AudioExportCompletedTrack
+import com.flopster101.siliconplayer.export.AudioExportCompletion
+import com.flopster101.siliconplayer.export.AudioExportCompletionAction
 import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportExecutionState
 import com.flopster101.siliconplayer.export.AudioExportPlatformAdapter
+import com.flopster101.siliconplayer.export.AudioExportPlaybackRequests
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
 import com.flopster101.siliconplayer.export.detectAndroidMediaCodecEncoders
@@ -141,8 +148,9 @@ internal fun rememberAndroidAudioExportPlatformAdapter(
                                 )
                             }
                             AndroidAudioExportService.RESULT_COMPLETE -> {
-                                executionStateState = AudioExportExecutionState()
-                                toastHandler.showToast("Audio export complete")
+                                executionStateState = AudioExportExecutionState(
+                                    completion = resultData.toAudioExportCompletion()
+                                )
                             }
                             AndroidAudioExportService.RESULT_CANCELLED -> {
                                 executionStateState = AudioExportExecutionState()
@@ -167,6 +175,55 @@ internal fun rememberAndroidAudioExportPlatformAdapter(
                     executionStateState = AudioExportExecutionState()
                     toastHandler.showToast(error.message ?: "Could not start audio export")
                 }
+            }
+
+            override val completionActions = setOf(
+                AudioExportCompletionAction.Share,
+                AudioExportCompletionAction.PlayNow
+            )
+
+            override fun shareCompletion(completion: AudioExportCompletion) {
+                scope.launch {
+                    val uri = runCatching { completion.shareableUri(context) }.getOrNull()
+                    if (uri == null) {
+                        toastHandler.showToast("Unable to share the exported file")
+                        return@launch
+                    }
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = context.contentResolver.getType(uri) ?: "audio/*"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        clipData = ClipData.newRawUri(completion.outputName, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    runCatching {
+                        context.startActivity(
+                            Intent.createChooser(intent, "Share audio")
+                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        )
+                    }.onFailure {
+                        toastHandler.showToast("Unable to share the exported file")
+                    }
+                }
+            }
+
+            override fun playCompletion(completion: AudioExportCompletion) {
+                scope.launch {
+                    val file = runCatching {
+                        completion.localPlayableFile(context)
+                    }.getOrNull()
+                    if (file == null) {
+                        toastHandler.showToast("Unable to open the exported file")
+                        return@launch
+                    }
+                    withContext(Dispatchers.Main) {
+                        executionStateState = AudioExportExecutionState()
+                        AudioExportPlaybackRequests.request(file)
+                    }
+                }
+            }
+
+            override fun clearCompletion() {
+                executionStateState = AudioExportExecutionState()
             }
 
             override fun cancelExport() {
@@ -238,4 +295,70 @@ private suspend fun importAndroidFfmpegBinary(context: Context, uri: Uri): Pair<
             temporary.delete()
             throw error
         }
+    }
+
+private fun Bundle.toAudioExportCompletion(): AudioExportCompletion {
+    val title = getString("trackTitle") ?: "Exported audio"
+    return AudioExportCompletion(
+        outputName = getString("outputName") ?: title,
+        outputLocation = getString("outputLocation").orEmpty(),
+        formatLabel = getString("formatLabel").orEmpty(),
+        durationSeconds = getDouble("durationSeconds"),
+        sizeBytes = getLong("sizeBytes"),
+        elapsedSeconds = getDouble("elapsedSeconds"),
+        tracks = listOf(
+            AudioExportCompletedTrack(title = title, durationSeconds = getDouble("durationSeconds"))
+        )
+    )
+}
+
+private suspend fun AudioExportCompletion.shareableUri(context: Context): Uri? =
+    withContext(Dispatchers.IO) {
+        val parsed = Uri.parse(outputLocation)
+        when (parsed.scheme) {
+            "content" -> parsed
+            "file" -> parsed.path?.let { path -> File(path).toShareableUri(context) }
+            else -> File(outputLocation).toShareableUri(context)
+        }
+    }
+
+private fun File.toShareableUri(context: Context): Uri? {
+    if (!isFile) return null
+    return runCatching {
+        FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            this
+        )
+    }.getOrElse {
+        // Exported files live outside the app sandbox, so shared copies are staged in cache.
+        val staged = File(context.cacheDir, "export_share/$name").apply {
+            parentFile?.mkdirs()
+            writeBytes(readBytes())
+        }
+        FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            staged
+        )
+    }
+}
+
+private suspend fun AudioExportCompletion.localPlayableFile(context: Context): File? =
+    withContext(Dispatchers.IO) {
+        runCatching {
+            val parsed = Uri.parse(outputLocation)
+            if (parsed.scheme == "content") {
+                val target = File(context.cacheDir, "export_playback/$outputName").apply {
+                    parentFile?.mkdirs()
+                }
+                context.contentResolver.openInputStream(parsed)?.use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                } ?: error("Could not read the exported file")
+                target
+            } else {
+                File(if (parsed.scheme == "file") parsed.path.orEmpty() else outputLocation)
+                    .takeIf { it.isFile }
+            }
+        }.getOrNull()
     }

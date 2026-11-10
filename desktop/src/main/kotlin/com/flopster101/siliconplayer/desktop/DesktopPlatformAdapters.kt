@@ -11,11 +11,15 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import com.flopster101.siliconplayer.DecoderPlatform
 import com.flopster101.siliconplayer.LocalDecoderPlatform
 import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.export.AudioExportCompletedTrack
+import com.flopster101.siliconplayer.export.AudioExportCompletion
+import com.flopster101.siliconplayer.export.AudioExportCompletionAction
 import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportExecutionState
 import com.flopster101.siliconplayer.export.AudioExportFadePlacement
 import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportPlatformAdapter
+import com.flopster101.siliconplayer.export.AudioExportPlaybackRequests
 import com.flopster101.siliconplayer.export.AudioExportProgress
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
 import com.flopster101.siliconplayer.export.LocalAudioExportPlatformAdapter
@@ -227,6 +231,10 @@ private class DesktopAudioExportPlatformAdapter(
         get() = destinationLocation?.let(::File)?.name
     override val destinationDescription: String?
         get() = destinationLocation
+    override val completionActions = setOf(
+        AudioExportCompletionAction.OpenFolder,
+        AudioExportCompletionAction.PlayNow
+    )
 
     private val scope = CoroutineScope(Dispatchers.IO)
     @Volatile
@@ -282,6 +290,33 @@ private class DesktopAudioExportPlatformAdapter(
         scope.launch { runExportWorker(arguments, request) }
     }
 
+    override fun openCompletionFolder(completion: AudioExportCompletion) {
+        val folder = completion.folderPath?.let(::File) ?: return
+        runCatching {
+            if (java.awt.Desktop.isDesktopSupported()) {
+                java.awt.Desktop.getDesktop().open(folder)
+            } else {
+                ProcessBuilder("xdg-open", folder.absolutePath).start()
+            }
+        }.onFailure {
+            toastHandler.showToast("Unable to open ${folder.absolutePath}")
+        }
+    }
+
+    override fun playCompletion(completion: AudioExportCompletion) {
+        val file = File(completion.outputLocation)
+        if (!file.isFile) {
+            toastHandler.showToast("Unable to open the exported file")
+            return
+        }
+        executionState = AudioExportExecutionState()
+        AudioExportPlaybackRequests.request(file)
+    }
+
+    override fun clearCompletion() {
+        executionState = AudioExportExecutionState()
+    }
+
     override fun cancelExport() {
         cancelRequested = true
         if (executionState.running) {
@@ -335,7 +370,12 @@ private class DesktopAudioExportPlatformAdapter(
             errorThread.join()
             when {
                 cancelRequested -> toastHandler.showToast("Audio export cancelled")
-                exitCode == 0 -> toastHandler.showToast("Exported ${File(request.destinationLocation).name}")
+                exitCode == 0 -> executionState = executionState.copy(
+                    running = false,
+                    status = "",
+                    progress = null,
+                    completion = request.toCompletion(workerStartedNs)
+                )
                 else -> {
                     val detail = synchronized(errors) { errors.lastOrNull() }
                     toastHandler.showToast(detail ?: "Audio export failed with exit code $exitCode")
@@ -622,3 +662,29 @@ fun ProvideDesktopPlatformAdapters(
     )
 }
 
+
+private fun AudioExportUiRequest.toCompletion(startedNs: Long): AudioExportCompletion {
+    val output = File(destinationLocation)
+    val durationSeconds = renderOptions.durationCapSeconds ?: source.durationSeconds
+    val totalSeconds = if (loopType == AudioExportLoopType.Duration) {
+        loopDurationSeconds ?: durationSeconds
+    } else {
+        durationSeconds * repeatCount
+    } + if (renderOptions.endFadePlacement == AudioExportFadePlacement.NextLoop) {
+        (renderOptions.endFadeDurationMs ?: 0) / 1_000.0
+    } else {
+        0.0
+    }
+    return AudioExportCompletion(
+        outputName = output.name,
+        outputLocation = output.absolutePath,
+        formatLabel = container.label,
+        durationSeconds = totalSeconds,
+        sizeBytes = output.length(),
+        elapsedSeconds = (System.nanoTime() - startedNs) / 1_000_000_000.0,
+        tracks = listOf(
+            AudioExportCompletedTrack(title = source.title, durationSeconds = totalSeconds)
+        ),
+        folderPath = output.absoluteFile.parent
+    )
+}

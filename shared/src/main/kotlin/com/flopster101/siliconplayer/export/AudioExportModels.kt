@@ -1,6 +1,10 @@
 package com.flopster101.siliconplayer.export
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.flopster101.siliconplayer.EndFadeCurve
+import java.io.File
 
 enum class AudioExportSampleFormat(
     val storageValue: String,
@@ -73,4 +77,51 @@ data class AudioExportProgress(
         } else {
             0.0
         }
+}
+
+data class AudioExportCompletedTrack(
+    val title: String,
+    val durationSeconds: Double
+)
+
+data class AudioExportCompletion(
+    val outputName: String,
+    val outputLocation: String,
+    val formatLabel: String,
+    val durationSeconds: Double,
+    val sizeBytes: Long,
+    val elapsedSeconds: Double,
+    val tracks: List<AudioExportCompletedTrack>,
+    val folderPath: String? = null
+) {
+    val trackCount: Int
+        get() = tracks.size
+
+    val averageSpeed: Double
+        get() = if (elapsedSeconds > 0.0) durationSeconds / elapsedSeconds else 0.0
+}
+
+enum class AudioExportCompletionAction {
+    Share,
+    OpenFolder,
+    PlayNow
+}
+
+/**
+ * Cross-process hand-off for "play now" after an export. The hosting screen
+ * consumes the request with the same path it uses for external file intents.
+ */
+object AudioExportPlaybackRequests {
+    var pendingFile: File? by mutableStateOf(null)
+        private set
+
+    fun request(file: File) {
+        pendingFile = file
+    }
+
+    fun consume(): File? {
+        val file = pendingFile
+        pendingFile = null
+        return file
+    }
 }

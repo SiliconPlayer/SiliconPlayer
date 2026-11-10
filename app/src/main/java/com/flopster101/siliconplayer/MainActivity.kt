@@ -2226,6 +2226,15 @@ private fun AppNavigation(
     var pendingFileToOpen by remember { mutableStateOf<File?>(initialFileToOpen) }
     var pendingFileFromExternalIntent by remember { mutableStateOf(initialFileFromExternalIntent) }
 
+    val exportedPlaybackFile = com.flopster101.siliconplayer.export.AudioExportPlaybackRequests.pendingFile
+    LaunchedEffect(exportedPlaybackFile) {
+        if (exportedPlaybackFile != null) {
+            com.flopster101.siliconplayer.export.AudioExportPlaybackRequests.consume()
+            pendingFileFromExternalIntent = false
+            pendingFileToOpen = exportedPlaybackFile
+        }
+    }
+
     val loadSongVolumeForFile = buildLoadSongVolumeForFileDelegate(
         volumeDatabase = volumeDatabase,
         onSongVolumeDbChanged = { songVolumeDb = it },

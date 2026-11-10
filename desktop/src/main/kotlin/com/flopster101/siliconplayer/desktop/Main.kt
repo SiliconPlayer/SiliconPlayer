@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.InsertDriveFile
 import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.DomainStoreDirs
+import com.flopster101.siliconplayer.export.AudioExportPlaybackRequests
 import com.flopster101.siliconplayer.HomeScreen
 import com.flopster101.siliconplayer.HomePinnedEntry
 import com.flopster101.siliconplayer.MiniPlayerBar
@@ -649,6 +650,14 @@ fun main(args: Array<String>) = application {
                 registerLoadedFile(file)
                 if (openPlayerOnTrackSelect) isPlayerSurfaceVisible = true
             }
+        }
+    }
+
+    val exportedPlaybackFile = AudioExportPlaybackRequests.pendingFile
+    LaunchedEffect(exportedPlaybackFile) {
+        if (exportedPlaybackFile != null) {
+            AudioExportPlaybackRequests.consume()
+            playFile(exportedPlaybackFile)
         }
     }
 

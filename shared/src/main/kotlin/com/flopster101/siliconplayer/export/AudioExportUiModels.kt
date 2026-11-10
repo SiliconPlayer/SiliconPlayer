@@ -84,7 +84,8 @@ internal data class AudioExportUiRequest(
 internal data class AudioExportExecutionState(
     val running: Boolean = false,
     val status: String = "",
-    val progress: AudioExportProgress? = null
+    val progress: AudioExportProgress? = null,
+    val completion: AudioExportCompletion? = null
 )
 
 internal interface AudioExportPlatformAdapter {
@@ -94,6 +95,8 @@ internal interface AudioExportPlatformAdapter {
         get() = emptySet()
     val mediaCodecSupportsWebM: Boolean
         get() = false
+    val completionActions: Set<AudioExportCompletionAction>
+        get() = emptySet()
     val externalBinaryLocation: String?
     val externalBinaryLabel: String?
     val externalBinaryActionLabel: String
@@ -105,6 +108,10 @@ internal interface AudioExportPlatformAdapter {
     fun resetDestination(suggestedFileName: String)
     fun startExport(request: AudioExportUiRequest)
     fun cancelExport()
+    fun shareCompletion(completion: AudioExportCompletion) = Unit
+    fun openCompletionFolder(completion: AudioExportCompletion) = Unit
+    fun playCompletion(completion: AudioExportCompletion) = Unit
+    fun clearCompletion() = Unit
 }
 
 internal val LocalAudioExportPlatformAdapter = staticCompositionLocalOf<AudioExportPlatformAdapter?> { null }

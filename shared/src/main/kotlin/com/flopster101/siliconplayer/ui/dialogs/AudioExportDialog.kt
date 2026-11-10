@@ -116,15 +116,32 @@ internal fun AudioExportDialog(
     var exportStarted by rememberSaveable { mutableStateOf(false) }
     var observedRunning by rememberSaveable { mutableStateOf(false) }
     val executionState = platform.executionState
+    val completion = executionState.completion
     val showingProgress = executionState.running || exportStarted || observedRunning
-    LaunchedEffect(executionState.running) {
+    LaunchedEffect(executionState.running, completion) {
         if (executionState.running) {
             observedRunning = true
+        } else if (completion != null) {
+            exportStarted = false
         } else if (exportStarted || observedRunning) {
             exportStarted = false
             observedRunning = false
             onDismiss()
         }
+    }
+    if (completion != null) {
+        AudioExportCompletionDialog(
+            completion = completion,
+            supportedActions = platform.completionActions,
+            onShare = { platform.shareCompletion(completion) },
+            onOpenFolder = { platform.openCompletionFolder(completion) },
+            onPlayNow = { platform.playCompletion(completion) },
+            onClose = {
+                platform.clearCompletion()
+                onDismiss()
+            }
+        )
+        return
     }
     var encoder by rememberSaveable { mutableStateOf(platform.encoders.first()) }
     var container by rememberSaveable { mutableStateOf(AudioExportContainer.M4a) }
