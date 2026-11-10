@@ -2277,7 +2277,8 @@ internal fun PlayerScreen(
                 decoderName = pluginNameForCoreName(decoderName) ?: decoderName,
                 subtuneIndex = titleCurrentSubtuneIndex,
                 subtuneCount = titleSubtuneCount,
-                durationSeconds = durationSeconds
+                durationSeconds = durationSeconds,
+                durationReliable = hasReliableDuration
             ),
             platform = audioExportPlatform,
             onDismiss = { showAudioExportDialog = false }

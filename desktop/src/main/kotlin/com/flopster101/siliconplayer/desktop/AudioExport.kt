@@ -221,6 +221,7 @@ internal fun runAudioExport(
         val wholeTrackFrames = framesPerPass * options.repeatCount
         val loopPointSupported = NativeBridge.getRepeatModeCapabilities() and REPEAT_CAP_LOOP_POINT != 0
         var useLoopPoint = false
+        var continueSession = false
         var totalFrames = Math.addExact(wholeTrackFrames, fadeExtensionFrames)
         if (options.loopType == AudioExportLoopType.Duration) {
             val duration = requireNotNull(options.loopDurationSeconds) { "Loop duration is required." }
@@ -253,8 +254,14 @@ internal fun runAudioExport(
                 useLoopPoint = true
                 totalFrames = Math.addExact(probedFrames, fadeExtensionFrames)
                 if (fadeExtensionFrames > 0L) loopPassLimit = Math.addExact(options.repeatCount, 1)
+            } else if (probedFrames >= wholeTrackFrames) {
+                // No loop point was reported inside the planned length, so keep the
+                // running session and let the fade cover the extension instead of
+                // restarting the track at the end of the planned audio.
+                continueSession = true
+                totalFrames = Math.addExact(probedFrames, fadeExtensionFrames)
             }
-            loadPass(loopPoint = useLoopPoint, counted = useLoopPoint)
+            if (!continueSession) loadPass(loopPoint = useLoopPoint, counted = useLoopPoint)
         }
         if (ffmpegExecutable == null) {
             val bytesPerFrame = EXPORT_CHANNELS * options.renderOptions.sampleFormat.bytesPerSample
@@ -300,7 +307,7 @@ internal fun runAudioExport(
                 val frames = minOf(
                     EXPORT_CHUNK_FRAMES.toLong(),
                     remaining,
-                    if (useLoopPoint) remaining else framesLeftInPass
+                    if (useLoopPoint || continueSession) remaining else framesLeftInPass
                 ).toInt()
                 val samples = FloatArray(frames * EXPORT_CHANNELS)
                 var rendered = NativeBridge.renderOfflineAudioFrames(
@@ -318,6 +325,12 @@ internal fun runAudioExport(
                         options.renderOptions.sampleRateHz
                     )
                 }
+                if (rendered == 0 && continueSession) {
+                    // The decoder finished inside the fade extension; pad the tail
+                    // with silence instead of restarting the track.
+                    samples.fill(0f, 0, frames * EXPORT_CHANNELS)
+                    rendered = frames
+                }
                 check(rendered > 0) {
                     "Offline audio rendering produced no frames at ${totalFrames - remaining}."
                 }
@@ -333,7 +346,7 @@ internal fun runAudioExport(
                 writer.write(samples, rendered)
                 remaining -= rendered
                 framesLeftInPass -= rendered
-                if (!useLoopPoint && framesLeftInPass == 0L && remaining > 0L) {
+                if (!useLoopPoint && !continueSession && framesLeftInPass == 0L && remaining > 0L) {
                     loadPass()
                     framesLeftInPass = framesPerPass
                 }

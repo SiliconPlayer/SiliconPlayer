@@ -60,7 +60,8 @@ internal data class AudioExportDialogSource(
     val decoderName: String?,
     val subtuneIndex: Int,
     val subtuneCount: Int,
-    val durationSeconds: Double
+    val durationSeconds: Double,
+    val durationReliable: Boolean = true
 )
 
 internal data class AudioExportUiRequest(

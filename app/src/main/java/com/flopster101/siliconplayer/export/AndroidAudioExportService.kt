@@ -190,6 +190,7 @@ class AndroidAudioExportService : Service() {
             val wholeTrackFrames = framesPerPass * repeatCount
             val loopPointSupported = NativeBridge.getRepeatModeCapabilities() and REPEAT_CAP_LOOP_POINT != 0
             var useLoopPoint = false
+            var continueSession = false
             var totalFrames = Math.addExact(wholeTrackFrames, fadeExtensionFrames)
             if (request.loopType == AudioExportLoopType.Duration) {
                 val duration = requireNotNull(request.loopDurationSeconds)
@@ -224,8 +225,14 @@ class AndroidAudioExportService : Service() {
                     useLoopPoint = true
                     totalFrames = Math.addExact(probedFrames, fadeExtensionFrames)
                     if (fadeExtensionFrames > 0L) loopPassLimit = Math.addExact(repeatCount, 1)
+                } else if (probedFrames >= wholeTrackFrames) {
+                    // No loop point was reported inside the planned length, so keep the
+                    // running session and let the fade cover the extension instead of
+                    // restarting the track at the end of the planned audio.
+                    continueSession = true
+                    totalFrames = Math.addExact(probedFrames, fadeExtensionFrames)
                 }
-                loadPass(loopPoint = useLoopPoint, counted = useLoopPoint)
+                if (!continueSession) loadPass(loopPoint = useLoopPoint, counted = useLoopPoint)
             }
             val outputFile = File.createTempFile("audio-export-", ".${request.container.extension}", cacheDir)
             temporary = outputFile
@@ -266,7 +273,7 @@ class AndroidAudioExportService : Service() {
                     val frames = minOf(
                         4096L,
                         remaining,
-                        if (useLoopPoint) remaining else framesLeftInPass
+                        if (useLoopPoint || continueSession) remaining else framesLeftInPass
                     ).toInt()
                     val samples = FloatArray(frames * 2)
                     var rendered = NativeBridge.renderOfflineAudioFrames(
@@ -284,6 +291,12 @@ class AndroidAudioExportService : Service() {
                             request.renderOptions.sampleRateHz
                         )
                     }
+                    if (rendered == 0 && continueSession) {
+                        // The decoder finished inside the fade extension; pad the tail
+                        // with silence instead of restarting the track.
+                        samples.fill(0f, 0, frames * 2)
+                        rendered = frames
+                    }
                     check(rendered > 0) { "Offline rendering ended before the planned duration." }
                     applyAudioExportFade(
                         samples = samples,
@@ -297,7 +310,7 @@ class AndroidAudioExportService : Service() {
                     output.write(samples, rendered)
                     remaining -= rendered
                     framesLeftInPass -= rendered
-                    if (!useLoopPoint && framesLeftInPass == 0L && remaining > 0L) {
+                    if (!useLoopPoint && !continueSession && framesLeftInPass == 0L && remaining > 0L) {
                         loadPass()
                         framesLeftInPass = framesPerPass
                     }

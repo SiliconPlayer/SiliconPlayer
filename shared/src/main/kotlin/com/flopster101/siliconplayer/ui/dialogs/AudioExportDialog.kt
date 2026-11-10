@@ -155,7 +155,15 @@ internal fun AudioExportDialog(
     var useActiveEffects by rememberSaveable { mutableStateOf(true) }
     var customDuration by rememberSaveable { mutableStateOf(false) }
     var durationSecondsText by rememberSaveable { mutableStateOf("120") }
-    var loopType by rememberSaveable { mutableStateOf(AudioExportLoopType.Repeat) }
+    var loopType by rememberSaveable(source.sourceId) {
+        mutableStateOf(
+            if (source.durationReliable) {
+                AudioExportLoopType.Repeat
+            } else {
+                AudioExportLoopType.Duration
+            }
+        )
+    }
     var repeatMode by rememberSaveable { mutableStateOf(AudioExportRepeatMode.LoopPoint) }
     var repeatCountText by rememberSaveable { mutableStateOf("1") }
     var loopDurationText by rememberSaveable(source.sourceId) { mutableStateOf(formatTime(source.durationSeconds)) }
@@ -191,12 +199,28 @@ internal fun AudioExportDialog(
     LaunchedEffect(source.sourceId) {
         platform.resetDestination(suggestedFileName)
     }
-    val sizeEstimate = formatAudioExportSizeEstimate(
-        durationSeconds = (if (loopType == AudioExportLoopType.Duration) {
-            loopDurationSeconds ?: source.durationSeconds
+    val plannedAudioSeconds = if (loopType == AudioExportLoopType.Duration) {
+        loopDurationSeconds ?: source.durationSeconds
+    } else {
+        (durationCapSeconds ?: source.durationSeconds) * (repeatCount ?: 1)
+    }
+    val fadeExtensionSeconds = if (fadePlacement == AudioExportFadePlacement.NextLoop) {
+        fadeDurationMs / 1_000.0
+    } else {
+        0.0
+    }
+    val timingSummary = buildString {
+        append(formatTime(plannedAudioSeconds))
+        if (fadeDurationMs == 0) {
+            append(" · no fade")
+        } else if (fadeExtensionSeconds > 0.0) {
+            append(" + ${fadeDurationMs / 1000} s fade")
         } else {
-            (durationCapSeconds ?: source.durationSeconds) * (repeatCount ?: 1)
-        }) + if (fadePlacement == AudioExportFadePlacement.NextLoop) fadeDurationMs / 1_000.0 else 0.0,
+            append(" · ${fadeDurationMs / 1000} s fade")
+        }
+    }
+    val sizeEstimate = formatAudioExportSizeEstimate(
+        durationSeconds = plannedAudioSeconds + fadeExtensionSeconds,
         container = container,
         codec = codec,
         sampleRateHz = sampleRateHz,
@@ -454,8 +478,7 @@ internal fun AudioExportDialog(
                                 )
                                 AudioExportCollapsibleSection(
                                     title = "Timing and fades",
-                                    summary = "${formatTime(durationCapSeconds ?: source.durationSeconds)} · " +
-                                        if (fadeDurationMs == 0) "no fade" else "${fadeDurationMs / 1000} s fade",
+                                    summary = timingSummary,
                                     expanded = timingExpanded,
                                     onToggle = { timingExpanded = !timingExpanded }
                                 ) {
@@ -503,6 +526,14 @@ internal fun AudioExportDialog(
                                             valueLabel = { it.label },
                                             onValueChange = { repeatMode = it },
                                             modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    if (loopType == AudioExportLoopType.Repeat && !source.durationReliable) {
+                                        Text(
+                                            text = "This decoder does not report a track length, " +
+                                                "so repeat passes may not line up with the track.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                     if (customDuration) {
