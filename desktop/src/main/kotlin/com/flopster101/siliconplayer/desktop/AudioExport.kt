@@ -9,6 +9,9 @@ import com.flopster101.siliconplayer.REPEAT_CAP_LOOP_POINT
 import com.flopster101.siliconplayer.RepeatMode
 import com.flopster101.siliconplayer.applyStoredPluginConfigurationsToNative
 import com.flopster101.siliconplayer.export.AudioExportFadePlacement
+import com.flopster101.siliconplayer.export.AudioExportCodec
+import com.flopster101.siliconplayer.export.AudioExportContainer
+import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportMetadata
 import com.flopster101.siliconplayer.export.AudioExportProgress
@@ -19,8 +22,13 @@ import com.flopster101.siliconplayer.export.AudioExportWriter
 import com.flopster101.siliconplayer.export.FfmpegExportWriter
 import com.flopster101.siliconplayer.export.applyAudioExportFade
 import com.flopster101.siliconplayer.export.audioExportFadeFrames
+import com.flopster101.siliconplayer.export.defaultAudioExportBitrate
+import com.flopster101.siliconplayer.export.easyFfmpegOutputArguments
+import com.flopster101.siliconplayer.export.impliedCodec
+import com.flopster101.siliconplayer.export.impliedContainer
 import com.flopster101.siliconplayer.export.ffmpegMetadataArguments
 import com.flopster101.siliconplayer.export.parseFfmpegArgumentList
+import com.flopster101.siliconplayer.export.supportedAudioExportContainers
 import com.flopster101.siliconplayer.pushStoredCoreOptionsToNative
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
@@ -47,7 +55,11 @@ internal data class AudioExportOptions(
     val renderOptions: AudioExportRenderOptions,
     val ffmpegPath: File?,
     val ffmpegArguments: List<String>,
-    val force: Boolean
+    val force: Boolean,
+    val container: AudioExportContainer? = null,
+    val codec: AudioExportCodec? = null,
+    val bitrateBps: Int? = null,
+    val metadata: AudioExportMetadata? = null
 )
 
 internal data class AudioExportResult(
@@ -98,6 +110,21 @@ internal fun runAudioExport(
         "Could not create output directory: $outputDir"
     }
     val ffmpegExecutable = resolveFfmpegExecutable(options, output)
+    val effectiveCodec = options.codec ?: options.container?.impliedCodec()
+    val effectiveContainer = options.container ?: effectiveCodec?.impliedContainer()
+    if (effectiveContainer != null) {
+        require(output.extension.equals(effectiveContainer.extension, ignoreCase = true)) {
+            "Output extension .${output.extension} does not match ${effectiveContainer.label}; expected .${effectiveContainer.extension}."
+        }
+    }
+    val effectiveArguments = if (options.ffmpegArguments.isEmpty() && effectiveCodec != null) {
+        easyFfmpegOutputArguments(
+            effectiveCodec,
+            options.bitrateBps ?: defaultAudioExportBitrate(effectiveCodec)
+        )
+    } else {
+        options.ffmpegArguments
+    }
 
     DesktopPaths.install()
     DomainStoreDirs.configDir = DesktopPaths.configDir()
@@ -158,7 +185,20 @@ internal fun runAudioExport(
             return decoder
         }
         val decoderName = loadPass()
-        val metadata = readDecoderMetadata(session)
+        val metadata = readDecoderMetadata(session).let { decoderMetadata ->
+            options.metadata?.let { override ->
+                AudioExportMetadata(
+                    title = override.title ?: decoderMetadata.title,
+                    artist = override.artist ?: decoderMetadata.artist,
+                    album = override.album ?: decoderMetadata.album,
+                    composer = override.composer ?: decoderMetadata.composer,
+                    genre = override.genre ?: decoderMetadata.genre,
+                    date = override.date ?: decoderMetadata.date,
+                    copyright = override.copyright ?: decoderMetadata.copyright,
+                    comment = override.comment ?: decoderMetadata.comment
+                )
+            } ?: decoderMetadata
+        }
 
         val unknownDurationSeconds = options.renderOptions.unknownDurationSeconds
             ?: prefs.getInt(AppPreferenceKeys.UNKNOWN_TRACK_DURATION_SECONDS, GmeDefaults.unknownDurationSeconds)
@@ -248,7 +288,7 @@ internal fun runAudioExport(
                 file = temp,
                 sampleRateHz = options.renderOptions.sampleRateHz,
                 executable = ffmpegExecutable,
-                arguments = ffmpegOutputArguments(options, output, metadata)
+                arguments = ffmpegOutputArguments(options.copy(ffmpegArguments = effectiveArguments), output, metadata)
             )
         }
         exportWriter.use { writer ->
@@ -443,7 +483,8 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
         require(name in setOf(
             "input", "output", "subtune", "sampleRate", "sampleFormat", "duration",
             "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount", "loopType", "loopDuration", "repeatMode", "fadePlacement",
-            "useGain", "useEffects", "ffmpeg", "ffmpegArgs"
+            "useGain", "useEffects", "ffmpeg", "ffmpegArgs", "container", "codec", "bitrate",
+            "title", "artist", "album", "composer", "genre", "date", "copyright", "comment"
         )) { "Unknown option: --$name" }
         require(index + 1 < args.size) { "Missing value for --$name" }
         require(values.put(name, args[index + 1]) == null) { "Duplicate option: --$name" }
@@ -482,6 +523,41 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
     val duration = values["duration"]?.let { raw ->
         requireNotNull(raw.toDoubleOrNull()) { "--duration must be a number." }
     }
+    val container = values["container"]?.let { raw ->
+        AudioExportContainer.entries.firstOrNull {
+            it.extension.equals(raw, ignoreCase = true) || it.name.equals(raw, ignoreCase = true)
+        } ?: throw IllegalArgumentException("--container is not supported: $raw")
+    }
+    val codec = values["codec"]?.let { raw ->
+        AudioExportCodec.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
+            ?: throw IllegalArgumentException("--codec is not supported: $raw")
+    }
+    if (container != null && codec != null) {
+        require(container in supportedAudioExportContainers(
+            codec,
+            AudioExportEncoder.SystemFfmpeg
+        )) {
+            "--container does not support the selected codec."
+        }
+    }
+    val bitrateBps = intValue("bitrate").also { value ->
+        require(value == null || value > 0) { "--bitrate must be positive bits per second." }
+    }
+    val metadata = AudioExportMetadata(
+        title = values["title"],
+        artist = values["artist"],
+        album = values["album"],
+        composer = values["composer"],
+        genre = values["genre"],
+        date = values["date"],
+        copyright = values["copyright"],
+        comment = values["comment"]
+    ).takeIf { options ->
+        listOf(
+            options.title, options.artist, options.album, options.composer,
+            options.genre, options.date, options.copyright, options.comment
+        ).any { !it.isNullOrBlank() }
+    }
     return AudioExportOptions(
         input = input,
         output = output,
@@ -502,6 +578,10 @@ internal fun parseAudioExportOptions(args: Array<String>): AudioExportOptions {
         },
         ffmpegPath = values["ffmpeg"]?.let(::expandAudioExportPath),
         ffmpegArguments = values["ffmpegArgs"]?.let(::parseFfmpegArgumentList).orEmpty(),
+        container = container,
+        codec = codec,
+        bitrateBps = bitrateBps,
+        metadata = metadata,
         renderOptions = AudioExportRenderOptions(
             sampleRateHz = intValue("sampleRate") ?: 48_000,
             sampleFormat = sampleFormat,
@@ -577,6 +657,17 @@ private fun printAudioExportHelp() {
           -PuseEffects=<true|false>       Use active DSP effects
           -Pffmpeg=<path>                 Use a specific FFmpeg executable
           -PffmpegArgs="<arguments>"      Output codec/options, e.g. "-c:a flac"
+          -Pcodec=<codec>                 AAC, AMR-NB, FLAC, MP3, Opus, or PCM 24-bit
+          -Pcontainer=<extension>         m4a, aac, amr, webm, 3gp, mp3, ogg, flac, or wav
+          -Pbitrate=<bits per second>     Encoder bitrate, e.g. 256000
+          -Ptitle=<text>                  Override exported title metadata
+          -Partist=<text>                 Override exported artist metadata
+          -Palbum=<text>                  Override exported album metadata
+          -Pcomposer=<text>               Override exported composer metadata
+          -Pgenre=<text>                  Override exported genre metadata
+          -Pdate=<text>                   Override exported date metadata
+          -Pcopyright=<text>              Override exported copyright metadata
+          -Pcomment=<text>                Override exported comment metadata
           -Pforce=true                    Replace an existing output file
         """.trimIndent()
     )

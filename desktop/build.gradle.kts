@@ -254,7 +254,8 @@ tasks.register<JavaExec>("exportAudio") {
         "input", "output", "subtune", "sampleRate", "sampleFormat", "duration",
         "unknownDuration", "fadeMs", "fadeCurve", "fadeAll", "repeatCount", "loopType", "loopDuration", "repeatMode", "fadePlacement",
         "useGain",
-        "useEffects", "ffmpeg", "ffmpegArgs"
+        "useEffects", "ffmpeg", "ffmpegArgs", "container", "codec", "bitrate",
+        "title", "artist", "album", "composer", "genre", "date", "copyright", "comment"
     )
         .flatMap { name ->
             (project.findProperty(name) as? String)?.let { listOf("--$name", it) } ?: emptyList()

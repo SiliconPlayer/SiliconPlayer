@@ -3,6 +3,8 @@ package com.flopster101.siliconplayer
 import com.flopster101.siliconplayer.desktop.moveCompletedExport
 import com.flopster101.siliconplayer.desktop.parseAudioExportOptions
 import com.flopster101.siliconplayer.desktop.resolveFfmpegExecutable
+import com.flopster101.siliconplayer.export.AudioExportCodec
+import com.flopster101.siliconplayer.export.AudioExportContainer
 import com.flopster101.siliconplayer.export.AudioExportFadePlacement
 import com.flopster101.siliconplayer.export.AudioExportLoopType
 import com.flopster101.siliconplayer.export.AudioExportMetadata
@@ -144,6 +146,43 @@ class AudioExportTest {
         assertThrows(IllegalArgumentException::class.java) {
             parseAudioExportOptions(arrayOf("--input", "in.sid", "--output", "out.wav", "--repeatMode", "playlist"))
         }
+    }
+
+    @Test
+    fun parsesCodecContainerAndBitrate() {
+        val options = parseAudioExportOptions(
+            arrayOf(
+                "--input", "song.sid", "--output", "out.ogg",
+                "--codec", "Opus", "--container", "ogg", "--bitrate", "128000"
+            )
+        )
+
+        assertEquals(AudioExportCodec.Opus, options.codec)
+        assertEquals(AudioExportContainer.Ogg, options.container)
+        assertEquals(128_000, options.bitrateBps)
+    }
+
+    @Test
+    fun rejectsIncompatibleCodecContainer() {
+        assertThrows(IllegalArgumentException::class.java) {
+            parseAudioExportOptions(
+                arrayOf(
+                    "--input", "song.sid", "--output", "out.wav",
+                    "--codec", "Aac", "--container", "wav"
+                )
+            )
+        }
+    }
+
+    @Test
+    fun parsesOutputFormatDefaults() {
+        val options = parseAudioExportOptions(
+            arrayOf("--input", "song.sid", "--output", "out.flac", "--codec", "Flac")
+        )
+
+        assertEquals(AudioExportCodec.Flac, options.codec)
+        assertNull(options.container)
+        assertNull(options.bitrateBps)
     }
 
     @Test
