@@ -129,3 +129,15 @@
 	path = external/libspatialaudio
 	url = https://github.com/videolan/libspatialaudio
 	ignore = dirty
+[submodule "external/steam-audio"]
+	path = external/steam-audio
+	url = https://github.com/valvesoftware/steam-audio.git
+	ignore = dirty
+[submodule "external/pffft"]
+	path = external/pffft
+	url = https://github.com/marton78/pffft.git
+	ignore = dirty
+[submodule "external/flatbuffers"]
+	path = external/flatbuffers
+	url = https://github.com/google/flatbuffers.git
+	ignore = dirty
