@@ -1,6 +1,7 @@
 #include "SpatializerEngine.h"
 
 #include "LibSpatialAudioBackend.h"
+#include "SteamAudioBackend.h"
 
 #include <algorithm>
 #include <cmath>
@@ -24,8 +25,9 @@ std::unique_ptr<ISpatializer> createBackendInstance(SpatializerBackendId backend
     switch (backendId) {
         case SpatializerBackendId::LibSpatialAudio:
             return std::make_unique<LibSpatialAudioBackend>();
-        case SpatializerBackendId::None:
         case SpatializerBackendId::SteamAudio:
+            return std::make_unique<SteamAudioBackend>();
+        case SpatializerBackendId::None:
             break;
     }
     return nullptr;

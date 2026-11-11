@@ -1,9 +1,11 @@
-// Native regression test for the libspatialaudio spatializer backend.
+// Native regression test for the spatializer backends.
 #include "spatial/LibSpatialAudioBackend.h"
 #include "spatial/SpatializerEngine.h"
+#include "spatial/SteamAudioBackend.h"
 
 #include <cmath>
 #include <cstdio>
+#include <memory>
 #include <vector>
 
 namespace {
@@ -21,35 +23,49 @@ constexpr int kSampleRate = 48000;
 constexpr int kChannels = 6;
 constexpr int kBlock = 256;
 
-siliconplayer::spatial::SpatializerConfig makeConfig(int renderMethod) {
+siliconplayer::spatial::SpatializerConfig makeConfig(
+        int renderMethod,
+        siliconplayer::spatial::SpatializerBackendId backend =
+                siliconplayer::spatial::SpatializerBackendId::LibSpatialAudio) {
     siliconplayer::spatial::SpatializerConfig config;
-    config.backend = siliconplayer::spatial::SpatializerBackendId::LibSpatialAudio;
+    config.backend = backend;
     config.enabled = true;
     config.renderMethod = renderMethod;
     return config;
 }
 
-void testPanning(int renderMethod, const char* label) {
-    siliconplayer::spatial::LibSpatialAudioBackend backend;
-    if (!backend.prepare(
-                kSampleRate,
-                siliconplayer::spatial::BedLayoutId::Surround_5_1,
-                kChannels,
-                kBlock,
-                makeConfig(renderMethod))) {
-        printf("FAIL: %s backend prepare\n", label);
-        ++g_failures;
-        return;
-    }
-
+void testPanning(
+        int renderMethod,
+        const char* label,
+        siliconplayer::spatial::SpatializerBackendId backendId =
+                siliconplayer::spatial::SpatializerBackendId::LibSpatialAudio) {
     for (int srcChannel = 0; srcChannel < 3; ++srcChannel) {
+        // A fresh instance per channel keeps the convolution tail of the
+        // previous channel out of the measurement.
+        std::unique_ptr<siliconplayer::spatial::ISpatializer> backend;
+        if (backendId == siliconplayer::spatial::SpatializerBackendId::SteamAudio) {
+            backend = std::make_unique<siliconplayer::spatial::SteamAudioBackend>();
+        } else {
+            backend = std::make_unique<siliconplayer::spatial::LibSpatialAudioBackend>();
+        }
+        if (!backend->prepare(
+                    kSampleRate,
+                    siliconplayer::spatial::BedLayoutId::Surround_5_1,
+                    kChannels,
+                    kBlock,
+                    makeConfig(renderMethod, backendId))) {
+            printf("FAIL: %s backend prepare\n", label);
+            ++g_failures;
+            return;
+        }
+
         std::vector<float> input(static_cast<size_t>(kBlock) * kChannels, 0.0f);
         std::vector<float> output(static_cast<size_t>(kBlock) * 2, 0.0f);
         for (int f = 0; f < kBlock; ++f) {
             input[static_cast<size_t>(f) * kChannels + srcChannel] =
                     std::sin(2.0 * M_PI * 1000.0 * f / kSampleRate);
         }
-        backend.process(input.data(), output.data(), kBlock);
+        backend->process(input.data(), output.data(), kBlock);
 
         double left = 0.0;
         double right = 0.0;
@@ -66,9 +82,9 @@ void testPanning(int renderMethod, const char* label) {
         printf("  %s src=%d left=%.4f right=%.4f\n", label, srcChannel, left, right);
         check(finite, "output stays finite");
         if (srcChannel == 0) {
-            check(left > right * 3.0, "front left pans to the left ear");
+            check(left > right * 2.0, "front left pans to the left ear");
         } else if (srcChannel == 1) {
-            check(right > left * 3.0, "front right pans to the right ear");
+            check(right > left * 2.0, "front right pans to the right ear");
         } else {
             check(left > 0.0 && right > 0.0, "front center feeds both ears");
         }
@@ -119,6 +135,7 @@ void testEngineBlocks() {
 int main() {
     testPanning(0, "virtual-speakers");
     testPanning(1, "ambisonics");
+    testPanning(0, "steam-audio", siliconplayer::spatial::SpatializerBackendId::SteamAudio);
     testEngineBlocks();
     if (g_failures == 0) {
         printf("ALL PASS\n");

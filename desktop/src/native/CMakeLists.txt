@@ -97,6 +97,8 @@ set(MAIN_SOURCES
     "${APP_CPP_DIR}/spatial/SpatializerEngine.cpp"
     "${APP_CPP_DIR}/spatial/LibSpatialAudioBackend.cpp"
     "${APP_CPP_DIR}/spatial/SpatializerConfigJson.cpp"
+    "${APP_CPP_DIR}/spatial/SteamAudioContext.cpp"
+    "${APP_CPP_DIR}/spatial/SteamAudioBackend.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptBassEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptSurroundEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptReverbEffect.cpp"
@@ -641,6 +643,8 @@ add_executable(siliconplayer_spatializer_test
     "${CMAKE_CURRENT_SOURCE_DIR}/SpatializerNativeTest.cpp"
     "${APP_CPP_DIR}/spatial/SpatializerEngine.cpp"
     "${APP_CPP_DIR}/spatial/LibSpatialAudioBackend.cpp"
+    "${APP_CPP_DIR}/spatial/SteamAudioContext.cpp"
+    "${APP_CPP_DIR}/spatial/SteamAudioBackend.cpp"
 )
 target_include_directories(siliconplayer_spatializer_test PRIVATE
     "${APP_CPP_DIR}"
@@ -649,6 +653,7 @@ target_include_directories(siliconplayer_spatializer_test PRIVATE
 target_link_libraries(siliconplayer_spatializer_test PRIVATE
     libspatialaudio_prebuilt
     libmysofa_prebuilt
+    libphonon_prebuilt
     m
 )
 add_test(NAME spatializer COMMAND siliconplayer_spatializer_test)

@@ -35,6 +35,8 @@ add_library(
         spatial/SpatializerEngine.cpp
         spatial/LibSpatialAudioBackend.cpp
         spatial/SpatializerConfigJson.cpp
+        spatial/SteamAudioContext.cpp
+        spatial/SteamAudioBackend.cpp
         effects/nodes/OpenMptBassEffect.cpp
         effects/nodes/OpenMptSurroundEffect.cpp
         effects/nodes/OpenMptReverbEffect.cpp
