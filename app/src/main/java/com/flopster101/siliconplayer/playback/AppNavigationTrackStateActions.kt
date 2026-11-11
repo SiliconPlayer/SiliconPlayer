@@ -29,7 +29,10 @@ internal fun applyNativeTrackSnapshotAction(
     onCurrentSubtuneIndexChanged: (Int) -> Unit,
     onRepeatModeCapabilitiesFlagsChanged: (Int) -> Unit,
     onPlaybackCapabilitiesFlagsChanged: (Int) -> Unit,
-    onDurationChanged: (Double) -> Unit
+    onDurationChanged: (Double) -> Unit,
+    activePlaylist: StoredPlaylist? = null,
+    playlistLibraryState: PlaylistLibraryState? = null,
+    songVolumeStore: com.flopster101.siliconplayer.audio.SongVolumeStore? = null
 ) {
     val applied = buildSnapshotApplicationResult(snapshot, prefs)
     val sanitizedTitle = sanitizeRemoteCachedMetadataTitle(applied.title, selectedFile)
@@ -41,7 +44,11 @@ internal fun applyNativeTrackSnapshotAction(
         ignoreCoreVolumeForCurrentSong = ignoreCoreVolumeForCurrentSong,
         onLastUsedCoreNameChanged = onLastUsedCoreNameChanged,
         onPluginVolumeDbChanged = onPluginVolumeDbChanged,
-        onPluginGainChanged = onPluginGainChanged
+        onPluginGainChanged = onPluginGainChanged,
+        activePlaylist = activePlaylist,
+        playlistLibraryState = playlistLibraryState,
+        songVolumeStore = songVolumeStore,
+        songPath = selectedFile?.absolutePath
     )
     onMetadataTitleChanged(sanitizedTitle)
     onMetadataArtistChanged(applied.artist)
@@ -62,10 +69,21 @@ internal fun applyResolvedDecoderStateAction(
     ignoreCoreVolumeForCurrentSong: Boolean,
     onLastUsedCoreNameChanged: (String) -> Unit,
     onPluginVolumeDbChanged: (Float) -> Unit,
-    onPluginGainChanged: (Float) -> Unit
+    onPluginGainChanged: (Float) -> Unit,
+    activePlaylist: StoredPlaylist? = null,
+    playlistLibraryState: PlaylistLibraryState? = null,
+    songVolumeStore: com.flopster101.siliconplayer.audio.SongVolumeStore? = null,
+    songPath: String? = null
 ) {
     val resolvedDecoderName = decoderName?.trim().takeIf { !it.isNullOrEmpty() } ?: return
-    applyEffectiveDspSettingsForCoreAction(prefs, resolvedDecoderName)
+    applyEffectiveDspSettingsForCoreAction(
+        prefs = prefs,
+        coreName = resolvedDecoderName,
+        activePlaylist = activePlaylist,
+        playlistLibraryState = playlistLibraryState,
+        songVolumeStore = songVolumeStore,
+        songPath = songPath
+    )
     onLastUsedCoreNameChanged(resolvedDecoderName)
     val decoderPluginVolumeDb = readPluginVolumeForDecoder(prefs, resolvedDecoderName)
     onPluginVolumeDbChanged(decoderPluginVolumeDb)
@@ -74,11 +92,19 @@ internal fun applyResolvedDecoderStateAction(
 
 internal fun applyEffectiveDspSettingsForCoreAction(
     prefs: SharedPreferences,
-    coreName: String
+    coreName: String,
+    activePlaylist: StoredPlaylist? = null,
+    playlistLibraryState: PlaylistLibraryState? = null,
+    songVolumeStore: com.flopster101.siliconplayer.audio.SongVolumeStore? = null,
+    songPath: String? = null
 ) {
     com.flopster101.siliconplayer.audio.applyEffectiveEffectChainFromPrefsToNative(
-        com.flopster101.siliconplayer.platform.AndroidAppPreferences(prefs),
-        coreName
+        prefs = com.flopster101.siliconplayer.platform.AndroidAppPreferences(prefs),
+        coreName = coreName,
+        playlist = activePlaylist,
+        playlistState = playlistLibraryState,
+        songVolumeStore = songVolumeStore,
+        songPath = songPath
     )
 }
 
@@ -323,7 +349,14 @@ internal suspend fun restorePlayerStateFromSessionAndNativeAction(
                     val snapshot = readNativeTrackSnapshot()
                     val decoderName = snapshot.decoderName?.trim()?.takeIf { it.isNotEmpty() } ?: readCurrentDecoderName()
                     if (decoderName != null) {
-                        applyEffectiveDspSettingsForCoreAction(prefs, decoderName)
+                        applyEffectiveDspSettingsForCoreAction(
+                            prefs = prefs,
+                            coreName = decoderName,
+                            songVolumeStore = VolumeDatabase.getInstance(context),
+                            songPath = restoreTarget.displayFile.absolutePath.takeIf {
+                                sourceScheme != "http" && sourceScheme != "https" && sourceScheme != "smb"
+                            }
+                        )
                     }
                     snapshot
                 }

@@ -310,7 +310,8 @@ internal fun buildSnapshotApplicationResult(
 
 internal fun loadTrackSnapshotForSelection(
     path: String,
-    initialSubtuneIndex: Int?
+    initialSubtuneIndex: Int?,
+    activePlaylist: StoredPlaylist? = null
 ): LoadedTrackSelectionState {
     NativeBridge.replaceCurrentAudio(path)
     val subtuneCount = NativeBridge.getSubtuneCount().coerceAtLeast(0)
@@ -323,7 +324,13 @@ internal fun loadTrackSnapshotForSelection(
     if (decoderName != null) {
         val context = NativeBridge.requireAppContext()
         val prefs = context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
-        applyEffectiveDspSettingsForCoreAction(prefs, decoderName)
+        applyEffectiveDspSettingsForCoreAction(
+            prefs = prefs,
+            coreName = decoderName,
+            activePlaylist = activePlaylist,
+            songVolumeStore = VolumeDatabase.getInstance(context),
+            songPath = path
+        )
     }
 
     return LoadedTrackSelectionState(
@@ -335,7 +342,8 @@ internal fun loadTrackSnapshotForSelection(
 internal fun selectSubtuneAndReadState(
     index: Int,
     selectedFile: File?,
-    currentPlaybackSourceId: String?
+    currentPlaybackSourceId: String?,
+    activePlaylist: StoredPlaylist? = null
 ): SubtuneSelectionResult {
     if (selectedFile == null) return SubtuneSelectionResult(success = false)
     if (!NativeBridge.selectSubtune(index)) return SubtuneSelectionResult(success = false)
@@ -344,7 +352,13 @@ internal fun selectSubtuneAndReadState(
     if (decoderName != null) {
         val context = NativeBridge.requireAppContext()
         val prefs = context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
-        applyEffectiveDspSettingsForCoreAction(prefs, decoderName)
+        applyEffectiveDspSettingsForCoreAction(
+            prefs = prefs,
+            coreName = decoderName,
+            activePlaylist = activePlaylist,
+            songVolumeStore = VolumeDatabase.getInstance(context),
+            songPath = selectedFile.absolutePath
+        )
     }
 
     return SubtuneSelectionResult(

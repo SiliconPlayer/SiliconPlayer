@@ -23,9 +23,12 @@ internal fun clearAllAudioParametersAction(
     onPluginVolumeDbChanged: (Float) -> Unit,
     onSongVolumeDbChanged: (Float) -> Unit,
     onIgnoreCoreVolumeForSongChanged: (Boolean) -> Unit,
-    onForceMonoChanged: (Boolean) -> Unit
+    onForceMonoChanged: (Boolean) -> Unit,
+    activePlaylist: StoredPlaylist? = null,
+    playlistLibraryState: PlaylistLibraryState? = null
 ) {
-    clearAllAudioParameterPrefs(com.flopster101.siliconplayer.platform.AndroidAppPreferences(prefs))
+    val appPrefs = com.flopster101.siliconplayer.platform.AndroidAppPreferences(prefs)
+    clearAllAudioParameterPrefs(appPrefs)
     volumeDatabase.resetAllSongVolumes()
     onMasterVolumeDbChanged(0f)
     onPluginVolumeDbChanged(0f)
@@ -35,8 +38,13 @@ internal fun clearAllAudioParametersAction(
     NativeBridge.setMasterGain(0f)
     NativeBridge.setPluginGain(0f)
     NativeBridge.setSongGain(0f)
-    com.flopster101.siliconplayer.audio.applyEffectChainToNative(
-        com.flopster101.siliconplayer.audio.EffectChain.Empty
+    com.flopster101.siliconplayer.audio.applyEffectiveEffectChainFromPrefsToNative(
+        prefs = appPrefs,
+        coreName = readCurrentDecoderName(),
+        playlist = activePlaylist,
+        playlistState = playlistLibraryState,
+        songVolumeStore = volumeDatabase,
+        songPath = null
     )
     Toast.makeText(context, "All audio parameters cleared", Toast.LENGTH_SHORT).show()
 }
@@ -56,12 +64,26 @@ internal fun clearSongAudioParametersAction(
     context: Context,
     volumeDatabase: VolumeDatabase,
     onSongVolumeDbChanged: (Float) -> Unit,
-    onIgnoreCoreVolumeForSongChanged: (Boolean) -> Unit
+    onIgnoreCoreVolumeForSongChanged: (Boolean) -> Unit,
+    prefs: SharedPreferences? = null,
+    activePlaylist: StoredPlaylist? = null,
+    playlistLibraryState: PlaylistLibraryState? = null,
+    songPath: String? = null
 ) {
     volumeDatabase.resetAllSongVolumes()
     onSongVolumeDbChanged(0f)
     onIgnoreCoreVolumeForSongChanged(false)
     NativeBridge.setSongGain(0f)
+    if (prefs != null) {
+        com.flopster101.siliconplayer.audio.applyEffectiveEffectChainFromPrefsToNative(
+            prefs = com.flopster101.siliconplayer.platform.AndroidAppPreferences(prefs),
+            coreName = readCurrentDecoderName(),
+            playlist = activePlaylist,
+            playlistState = playlistLibraryState,
+            songVolumeStore = volumeDatabase,
+            songPath = songPath
+        )
+    }
     Toast.makeText(context, "All song volumes cleared", Toast.LENGTH_SHORT).show()
 }
 

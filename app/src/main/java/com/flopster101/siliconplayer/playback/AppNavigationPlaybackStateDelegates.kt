@@ -50,7 +50,9 @@ internal class AppNavigationPlaybackStateDelegates(
     private val onArtworkBitmapCleared: () -> Unit,
     private val onIgnoreCoreVolumeForSongChanged: (Boolean) -> Unit,
     private val onLastStoppedChanged: (File?, String?) -> Unit,
-    private val onStopEngine: () -> Unit
+    private val onStopEngine: () -> Unit,
+    private val activePlaylistProvider: () -> StoredPlaylist? = { null },
+    private val playlistLibraryStateProvider: () -> PlaylistLibraryState? = { null }
 ) {
     fun applyCoreOptionWithPolicy(
         coreName: String,
@@ -90,7 +92,10 @@ internal class AppNavigationPlaybackStateDelegates(
             onCurrentSubtuneIndexChanged = onCurrentSubtuneIndexChanged,
             onRepeatModeCapabilitiesFlagsChanged = onRepeatModeCapabilitiesFlagsChanged,
             onPlaybackCapabilitiesFlagsChanged = onPlaybackCapabilitiesFlagsChanged,
-            onDurationChanged = onDurationChanged
+            onDurationChanged = onDurationChanged,
+            activePlaylist = activePlaylistProvider(),
+            playlistLibraryState = playlistLibraryStateProvider(),
+            songVolumeStore = VolumeDatabase.getInstance(context)
         )
     }
 
@@ -101,18 +106,24 @@ internal class AppNavigationPlaybackStateDelegates(
             ignoreCoreVolumeForCurrentSong = ignoreCoreVolumeForCurrentSongProvider(),
             onLastUsedCoreNameChanged = { onLastUsedCoreNameChanged(it) },
             onPluginVolumeDbChanged = onPluginVolumeDbChanged,
-            onPluginGainChanged = onPluginGainChanged
+            onPluginGainChanged = onPluginGainChanged,
+            activePlaylist = activePlaylistProvider(),
+            playlistLibraryState = playlistLibraryStateProvider(),
+            songVolumeStore = VolumeDatabase.getInstance(context),
+            songPath = selectedFileProvider()?.absolutePath
         )
     }
 
     // Subsong switches re-probe the decoder; the blocking part runs off
     // the tap and the UI application resumes on the caller thread.
     suspend fun selectSubtune(index: Int): Boolean {
+        val activePlaylist = activePlaylistProvider()
         val result = withContext(Dispatchers.IO) {
             selectSubtuneAndReadState(
                 index = index,
                 selectedFile = selectedFileProvider(),
-                currentPlaybackSourceId = currentPlaybackSourceIdProvider()
+                currentPlaybackSourceId = currentPlaybackSourceIdProvider(),
+                activePlaylist = activePlaylist
             )
         }
         return applySubtuneSelectionResult(

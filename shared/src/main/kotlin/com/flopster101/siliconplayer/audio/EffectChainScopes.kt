@@ -1,7 +1,10 @@
 package com.flopster101.siliconplayer.audio
 
 import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.PlaylistLibraryState
+import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.platform.AppPreferences
+import com.flopster101.siliconplayer.updateStoredPlaylistEffectChain
 
 internal sealed interface ScopeKey {
     data object Global : ScopeKey
@@ -87,6 +90,51 @@ internal fun readCoreEffectChain(prefs: AppPreferences, coreName: String?): Effe
     return null
 }
 
+internal fun readPlaylistEffectChain(playlist: StoredPlaylist?): EffectChain? {
+    val raw = playlist?.effectChain?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return EffectChain.fromJson(raw)
+}
+
+internal fun readPlaylistEffectChain(
+    state: PlaylistLibraryState?,
+    playlistId: String?
+): EffectChain? {
+    val id = playlistId?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val playlist = state?.playlists?.firstOrNull { it.id == id } ?: return null
+    return readPlaylistEffectChain(playlist)
+}
+
+internal fun readSongEffectChain(
+    songVolumeStore: SongVolumeStore?,
+    songPath: String?
+): EffectChain? {
+    val path = songPath?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val raw = songVolumeStore?.getSongEffectChain(path)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return EffectChain.fromJson(raw)
+}
+
+internal fun readScopeEffectChain(
+    key: ScopeKey,
+    prefs: AppPreferences,
+    songVolumeStore: SongVolumeStore? = null,
+    playlistState: PlaylistLibraryState? = null,
+    activePlaylist: StoredPlaylist? = null
+): EffectChain? = when (key) {
+    ScopeKey.Global -> readGlobalEffectChain(prefs)
+    is ScopeKey.Core -> readCoreEffectChain(prefs, key.name)
+    is ScopeKey.Playlist -> {
+        val fromState = readPlaylistEffectChain(playlistState, key.id)
+        if (fromState != null) {
+            fromState
+        } else if (activePlaylist?.id == key.id) {
+            readPlaylistEffectChain(activePlaylist)
+        } else {
+            null
+        }
+    }
+    is ScopeKey.Song -> readSongEffectChain(songVolumeStore, key.path)
+}
+
 internal fun writeGlobalEffectChain(editor: AppPreferences.Editor, chain: EffectChain) {
     editor.putString(AppPreferenceKeys.AUDIO_EFFECT_CHAIN, chain.toJson())
 }
@@ -112,17 +160,64 @@ internal fun writeCoreEffectChain(editor: AppPreferences.Editor, coreName: Strin
     }
 }
 
+internal fun writePlaylistEffectChain(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    chain: EffectChain?
+): PlaylistLibraryState = updateStoredPlaylistEffectChain(
+    state = state,
+    playlistId = playlistId,
+    effectChain = chain?.toJson()
+)
+
+internal fun writeSongEffectChain(
+    songVolumeStore: SongVolumeStore,
+    songPath: String,
+    chain: EffectChain?
+) {
+    val path = songPath.trim()
+    if (path.isEmpty()) return
+    songVolumeStore.setSongEffectChain(path, chain?.toJson())
+}
+
 internal fun resolveEffectiveEffectChainForPrefs(
     prefs: AppPreferences,
-    coreName: String?
-): EffectChain = resolveEffectiveEffectChain(
-    global = readGlobalEffectChain(prefs),
-    core = readCoreEffectChain(prefs, coreName)
-)
+    coreName: String? = null,
+    playlist: StoredPlaylist? = null,
+    playlistState: PlaylistLibraryState? = null,
+    playlistId: String? = playlist?.id,
+    songVolumeStore: SongVolumeStore? = null,
+    songPath: String? = null
+): EffectChain {
+    val resolvedPlaylistChain = readPlaylistEffectChain(playlistState, playlistId)
+        ?: readPlaylistEffectChain(playlist)
+    val resolvedSongChain = readSongEffectChain(songVolumeStore, songPath)
+    return resolveEffectiveEffectChain(
+        global = readGlobalEffectChain(prefs),
+        core = readCoreEffectChain(prefs, coreName),
+        playlist = resolvedPlaylistChain,
+        song = resolvedSongChain
+    )
+}
 
 internal fun applyEffectiveEffectChainFromPrefsToNative(
     prefs: AppPreferences,
-    coreName: String?
+    coreName: String? = null,
+    playlist: StoredPlaylist? = null,
+    playlistState: PlaylistLibraryState? = null,
+    playlistId: String? = playlist?.id,
+    songVolumeStore: SongVolumeStore? = null,
+    songPath: String? = null
 ) {
-    applyEffectChainToNative(resolveEffectiveEffectChainForPrefs(prefs, coreName))
+    applyEffectChainToNative(
+        resolveEffectiveEffectChainForPrefs(
+            prefs = prefs,
+            coreName = coreName,
+            playlist = playlist,
+            playlistState = playlistState,
+            playlistId = playlistId,
+            songVolumeStore = songVolumeStore,
+            songPath = songPath
+        )
+    )
 }

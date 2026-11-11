@@ -22,7 +22,10 @@ import com.flopster101.siliconplayer.audio.NodeOptions
 import com.flopster101.siliconplayer.audio.applyEffectChainToNative
 import com.flopster101.siliconplayer.audio.readCoreEffectChain
 import com.flopster101.siliconplayer.audio.readGlobalEffectChain
+import com.flopster101.siliconplayer.audio.readPlaylistEffectChain
+import com.flopster101.siliconplayer.audio.readSongEffectChain
 import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChain
+import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
 import com.flopster101.siliconplayer.audio.writeCoreEffectChain
 import com.flopster101.siliconplayer.audio.writeGlobalEffectChain
 import com.flopster101.siliconplayer.platform.AndroidAppPreferences
@@ -170,6 +173,13 @@ internal fun AppNavigationPlaybackDialogsSection(
     var tempCoreIgnoreGlobalDsp by remember { mutableStateOf(coreIgnoreGlobalDsp) }
     var tempDspNamespaceSelection by remember { mutableStateOf(dspNamespaceSelection) }
 
+    fun currentPlaylistEffectChain(): EffectChain? =
+        readPlaylistEffectChain(playlistLibraryState, activePlaylist?.id)
+            ?: readPlaylistEffectChain(activePlaylist)
+
+    fun currentSongEffectChain(): EffectChain? =
+        readSongEffectChain(volumeDatabase, selectedFile?.absolutePath)
+
     fun resolveTempCoreChain(): EffectChain? {
         if (lastUsedCoreName == null) return null
         val active = tempCoreHasChain ||
@@ -182,7 +192,9 @@ internal fun AppNavigationPlaybackDialogsSection(
         applyEffectChainToNative(
             resolveEffectiveEffectChain(
                 global = tempGlobalDraft.chain.withMasterMono(tempForceMono),
-                core = resolveTempCoreChain()
+                core = resolveTempCoreChain(),
+                playlist = currentPlaylistEffectChain()?.withMasterMono(tempForceMono),
+                song = currentSongEffectChain()?.withMasterMono(tempForceMono)
             )
         )
     }
@@ -214,12 +226,26 @@ internal fun AppNavigationPlaybackDialogsSection(
         }
     }
 
-    LaunchedEffect(showAudioEffectsDialog) {
+    LaunchedEffect(
+        showAudioEffectsDialog,
+        lastUsedCoreName,
+        selectedFile?.absolutePath,
+        activePlaylist?.id,
+        activePlaylist?.effectChain,
+        playlistLibraryState
+    ) {
         if (showAudioEffectsDialog) return@LaunchedEffect
+        globalChain = readGlobalEffectChain(appPrefs)
+        coreChain = readCoreEffectChain(appPrefs, lastUsedCoreName)
+        coreIgnoreGlobalDsp = coreChain != null && coreChain?.nodes?.isEmpty() == true
         applyEffectChainToNative(
-            resolveEffectiveEffectChain(
-                global = globalChain,
-                core = coreChain
+            resolveEffectiveEffectChainForPrefs(
+                prefs = appPrefs,
+                coreName = lastUsedCoreName,
+                playlist = activePlaylist,
+                playlistState = playlistLibraryState,
+                songVolumeStore = volumeDatabase,
+                songPath = selectedFile?.absolutePath
             )
         )
     }
@@ -327,18 +353,7 @@ internal fun AppNavigationPlaybackDialogsSection(
             onTempForceMonoChanged(it)
             tempGlobalDraft = tempGlobalDraft.withMasterMono(it)
             tempCoreDraft = tempCoreDraft.withMasterMono(it)
-            applyEffectChainToNative(
-                resolveEffectiveEffectChain(
-                    global = tempGlobalDraft.chain,
-                    core = if (lastUsedCoreName != null &&
-                        (tempCoreHasChain || tempCoreIgnoreGlobalDsp || tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore)
-                    ) {
-                        tempCoreDraft.chain
-                    } else {
-                        null
-                    }
-                )
-            )
+            applyCurrentTempChainToNative()
         },
         onDspNamespaceSelectionChange = { value ->
             tempDspNamespaceSelection = if (value == "core" && lastUsedCoreName != null) {
@@ -379,18 +394,7 @@ internal fun AppNavigationPlaybackDialogsSection(
             NativeBridge.setMasterGain(0f)
             NativeBridge.setPluginGain(0f)
             NativeBridge.setSongGain(0f)
-            applyEffectChainToNative(
-                resolveEffectiveEffectChain(
-                    global = tempGlobalDraft.chain,
-                    core = if (lastUsedCoreName != null &&
-                        (tempCoreHasChain || tempCoreIgnoreGlobalDsp || tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore)
-                    ) {
-                        tempCoreDraft.chain
-                    } else {
-                        null
-                    }
-                )
-            )
+            applyCurrentTempChainToNative()
         },
         onAudioEffectsResetDspScope = { scope ->
             if (scope == "core" && lastUsedCoreName != null) {
@@ -407,7 +411,9 @@ internal fun AppNavigationPlaybackDialogsSection(
                         tempCoreDraft.chain.withMasterMono(tempForceMono)
                     } else {
                         null
-                    }
+                    },
+                    playlist = currentPlaylistEffectChain()?.withMasterMono(tempForceMono),
+                    song = currentSongEffectChain()?.withMasterMono(tempForceMono)
                 )
             )
         },
@@ -420,7 +426,9 @@ internal fun AppNavigationPlaybackDialogsSection(
             applyEffectChainToNative(
                 resolveEffectiveEffectChain(
                     global = globalChain.withMasterMono(forceMono),
-                    core = coreChain?.withMasterMono(forceMono)
+                    core = coreChain?.withMasterMono(forceMono),
+                    playlist = currentPlaylistEffectChain(),
+                    song = currentSongEffectChain()
                 )
             )
             onShowAudioEffectsDialogChanged(false)
@@ -472,7 +480,9 @@ internal fun AppNavigationPlaybackDialogsSection(
             applyEffectChainToNative(
                 resolveEffectiveEffectChain(
                     global = globalChain,
-                    core = coreChain
+                    core = coreChain,
+                    playlist = currentPlaylistEffectChain(),
+                    song = currentSongEffectChain()
                 )
             )
             onShowAudioEffectsDialogChanged(false)

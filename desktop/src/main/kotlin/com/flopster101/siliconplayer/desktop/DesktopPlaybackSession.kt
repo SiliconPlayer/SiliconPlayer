@@ -26,7 +26,10 @@ import com.flopster101.siliconplayer.resolveActiveRepeatMode
 import com.flopster101.siliconplayer.resolveCachedRemoteSourceId
 import com.flopster101.siliconplayer.resolveManualSourceInput
 import com.flopster101.siliconplayer.supportsLiveRepeatMode
+import com.flopster101.siliconplayer.PlaylistLibraryState
+import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.audio.EffectChain
+import com.flopster101.siliconplayer.audio.SongVolumeStore
 import com.flopster101.siliconplayer.audio.applyEffectChainToNative
 import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
@@ -133,6 +136,9 @@ class DesktopPlaybackSession(
     // Live prefs source for track-open native pushes; attached once host prefs exist.
     var trackOptionsPrefs: AppPreferences? = null
     var audioExportOptions: AudioExportRenderOptions? = null
+    internal var activePlaylistProvider: (() -> StoredPlaylist?)? = null
+    internal var playlistLibraryStateProvider: (() -> PlaylistLibraryState?)? = null
+    internal var songVolumeStoreProvider: (() -> SongVolumeStore?)? = { DesktopSongVolumeStore.getInstance() }
     var persistLoadCrashGuard = true
     // Persisted preferred mode (host-owned); resolved per track into repeatMode.
     var preferredRepeatMode: RepeatMode = RepeatMode.None
@@ -204,7 +210,14 @@ class DesktopPlaybackSession(
                 if (audioExportOptions?.useActiveEffects == false) {
                     EffectChain.Empty
                 } else {
-                    resolveEffectiveEffectChainForPrefs(prefs, decoderName)
+                    resolveEffectiveEffectChainForPrefs(
+                        prefs = prefs,
+                        coreName = decoderName,
+                        playlist = activePlaylistProvider?.invoke(),
+                        playlistState = playlistLibraryStateProvider?.invoke(),
+                        songVolumeStore = songVolumeStoreProvider?.invoke(),
+                        songPath = currentSourceId
+                    )
                 }
             )
         }
@@ -311,7 +324,14 @@ class DesktopPlaybackSession(
                 if (audioExportOptions?.useActiveEffects == false) {
                     EffectChain.Empty
                 } else {
-                    resolveEffectiveEffectChainForPrefs(prefs, decoderName)
+                    resolveEffectiveEffectChainForPrefs(
+                        prefs = prefs,
+                        coreName = decoderName,
+                        playlist = activePlaylistProvider?.invoke(),
+                        playlistState = playlistLibraryStateProvider?.invoke(),
+                        songVolumeStore = songVolumeStoreProvider?.invoke(),
+                        songPath = currentSourceId
+                    )
                 }
             )
         }

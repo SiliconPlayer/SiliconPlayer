@@ -28,6 +28,7 @@ private const val STORED_PLAYLIST_FOLDER_ID_KEY = "folder_id"
 private const val STORED_PLAYLIST_CUSTOM_ARTWORK_URI_KEY = "custom_artwork_uri"
 private const val STORED_PLAYLIST_ICON_TINT_KEY = "icon_tint"
 private const val STORED_PLAYLIST_AUTO_GENERATE_COVER_KEY = "auto_generate_cover"
+private const val STORED_PLAYLIST_EFFECT_CHAIN_KEY = "effect_chain"
 private const val STORED_PLAYLIST_ENTRIES_KEY = "entries"
 
 private const val PLAYLIST_LIBRARY_FOLDERS_KEY = "folders"
@@ -91,6 +92,7 @@ internal fun writePlaylistLibraryState(
     prefs.edit()
         .putString(AppPreferenceKeys.PLAYLIST_LIBRARY_JSON, root.toString())
         .commit()
+    playlistLibraryWriteRevision.longValue++
 }
 
 internal fun upsertStoredPlaylist(
@@ -536,6 +538,7 @@ private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
     val customArtworkUri = item.optString(STORED_PLAYLIST_CUSTOM_ARTWORK_URI_KEY).trim().ifBlank { null }
     val iconTintArgb = if (item.has(STORED_PLAYLIST_ICON_TINT_KEY)) item.optLong(STORED_PLAYLIST_ICON_TINT_KEY) else null
     val autoGenerateCover = item.optBoolean(STORED_PLAYLIST_AUTO_GENERATE_COVER_KEY, true)
+    val effectChain = item.optString(STORED_PLAYLIST_EFFECT_CHAIN_KEY).trim().ifBlank { null }
     return StoredPlaylist(
         id = item.optString(STORED_PLAYLIST_ID_KEY).trim().ifBlank { java.util.UUID.randomUUID().toString() },
         title = title,
@@ -548,7 +551,8 @@ private fun readStoredPlaylist(item: JSONObject): StoredPlaylist? {
         folderId = folderId,
         customArtworkUri = customArtworkUri,
         iconTintArgb = iconTintArgb,
-        autoGenerateCover = autoGenerateCover
+        autoGenerateCover = autoGenerateCover,
+        effectChain = effectChain
     )
 }
 
@@ -630,6 +634,9 @@ private fun writeStoredPlaylist(playlist: StoredPlaylist): JSONObject {
                 put(STORED_PLAYLIST_ICON_TINT_KEY, playlist.iconTintArgb)
             }
             put(STORED_PLAYLIST_AUTO_GENERATE_COVER_KEY, playlist.autoGenerateCover)
+            if (!playlist.effectChain.isNullOrBlank()) {
+                put(STORED_PLAYLIST_EFFECT_CHAIN_KEY, playlist.effectChain)
+            }
         }
         .put(
             STORED_PLAYLIST_ENTRIES_KEY,
@@ -637,6 +644,29 @@ private fun writeStoredPlaylist(playlist: StoredPlaylist): JSONObject {
                 playlist.entries.forEach { put(writePlaylistTrackEntry(it)) }
             }
         )
+}
+
+internal fun updateStoredPlaylistEffectChain(
+    state: PlaylistLibraryState,
+    playlistId: String,
+    effectChain: String?
+): PlaylistLibraryState {
+    val normalized = effectChain?.trim()?.ifBlank { null }
+    var changed = false
+    val updatedPlaylists = state.playlists.map { playlist ->
+        if (playlist.id != playlistId) {
+            playlist
+        } else if (playlist.effectChain == normalized) {
+            playlist
+        } else {
+            changed = true
+            playlist.copy(
+                effectChain = normalized,
+                updatedAtMs = System.currentTimeMillis()
+            )
+        }
+    }
+    return if (changed) state.copy(playlists = updatedPlaylists) else state
 }
 
 internal fun updateStoredPlaylistCover(
@@ -770,6 +800,8 @@ private const val PLAYLIST_INDEX_FILE_KEY = "file"
 // rewrites that playlist's file, never the whole library.
 private val playlistLibraryWriteCache = java.util.concurrent.ConcurrentHashMap<String, PlaylistLibraryState>()
 
+val playlistLibraryWriteRevision = androidx.compose.runtime.mutableLongStateOf(0L)
+
 internal fun playlistLibraryDir(configDir: File): File = File(configDir, PLAYLIST_FILES_DIR_NAME)
 
 internal fun playlistFavoritesFile(configDir: File): File = File(configDir, PLAYLIST_FAVORITES_FILE_NAME)
@@ -832,6 +864,7 @@ internal fun writePlaylistLibraryState(
         if (previous == null) {
             writePlaylistLibraryStateFresh(dir, configDir, state)
             playlistLibraryWriteCache[dir.absolutePath] = state
+            playlistLibraryWriteRevision.longValue++
             return
         }
         var allWritesSucceeded = true
@@ -871,6 +904,7 @@ internal fun writePlaylistLibraryState(
         // would never be retried.
         if (allWritesSucceeded) {
             playlistLibraryWriteCache[dir.absolutePath] = state
+            playlistLibraryWriteRevision.longValue++
         }
     }
 }

@@ -89,8 +89,12 @@ import com.flopster101.siliconplayer.Vio2sfOptionKeys
 import com.flopster101.siliconplayer.XmpDefaults
 import com.flopster101.siliconplayer.XmpOptionKeys
 import com.flopster101.siliconplayer.applyDecoderPriorityOrder
+import com.flopster101.siliconplayer.PlaylistLibraryState
+import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.audio.EffectChain
 import com.flopster101.siliconplayer.audio.applyEffectChainToNative
+import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
+import com.flopster101.siliconplayer.readPluginVolumeForDecoder
 import com.flopster101.siliconplayer.buildSettingsScreenState
 import com.flopster101.siliconplayer.clearAllAudioParameterPrefs
 import com.flopster101.siliconplayer.clearAllDecoderPluginVolumes
@@ -150,7 +154,12 @@ internal fun rememberDesktopSettings(
     onVisualizationShowDebugInfoChanged: (Boolean) -> Unit = {},
     onClearRecentsUiState: () -> Unit = {},
     onClearNetworkNodesUiState: () -> Unit = {},
-    onClearAllUiState: () -> Unit = {}
+    onClearAllUiState: () -> Unit = {},
+    currentCoreName: String? = null,
+    activePlaylist: StoredPlaylist? = null,
+    playlistLibraryState: PlaylistLibraryState? = null,
+    currentSongPath: String? = null,
+    onAudioParametersCleared: () -> Unit = {}
 ): Pair<SettingsScreenState, SettingsScreenActions> {
     val prefs = LocalAppPreferences.current
     val cacheDir = LocalAppCacheDir.current
@@ -469,23 +478,50 @@ internal fun rememberDesktopSettings(
             onOpenAudioEffects = onOpenAudioEffects,
             onClearAllAudioParameters = {
                 clearAllAudioParameterPrefs(prefs)
-                DesktopSongVolumeStore.getInstance().resetAllSongVolumes()
+                val store = DesktopSongVolumeStore.getInstance()
+                store.resetAllSongVolumes()
                 runCatching {
                     NativeBridge.setMasterGain(0f)
                     NativeBridge.setPluginGain(0f)
                     NativeBridge.setSongGain(0f)
-                    applyEffectChainToNative(EffectChain.Empty)
+                    applyEffectChainToNative(
+                        resolveEffectiveEffectChainForPrefs(
+                            prefs = prefs,
+                            coreName = currentCoreName,
+                            playlist = activePlaylist,
+                            playlistState = playlistLibraryState,
+                            songVolumeStore = store,
+                            songPath = currentSongPath
+                        )
+                    )
                 }
+                onAudioParametersCleared()
                 changeToken++
             },
             onClearPluginAudioParameters = {
                 clearAllDecoderPluginVolumes(prefs)
                 runCatching { NativeBridge.setPluginGain(0f) }
+                onAudioParametersCleared()
                 changeToken++
             },
             onClearSongAudioParameters = {
-                DesktopSongVolumeStore.getInstance().resetAllSongVolumes()
-                runCatching { NativeBridge.setSongGain(0f) }
+                val store = DesktopSongVolumeStore.getInstance()
+                store.resetAllSongVolumes()
+                runCatching {
+                    NativeBridge.setPluginGain(readPluginVolumeForDecoder(prefs, currentCoreName))
+                    NativeBridge.setSongGain(0f)
+                    applyEffectChainToNative(
+                        resolveEffectiveEffectChainForPrefs(
+                            prefs = prefs,
+                            coreName = currentCoreName,
+                            playlist = activePlaylist,
+                            playlistState = playlistLibraryState,
+                            songVolumeStore = store,
+                            songPath = currentSongPath
+                        )
+                    )
+                }
+                onAudioParametersCleared()
                 changeToken++
             },
             onOpenPlayer = { openSettingsRoute(SettingsRoute.Player) },

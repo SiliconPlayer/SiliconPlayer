@@ -7,7 +7,7 @@ import java.io.File
 /**
  * JSON-file-backed [SongVolumeStore] living in the XDG config dir. Same
  * upsert semantics as Android's VolumeDatabase: setting one column preserves
- * the other, and absent paths read back as null/false.
+ * the others, and absent paths read back as null/false.
  */
 internal class DesktopSongVolumeStore(
     private val storeFile: File = File(DesktopPaths.configDir(), "song_volumes.json")
@@ -23,7 +23,11 @@ internal class DesktopSongVolumeStore(
         }
     }
 
-    private data class Entry(var volumeDb: Float?, var ignoreCoreVolume: Boolean)
+    private data class Entry(
+        var volumeDb: Float?,
+        var ignoreCoreVolume: Boolean,
+        var effectChainJson: String? = null
+    )
 
     private val lock = Any()
     private var entries: MutableMap<String, Entry> = HashMap()
@@ -37,7 +41,7 @@ internal class DesktopSongVolumeStore(
     }
 
     override fun setSongVolume(filePath: String, volumeDb: Float) = synchronized(lock) {
-        val entry = entries.getOrPut(filePath) { Entry(null, false) }
+        val entry = entries.getOrPut(filePath) { Entry(null, false, null) }
         entry.volumeDb = volumeDb
         saveLocked()
     }
@@ -47,8 +51,27 @@ internal class DesktopSongVolumeStore(
     }
 
     override fun setSongIgnoreCoreVolume(filePath: String, ignoreCoreVolume: Boolean) = synchronized(lock) {
-        val entry = entries.getOrPut(filePath) { Entry(null, false) }
+        val entry = entries.getOrPut(filePath) { Entry(null, false, null) }
         entry.ignoreCoreVolume = ignoreCoreVolume
+        saveLocked()
+    }
+
+    override fun getSongEffectChain(filePath: String): String? = synchronized(lock) {
+        entries[filePath]?.effectChainJson?.takeIf { it.isNotBlank() }
+    }
+
+    override fun setSongEffectChain(filePath: String, chainJson: String?) = synchronized(lock) {
+        val normalized = chainJson?.trim()?.takeIf { it.isNotEmpty() }
+        if (normalized == null) {
+            val existing = entries[filePath] ?: return@synchronized
+            existing.effectChainJson = null
+            if (existing.volumeDb == null && !existing.ignoreCoreVolume) {
+                entries.remove(filePath)
+            }
+        } else {
+            val entry = entries.getOrPut(filePath) { Entry(null, false, null) }
+            entry.effectChainJson = normalized
+        }
         saveLocked()
     }
 
@@ -67,7 +90,10 @@ internal class DesktopSongVolumeStore(
                 val node = volumes.optJSONObject(key) ?: continue
                 parsed[key] = Entry(
                     volumeDb = if (node.has("db")) node.optDouble("db", 0.0).toFloat() else null,
-                    ignoreCoreVolume = node.optBoolean("ignore", false)
+                    ignoreCoreVolume = node.optBoolean("ignore", false),
+                    effectChainJson = node.optString("effectChain", "")
+                        .trim()
+                        .takeIf { it.isNotEmpty() }
                 )
             }
         }
@@ -82,6 +108,9 @@ internal class DesktopSongVolumeStore(
                 val node = JSONObject()
                 if (entry.volumeDb != null) node.put("db", entry.volumeDb!!.toDouble())
                 node.put("ignore", entry.ignoreCoreVolume)
+                if (!entry.effectChainJson.isNullOrBlank()) {
+                    node.put("effectChain", entry.effectChainJson)
+                }
                 volumes.put(path, node)
             }
             storeFile.writeText(JSONObject().put("volumes", volumes).toString())

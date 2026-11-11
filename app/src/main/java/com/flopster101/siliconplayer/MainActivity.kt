@@ -2551,6 +2551,8 @@ private fun AppNavigation(
         },
         loadSongVolumeForFile = loadSongVolumeForFile,
         onSongVolumeDbChanged = { songVolumeDb = it },
+        activePlaylistProvider = { activePlaylist },
+        playlistLibraryStateProvider = { playlistLibraryState },
         onActivePlaylistChanged = { activePlaylist = it },
         onActivePlaylistEntryIdChanged = { activePlaylistEntryId = it },
         onActivePlaylistShuffleActiveChanged = { activePlaylistShuffleActive = it },
@@ -3635,6 +3637,8 @@ private fun AppNavigation(
         refreshStreamingCachedSourceFiles = refreshStreamingCachedSourceFiles,
         launchCacheExportDirectoryPicker = { cacheExportDirectoryLauncher.launch(null) },
         selectedFile = selectedFile,
+        activePlaylist = activePlaylist,
+        playlistLibraryState = playlistLibraryState,
         onAutoPlayOnTrackSelectChanged = { autoPlayOnTrackSelect = it },
         onOpenPlayerOnTrackSelectChanged = { openPlayerOnTrackSelect = it },
         onAutoPlayNextTrackOnEndChanged = { autoPlayNextTrackOnEnd = it },
@@ -3845,7 +3849,9 @@ private fun AppNavigation(
         }
         val syncActiveStoredPlaylistContextAfterMutation: (String) -> Unit = { playlistId ->
             val updatedPlaylist = playlistLibraryState.playlists.firstOrNull { it.id == playlistId }
-            if (activePlaylist?.id == playlistId && !activePlaylistShuffleActive) {
+            if (activePlaylist?.id == playlistId && activePlaylistShuffleActive && updatedPlaylist != null) {
+                activePlaylist = activePlaylist?.copy(effectChain = updatedPlaylist.effectChain)
+            } else if (activePlaylist?.id == playlistId && !activePlaylistShuffleActive) {
                 if (updatedPlaylist == null || updatedPlaylist.entries.isEmpty()) {
                     activePlaylist = null
                     activePlaylistEntryId = null

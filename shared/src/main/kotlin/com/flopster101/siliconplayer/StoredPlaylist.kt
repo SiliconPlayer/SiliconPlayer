@@ -63,5 +63,6 @@ internal data class StoredPlaylist(
     val folderId: String? = null,
     val customArtworkUri: String? = null,
     val iconTintArgb: Long? = null,
-    val autoGenerateCover: Boolean = true
+    val autoGenerateCover: Boolean = true,
+    val effectChain: String? = null
 )

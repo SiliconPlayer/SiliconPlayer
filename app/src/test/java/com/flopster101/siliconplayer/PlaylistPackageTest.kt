@@ -37,21 +37,24 @@ class PlaylistPackageTest {
                         folderId = "folder",
                         customArtworkUri = cover.absolutePath,
                         iconTintArgb = 0xFF00FF00,
-                        autoGenerateCover = false
+                        autoGenerateCover = false,
+                        effectChain = "{\"schemaVersion\":1,\"nodes\":[{\"id\":\"gain\",\"enabled\":true,\"params\":{\"gainDb\":-2.5}}]}"
                     ),
                     StoredPlaylist(
                         id = "m3u",
                         title = "M3U playlist",
                         format = PlaylistStoredFormat.M3u,
                         entries = listOf(entry.copy(id = "entry-2")),
-                        updatedAtMs = 2000L
+                        updatedAtMs = 2000L,
+                        effectChain = "{\"schemaVersion\":1,\"nodes\":[]}"
                     ),
                     StoredPlaylist(
                         id = "m3u8",
                         title = "M3U8 playlist",
                         format = PlaylistStoredFormat.M3u8,
                         entries = listOf(entry.copy(id = "entry-3")),
-                        updatedAtMs = 3000L
+                        updatedAtMs = 3000L,
+                        effectChain = "{\"schemaVersion\":1,\"nodes\":[{\"id\":\"openmpt.reverb\",\"enabled\":true,\"params\":{\"depth\":8.0,\"preset\":4.0}}]}"
                     )
                 ),
                 folders = listOf(

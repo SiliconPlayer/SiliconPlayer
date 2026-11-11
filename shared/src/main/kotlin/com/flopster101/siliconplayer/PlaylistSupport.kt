@@ -362,7 +362,9 @@ internal fun duplicateStoredPlaylist(
         updatedAtMs = now,
         folderId = playlist.folderId,
         customArtworkUri = copiedArtworkUri ?: playlist.customArtworkUri,
-        iconTintArgb = playlist.iconTintArgb
+        iconTintArgb = playlist.iconTintArgb,
+        autoGenerateCover = playlist.autoGenerateCover,
+        effectChain = playlist.effectChain
     )
 }
 

@@ -395,6 +395,8 @@ internal fun buildMainActivitySettingsScreenActions(
     refreshStreamingCachedSourceFiles: () -> Unit,
     launchCacheExportDirectoryPicker: () -> Unit,
     selectedFile: File?,
+    activePlaylist: StoredPlaylist? = null,
+    playlistLibraryState: PlaylistLibraryState? = null,
     onAutoPlayOnTrackSelectChanged: (Boolean) -> Unit,
     onOpenPlayerOnTrackSelectChanged: (Boolean) -> Unit,
     onAutoPlayNextTrackOnEndChanged: (Boolean) -> Unit,
@@ -473,7 +475,9 @@ internal fun buildMainActivitySettingsScreenActions(
                 onPluginVolumeDbChanged = onPluginVolumeDbChanged,
                 onSongVolumeDbChanged = onSongVolumeDbChanged,
                 onIgnoreCoreVolumeForSongChanged = onIgnoreCoreVolumeForSongChanged,
-                onForceMonoChanged = onForceMonoChanged
+                onForceMonoChanged = onForceMonoChanged,
+                activePlaylist = activePlaylist,
+                playlistLibraryState = playlistLibraryState
             )
         },
         onClearPluginAudioParameters = {
@@ -488,7 +492,11 @@ internal fun buildMainActivitySettingsScreenActions(
                 context = context,
                 volumeDatabase = volumeDatabase,
                 onSongVolumeDbChanged = onSongVolumeDbChanged,
-                onIgnoreCoreVolumeForSongChanged = onIgnoreCoreVolumeForSongChanged
+                onIgnoreCoreVolumeForSongChanged = onIgnoreCoreVolumeForSongChanged,
+                prefs = prefs,
+                activePlaylist = activePlaylist,
+                playlistLibraryState = playlistLibraryState,
+                songPath = selectedFile?.absolutePath
             )
             NativeBridge.setPluginGain(pluginVolumeDb)
         },

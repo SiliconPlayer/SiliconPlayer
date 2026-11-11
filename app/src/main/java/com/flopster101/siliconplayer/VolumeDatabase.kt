@@ -10,6 +10,7 @@ import android.database.sqlite.SQLiteOpenHelper
  * Each song is identified by its file path and can store:
  * - Song volume in dB
  * - Whether core volume should be ignored for this song
+ * - Serialized per-song effect chain JSON
  */
 class VolumeDatabase private constructor(context: Context) :
     SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION),
@@ -22,6 +23,7 @@ class VolumeDatabase private constructor(context: Context) :
                 $COLUMN_FILE_PATH TEXT PRIMARY KEY,
                 $COLUMN_VOLUME_DB REAL NOT NULL,
                 $COLUMN_IGNORE_CORE_VOLUME INTEGER NOT NULL DEFAULT 0,
+                $COLUMN_EFFECT_CHAIN TEXT,
                 $COLUMN_LAST_MODIFIED INTEGER NOT NULL
             )
             """.trimIndent()
@@ -35,6 +37,11 @@ class VolumeDatabase private constructor(context: Context) :
         if (oldVersion < 2) {
             db.execSQL(
                 "ALTER TABLE $TABLE_SONG_VOLUMES ADD COLUMN $COLUMN_IGNORE_CORE_VOLUME INTEGER NOT NULL DEFAULT 0"
+            )
+        }
+        if (oldVersion < 3) {
+            db.execSQL(
+                "ALTER TABLE $TABLE_SONG_VOLUMES ADD COLUMN $COLUMN_EFFECT_CHAIN TEXT"
             )
         }
     }
@@ -140,6 +147,63 @@ class VolumeDatabase private constructor(context: Context) :
     }
 
     /**
+     * Get the serialized effect chain JSON for a specific song.
+     * @param filePath The absolute file path of the song
+     * @return The effect chain JSON, or null if no override is stored
+     */
+    override fun getSongEffectChain(filePath: String): String? {
+        val db = readableDatabase
+        val cursor = db.query(
+            TABLE_SONG_VOLUMES,
+            arrayOf(COLUMN_EFFECT_CHAIN),
+            "$COLUMN_FILE_PATH = ?",
+            arrayOf(filePath),
+            null,
+            null,
+            null
+        )
+
+        return cursor.use {
+            if (it.moveToFirst()) {
+                val idx = it.getColumnIndexOrThrow(COLUMN_EFFECT_CHAIN)
+                if (it.isNull(idx)) null else it.getString(idx)?.takeIf { s -> s.isNotBlank() }
+            } else {
+                null
+            }
+        }
+    }
+
+    /**
+     * Set or clear the serialized effect chain JSON for a specific song.
+     * @param filePath The absolute file path of the song
+     * @param chainJson The serialized effect chain JSON, or null to clear
+     */
+    override fun setSongEffectChain(filePath: String, chainJson: String?) {
+        val normalized = chainJson?.trim()?.takeIf { it.isNotEmpty() }
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            if (normalized != null) {
+                put(COLUMN_EFFECT_CHAIN, normalized)
+            } else {
+                putNull(COLUMN_EFFECT_CHAIN)
+            }
+            put(COLUMN_LAST_MODIFIED, System.currentTimeMillis())
+        }
+        val updatedRows = db.update(
+            TABLE_SONG_VOLUMES,
+            values,
+            "$COLUMN_FILE_PATH = ?",
+            arrayOf(filePath)
+        )
+        if (updatedRows == 0 && normalized != null) {
+            values.put(COLUMN_FILE_PATH, filePath)
+            values.put(COLUMN_VOLUME_DB, 0f)
+            values.put(COLUMN_IGNORE_CORE_VOLUME, 0)
+            db.insert(TABLE_SONG_VOLUMES, null, values)
+        }
+    }
+
+    /**
      * Reset the volume adjustment for a specific song (remove from database).
      * @param filePath The absolute file path of the song
      */
@@ -175,12 +239,13 @@ class VolumeDatabase private constructor(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "silicon_player_volumes.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
 
         private const val TABLE_SONG_VOLUMES = "song_volumes"
         private const val COLUMN_FILE_PATH = "file_path"
         private const val COLUMN_VOLUME_DB = "volume_db"
         private const val COLUMN_IGNORE_CORE_VOLUME = "ignore_core_volume"
+        private const val COLUMN_EFFECT_CHAIN = "effect_chain"
         private const val COLUMN_LAST_MODIFIED = "last_modified"
 
         @Volatile

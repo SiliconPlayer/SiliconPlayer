@@ -158,6 +158,8 @@ import com.flopster101.siliconplayer.audio.NodeOptions
 import com.flopster101.siliconplayer.audio.applyEffectChainToNative
 import com.flopster101.siliconplayer.audio.readCoreEffectChain
 import com.flopster101.siliconplayer.audio.readGlobalEffectChain
+import com.flopster101.siliconplayer.audio.readPlaylistEffectChain
+import com.flopster101.siliconplayer.audio.readSongEffectChain
 import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChain
 import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
 import com.flopster101.siliconplayer.audio.writeCoreEffectChain
@@ -1619,6 +1621,16 @@ fun main(args: Array<String>) = application {
             var tempCoreHasChain by remember { mutableStateOf(coreChain != null) }
             var tempCoreIgnoreGlobalDsp by remember { mutableStateOf(coreIgnoreGlobalDsp) }
             var tempDspNamespaceSelection by remember { mutableStateOf(dspNamespaceSelection) }
+            fun currentPlaylistEffectChain(): EffectChain? =
+                readPlaylistEffectChain(playlistLibraryState, activePlaylist?.id)
+                    ?: readPlaylistEffectChain(activePlaylist)
+            fun currentSongEffectChain(): EffectChain? =
+                readSongEffectChain(songVolumeStore, session.currentSourceId)
+            SideEffect {
+                session.activePlaylistProvider = { activePlaylist }
+                session.playlistLibraryStateProvider = { playlistLibraryState }
+                session.songVolumeStoreProvider = { songVolumeStore }
+            }
             fun resolveTempCoreChain(): EffectChain? {
                 if (session.decoderName == null) return null
                 val active = tempCoreHasChain ||
@@ -1630,7 +1642,9 @@ fun main(args: Array<String>) = application {
                 applyEffectChainToNative(
                     resolveEffectiveEffectChain(
                         global = tempGlobalDraft.chain.withMasterMono(tempForceMono),
-                        core = resolveTempCoreChain()
+                        core = resolveTempCoreChain(),
+                        playlist = currentPlaylistEffectChain()?.withMasterMono(tempForceMono),
+                        song = currentSongEffectChain()?.withMasterMono(tempForceMono)
                     )
                 )
             }
@@ -1652,7 +1666,9 @@ fun main(args: Array<String>) = application {
                 applyEffectChainToNative(
                     resolveEffectiveEffectChain(
                         global = globalChain.withMasterMono(forceMono),
-                        core = coreChain?.withMasterMono(forceMono)
+                        core = coreChain?.withMasterMono(forceMono),
+                        playlist = currentPlaylistEffectChain(),
+                        song = currentSongEffectChain()
                     )
                 )
             }
@@ -2021,7 +2037,13 @@ fun main(args: Array<String>) = application {
                 pushAudioPipelineConfigToNative(prefs)
                 applyEffectChainToNative(globalChain)
             }
-            LaunchedEffect(session.currentSourceId, session.decoderName) {
+            LaunchedEffect(
+                session.currentSourceId,
+                session.decoderName,
+                activePlaylist?.id,
+                activePlaylist?.effectChain,
+                playlistLibraryState
+            ) {
                 val path = session.currentSourceId
                 songVolumeDb = path?.let { songVolumeStore.getSongVolume(it) } ?: 0f
                 ignoreCoreVolumeForSong = path?.let { songVolumeStore.getSongIgnoreCoreVolume(it) } ?: false
@@ -2029,9 +2051,18 @@ fun main(args: Array<String>) = application {
                     if (ignoreCoreVolumeForSong) 0f else readPluginVolumeForDecoder(prefs, session.decoderName)
                 )
                 NativeBridge.setSongGain(songVolumeDb)
-                val resolved = resolveEffectiveEffectChainForPrefs(prefs, session.decoderName)
-                forceMono = resolved.master.mono
-                applyEffectChainToNative(resolved)
+                if (!showAudioEffectsDialog) {
+                    val resolved = resolveEffectiveEffectChainForPrefs(
+                        prefs = prefs,
+                        coreName = session.decoderName,
+                        playlist = activePlaylist,
+                        playlistState = playlistLibraryState,
+                        songVolumeStore = songVolumeStore,
+                        songPath = path
+                    )
+                    forceMono = resolved.master.mono
+                    applyEffectChainToNative(resolved)
+                }
             }
             LaunchedEffect(prefs) {
                 readRecentEntries(configDir, AppPreferenceKeys.RECENT_FOLDERS, recentFoldersLimit, prefs)
@@ -3058,6 +3089,28 @@ fun main(args: Array<String>) = application {
                                                 favoritesSortMode = PlaylistEntrySortMode.fromStorage(null)
                                                 currentDirectory = File(System.getProperty("user.home") ?: "/")
                                             },
+                                            currentCoreName = session.decoderName,
+                                            activePlaylist = activePlaylist,
+                                            playlistLibraryState = playlistLibraryState,
+                                            currentSongPath = session.currentSourceId,
+                                            onAudioParametersCleared = {
+                                                masterVolumeDb = prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f)
+                                                globalChain = readGlobalEffectChain(prefs)
+                                                coreChain = readCoreEffectChain(prefs, session.decoderName)
+                                                coreIgnoreGlobalDsp = coreChain != null && coreChain?.nodes?.isEmpty() == true
+                                                val path = session.currentSourceId
+                                                songVolumeDb = path?.let { songVolumeStore.getSongVolume(it) } ?: 0f
+                                                ignoreCoreVolumeForSong = path?.let { songVolumeStore.getSongIgnoreCoreVolume(it) } ?: false
+                                                val resolved = resolveEffectiveEffectChainForPrefs(
+                                                    prefs = prefs,
+                                                    coreName = session.decoderName,
+                                                    playlist = activePlaylist,
+                                                    playlistState = playlistLibraryState,
+                                                    songVolumeStore = songVolumeStore,
+                                                    songPath = path
+                                                )
+                                                forceMono = resolved.master.mono
+                                            },
                                         )
                                         SettingsScreen(
                                             route = settingsRoute,
@@ -3783,7 +3836,9 @@ fun main(args: Array<String>) = application {
                                             tempCoreDraft.chain.withMasterMono(tempForceMono)
                                         } else {
                                             null
-                                        }
+                                        },
+                                        playlist = currentPlaylistEffectChain()?.withMasterMono(tempForceMono),
+                                        song = currentSongEffectChain()?.withMasterMono(tempForceMono)
                                     )
                                 )
                             },

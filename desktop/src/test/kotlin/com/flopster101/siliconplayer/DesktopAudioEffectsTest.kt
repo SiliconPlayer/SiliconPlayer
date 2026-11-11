@@ -20,8 +20,14 @@ import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChain
 import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
 import com.flopster101.siliconplayer.audio.writeCoreDspSettings
 import com.flopster101.siliconplayer.audio.writeCoreEffectChain
+import com.flopster101.siliconplayer.audio.ScopeKey
+import com.flopster101.siliconplayer.audio.readPlaylistEffectChain
+import com.flopster101.siliconplayer.audio.readScopeEffectChain
+import com.flopster101.siliconplayer.audio.readSongEffectChain
 import com.flopster101.siliconplayer.audio.writeGlobalDspSettings
 import com.flopster101.siliconplayer.audio.writeGlobalEffectChain
+import com.flopster101.siliconplayer.audio.writePlaylistEffectChain
+import com.flopster101.siliconplayer.audio.writeSongEffectChain
 import com.flopster101.siliconplayer.desktop.DesktopSongVolumeStore
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.settings.porting.ExportResult
@@ -275,13 +281,119 @@ class DesktopAudioEffectsTest {
         assertTrue(store.getSongIgnoreCoreVolume("/music/a.mp3"))
         assertEquals(-3.5f, store.getSongVolume("/music/a.mp3")!!, 0.0001f)
 
+        val songChain = EffectChain(
+            master = NodeOptions(mono = true),
+            nodes = listOf(
+                EffectNode(
+                    id = EffectNodeIds.GAIN,
+                    enabled = true,
+                    params = mapOf("gainDb" to -5.0f)
+                )
+            )
+        )
+        writeSongEffectChain(store, "/music/a.mp3", songChain)
+        assertEquals(songChain, readSongEffectChain(store, "/music/a.mp3"))
+        assertEquals(-3.5f, store.getSongVolume("/music/a.mp3")!!, 0.0001f)
+        assertTrue(store.getSongIgnoreCoreVolume("/music/a.mp3"))
+
         val reopened = DesktopSongVolumeStore(file)
         assertEquals(-3.5f, reopened.getSongVolume("/music/a.mp3")!!, 0.0001f)
         assertTrue(reopened.getSongIgnoreCoreVolume("/music/a.mp3"))
+        assertEquals(songChain, readSongEffectChain(reopened, "/music/a.mp3"))
+
+        writeSongEffectChain(reopened, "/music/a.mp3", null)
+        assertNull(readSongEffectChain(reopened, "/music/a.mp3"))
+        assertEquals(-3.5f, reopened.getSongVolume("/music/a.mp3")!!, 0.0001f)
+
+        writeSongEffectChain(reopened, "/music/b.mp3", EffectChain.Empty)
+        assertEquals(EffectChain.Empty, readSongEffectChain(reopened, "/music/b.mp3"))
 
         reopened.resetAllSongVolumes()
         assertNull(reopened.getSongVolume("/music/a.mp3"))
         assertFalse(reopened.getSongIgnoreCoreVolume("/music/a.mp3"))
+        assertNull(readSongEffectChain(reopened, "/music/b.mp3"))
+    }
+
+    @Test
+    fun songAndPlaylistScopesResolveWithReplacePrecedence() {
+        val prefs = InMemoryAppPreferences()
+        val dir = Files.createTempDirectory("siliconplayer-scope-resolve-").toFile()
+        dir.deleteOnExit()
+        val store = DesktopSongVolumeStore(File(dir, "song_volumes.json"))
+
+        val gChain = EffectChain(nodes = listOf(EffectNode(EffectNodeIds.GAIN, params = mapOf("gainDb" to -1f))))
+        val cChain = EffectChain(nodes = listOf(EffectNode(EffectNodeIds.GAIN, params = mapOf("gainDb" to -2f))))
+        val pChain = EffectChain(nodes = listOf(EffectNode(EffectNodeIds.GAIN, params = mapOf("gainDb" to -3f))))
+        val sChain = EffectChain(nodes = listOf(EffectNode(EffectNodeIds.GAIN, params = mapOf("gainDb" to -4f))))
+
+        writeGlobalEffectChain(prefs.edit(), gChain)
+        writeCoreEffectChain(prefs.edit(), "OpenMPT", cChain)
+
+        var playlistState = PlaylistLibraryState(
+            playlists = listOf(
+                StoredPlaylist(id = "pl-1", title = "Playlist 1")
+            )
+        )
+        playlistState = writePlaylistEffectChain(playlistState, "pl-1", pChain)
+        val activePlaylist = playlistState.playlists.first()
+        assertEquals(pChain, readPlaylistEffectChain(activePlaylist))
+        assertEquals(pChain, readScopeEffectChain(ScopeKey.Playlist("pl-1"), prefs, store, playlistState, activePlaylist))
+
+        writeSongEffectChain(store, "/tracks/song1.mod", sChain)
+        assertEquals(sChain, readScopeEffectChain(ScopeKey.Song("/tracks/song1.mod"), prefs, store, playlistState, activePlaylist))
+
+        assertEquals(
+            sChain,
+            resolveEffectiveEffectChainForPrefs(
+                prefs = prefs,
+                coreName = "OpenMPT",
+                playlist = activePlaylist,
+                playlistState = playlistState,
+                songVolumeStore = store,
+                songPath = "/tracks/song1.mod"
+            )
+        )
+
+        writeSongEffectChain(store, "/tracks/song1.mod", null)
+        assertEquals(
+            pChain,
+            resolveEffectiveEffectChainForPrefs(
+                prefs = prefs,
+                coreName = "OpenMPT",
+                playlist = activePlaylist,
+                playlistState = playlistState,
+                songVolumeStore = store,
+                songPath = "/tracks/song1.mod"
+            )
+        )
+
+        writeSongEffectChain(store, "/tracks/song1.mod", EffectChain.Empty)
+        assertEquals(
+            EffectChain.Empty,
+            resolveEffectiveEffectChainForPrefs(
+                prefs = prefs,
+                coreName = "OpenMPT",
+                playlist = activePlaylist,
+                playlistState = playlistState,
+                songVolumeStore = store,
+                songPath = "/tracks/song1.mod"
+            )
+        )
+
+        writeSongEffectChain(store, "/tracks/song1.mod", null)
+        playlistState = writePlaylistEffectChain(playlistState, "pl-1", null)
+        val clearedPlaylist = playlistState.playlists.first()
+        assertEquals(
+            cChain,
+            resolveEffectiveEffectChainForPrefs(
+                prefs = prefs,
+                coreName = "OpenMPT",
+                playlist = clearedPlaylist,
+                playlistState = playlistState,
+                songVolumeStore = store,
+                songPath = "/tracks/song1.mod"
+            )
+        )
     }
 
     private fun writeStereoWav(file: File, sampleRate: Int, frames: Int) {

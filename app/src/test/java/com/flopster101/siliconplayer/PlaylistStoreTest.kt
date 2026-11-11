@@ -1099,6 +1099,33 @@ class PlaylistStoreTest {
         assertEquals(PlaylistCoverGenerationMode.AtLeastFour, readPlaylistCoverGenerationMode(prefs))
     }
 
+    @Test
+    fun `playlist library state and duplication preserve effectChain`() {
+        val prefs = FakeSharedPreferences()
+        val chainJson = "{\"schemaVersion\":1,\"nodes\":[{\"id\":\"gain\",\"enabled\":true,\"params\":{\"gainDb\":-4.0}}]}"
+        val initial = PlaylistLibraryState(
+            favorites = emptyList(),
+            playlists = listOf(
+                samplePlaylist("p1", "Playlist 1").copy(effectChain = chainJson, updatedAtMs = 10L),
+                samplePlaylist("p2", "Playlist 2").copy(
+                    format = PlaylistStoredFormat.M3u8,
+                    effectChain = chainJson,
+                    updatedAtMs = 20L
+                )
+            )
+        )
+        writePlaylistLibraryState(prefs, initial)
+        val restored = readPlaylistLibraryState(prefs)
+        assertEquals(chainJson, restored.playlists[0].effectChain)
+        assertEquals(chainJson, restored.playlists[1].effectChain)
+
+        val duplicated = duplicateStoredPlaylist(restored.playlists[0], "Playlist 1 Copy")
+        assertEquals(chainJson, duplicated.effectChain)
+
+        val cleared = updateStoredPlaylistEffectChain(restored, "p1", null)
+        assertEquals(null, cleared.playlists.first { it.id == "p1" }.effectChain)
+    }
+
     private class FakeSharedPreferences : android.content.SharedPreferences {
         val map = mutableMapOf<String, Any?>()
 

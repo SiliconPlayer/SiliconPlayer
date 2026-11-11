@@ -62,6 +62,8 @@ internal fun buildAppNavigationPlaybackDelegatesBundle(
     scheduleRecentTrackMetadataRefreshFromPlaybackContext: (String, String?) -> Unit,
     loadSongVolumeForFile: (String) -> Unit,
     onSongVolumeDbChanged: (Float) -> Unit,
+    activePlaylistProvider: () -> StoredPlaylist? = { null },
+    playlistLibraryStateProvider: () -> PlaylistLibraryState? = { null },
     onActivePlaylistChanged: (StoredPlaylist?) -> Unit,
     onActivePlaylistEntryIdChanged: (String?) -> Unit,
     onActivePlaylistShuffleActiveChanged: (Boolean) -> Unit,
@@ -127,7 +129,9 @@ internal fun buildAppNavigationPlaybackDelegatesBundle(
         onIgnoreCoreVolumeForSongChanged = onIgnoreCoreVolumeForSongChanged,
         onLastStoppedChanged = onLastStoppedChanged,
         onStopEngine = { NativeBridge.releaseCurrentDecoder() },
-        onMetadataAlbumChanged = onMetadataAlbumChanged
+        onMetadataAlbumChanged = onMetadataAlbumChanged,
+        activePlaylistProvider = activePlaylistProvider,
+        playlistLibraryStateProvider = playlistLibraryStateProvider
     )
 
     val trackLoadDelegates = AppNavigationTrackLoadDelegates(

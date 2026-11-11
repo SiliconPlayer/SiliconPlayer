@@ -5,6 +5,7 @@ import com.flopster101.siliconplayer.PlaylistEntrySortMode
 import com.flopster101.siliconplayer.PlaylistSortMode
 import com.flopster101.siliconplayer.formatSourceIdForDisplay
 import com.flopster101.siliconplayer.moveStoredPlaylist
+import com.flopster101.siliconplayer.updateStoredPlaylistEffectChain
 import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.contextMenuSecondaryClick
 import com.flopster101.siliconplayer.ctrlClickToSelect
@@ -2928,27 +2929,31 @@ internal fun PlaylistsScreen(
                 if (duplicated.entries.isNotEmpty()) {
                     onAppendStoredPlaylistEntries(playlistId, duplicated.entries)
                 }
-                duplicated.folderId?.let { folderId ->
-                    onPlaylistLibraryStateChanged(
-                        movePlaylistToFolder(
-                            if (libraryState.playlists.none { it.id == playlistId }) {
-                                libraryState.copy(
-                                    playlists = listOf(
-                                        StoredPlaylist(
-                                            id = playlistId,
-                                            title = duplicated.title,
-                                            format = duplicated.format,
-                                            sourceIdHint = duplicated.sourceIdHint,
-                                            entries = duplicated.entries,
-                                            updatedAtMs = System.currentTimeMillis()
-                                        )
-                                    ) + libraryState.playlists
+                if (duplicated.folderId != null || duplicated.effectChain != null) {
+                    var updatedState = if (libraryState.playlists.none { it.id == playlistId }) {
+                        libraryState.copy(
+                            playlists = listOf(
+                                StoredPlaylist(
+                                    id = playlistId,
+                                    title = duplicated.title,
+                                    format = duplicated.format,
+                                    sourceIdHint = duplicated.sourceIdHint,
+                                    entries = duplicated.entries,
+                                    effectChain = duplicated.effectChain,
+                                    updatedAtMs = System.currentTimeMillis()
                                 )
-                            } else libraryState,
-                            playlistId,
-                            folderId
+                            ) + libraryState.playlists
                         )
-                    )
+                    } else {
+                        libraryState
+                    }
+                    duplicated.folderId?.let { folderId ->
+                        updatedState = movePlaylistToFolder(updatedState, playlistId, folderId)
+                    }
+                    duplicated.effectChain?.let { effectChain ->
+                        updatedState = updateStoredPlaylistEffectChain(updatedState, playlistId, effectChain)
+                    }
+                    onPlaylistLibraryStateChanged(updatedState)
                 }
                 playlistPendingDuplicate = null
                 selectedStoredPlaylistId = playlistId

@@ -581,7 +581,12 @@ private fun applyAndroidExportAudioSettings(
     NativeBridge.setSongGain(if (useActiveGain) volumeStore.getSongVolume(sourcePath) ?: 0f else 0f)
     applyEffectChainToNative(
         if (useActiveEffects) {
-            resolveEffectiveEffectChainForPrefs(prefs, decoderName)
+            resolveEffectiveEffectChainForPrefs(
+                prefs = prefs,
+                coreName = decoderName,
+                songVolumeStore = volumeStore,
+                songPath = sourcePath
+            )
         } else {
             EffectChain.Empty
         }
