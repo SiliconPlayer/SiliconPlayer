@@ -191,6 +191,13 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     add_library(libvio2sf SHARED IMPORTED)
     set_target_properties(libvio2sf PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libvio2sf.so")
 
+    # Import libmysofa + libspatialaudio (Shared)
+    add_library(libmysofa SHARED IMPORTED)
+    set_target_properties(libmysofa PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libmysofa.so")
+
+    add_library(libspatialaudio SHARED IMPORTED)
+    set_target_properties(libspatialaudio PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libspatialaudio.so")
+
     # Import libupse (Shared)
     add_library(libupse SHARED IMPORTED)
     set_target_properties(libupse PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libupse.so")
@@ -274,6 +281,8 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
             libavutil
             libswresample
             libsoxr
+            libmysofa
+            libspatialaudio
             z # zlib is needed for openmpt/ffmpeg/vgm
             m # libbinio can require libm symbols on some toolchains
             usb1.0

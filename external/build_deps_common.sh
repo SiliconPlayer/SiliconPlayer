@@ -41,10 +41,12 @@ ALL_DEPENDENCY_LIBS=(
     libupse
     viogsf
     nezplugpp
+    libmysofa
+    libspatialaudio
 )
 
 # Aliases documented here, shared by all build_deps usage screens.
-LIB_ALIASES_HINT="sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft, upse/libupse, viogsf, nezplugpp"
+LIB_ALIASES_HINT="sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft, upse/libupse, viogsf, nezplugpp, mysofa/libmysofa, spatialaudio/libspatialaudio/spaudio"
 
 # Comma-separated "all,<libs...>" for usage text.
 all_libs_csv() {
@@ -323,6 +325,12 @@ normalize_lib_name() {
             ;;
         upse|libupse)
             echo "libupse"
+            ;;
+        mysofa|libmysofa)
+            echo "libmysofa"
+            ;;
+        spatialaudio|libspatialaudio|spaudio)
+            echo "libspatialaudio"
             ;;
         *)
             echo "$lib"

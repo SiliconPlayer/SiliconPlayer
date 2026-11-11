@@ -2613,6 +2613,115 @@ build_nezplugpp() {
 }
 
 # -----------------------------------------------------------------------------
+# Function: Build libmysofa (SOFA HRTF reader, shared)
+# -----------------------------------------------------------------------------
+build_libmysofa() {
+    local ABI=$1
+    local PROJECT_PATH="$ABSOLUTE_PATH/libmysofa"
+    local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
+    local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "libmysofa source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libmysofa.so" ] && \
+       [ -f "$INSTALL_DIR/include/mysofa.h" ]; then
+        echo "libmysofa already built for $ABI -> skipping"
+        return 0
+    fi
+
+    echo "Building libmysofa for $ABI..."
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR" "$INSTALL_DIR"
+
+    cmake -Wno-dev -Wno-deprecated \
+        -S "$PROJECT_PATH" \
+        -B "$BUILD_DIR" \
+        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DANDROID_ABI="$ABI" \
+        -DANDROID_PLATFORM="android-$ANDROID_API" \
+        -DCMAKE_C_FLAGS="-fPIC $DEP_OPT_FLAGS" \
+        -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DBUILD_TESTS=OFF \
+        -DBUILD_SHARED_LIBS=ON \
+        -DBUILD_STATIC_LIBS=OFF \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+
+    if [ ! -f "$INSTALL_DIR/lib/libmysofa.so" ]; then
+        echo "Error: libmysofa shared library not found after build."
+        return 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Function: Build libspatialaudio (Ambisonics / binaural renderer, shared)
+# -----------------------------------------------------------------------------
+build_libspatialaudio() {
+    local ABI=$1
+    local PROJECT_PATH="$ABSOLUTE_PATH/libspatialaudio"
+    local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
+    local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
+    local MYSOFA_LIB="$INSTALL_DIR/lib/libmysofa.so"
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "libspatialaudio source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    if [ ! -f "$MYSOFA_LIB" ]; then
+        echo "Error: libmysofa missing at $MYSOFA_LIB (build libmysofa first)."
+        return 1
+    fi
+
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libspatialaudio.so" ] && \
+       [ -f "$INSTALL_DIR/include/spatialaudio/SpeakersBinauralizer.h" ]; then
+        echo "libspatialaudio already built for $ABI -> skipping"
+        return 0
+    fi
+
+    echo "Building libspatialaudio for $ABI..."
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR" "$INSTALL_DIR"
+
+    cmake -Wno-dev -Wno-deprecated \
+        -S "$PROJECT_PATH" \
+        -B "$BUILD_DIR" \
+        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DANDROID_ABI="$ABI" \
+        -DANDROID_PLATFORM="android-$ANDROID_API" \
+        -DCMAKE_C_FLAGS="-fPIC $DEP_OPT_FLAGS" \
+        -DCMAKE_CXX_FLAGS="-fPIC $DEP_OPT_FLAGS" \
+        -DCMAKE_C_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
+        -DCMAKE_CXX_FLAGS_RELEASE="$DEP_OPT_FLAGS -DNDEBUG" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DBUILD_SHARED_LIBS=ON \
+        -DBUILD_TESTING=OFF \
+        -DHAVE_MIT_HRTF=ON \
+        -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON \
+        -DMYSOFA_LIBRARIES="$MYSOFA_LIB" \
+        -DMYSOFA_INCLUDE_DIRS="$INSTALL_DIR/include" \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+
+    if [ ! -f "$INSTALL_DIR/lib/libspatialaudio.so" ]; then
+        echo "Error: libspatialaudio shared library not found after build."
+        return 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Argument Parsing
 # -----------------------------------------------------------------------------
 usage() {
@@ -2777,38 +2886,40 @@ clean_target_artifacts() {
         local CMAKE=0
 
         case "$lib" in
-            libsoxr)        PROJ="$ABSOLUTE_PATH/libsoxr"; CMAKE=1 ;;
-            mbedtls)        PROJ="$MBEDTLS_DIR"; CMAKE=1 ;;
-            ffmpeg)         PROJ="$ABSOLUTE_PATH/ffmpeg" ;;
-            libopenmpt)     PROJ="$ABSOLUTE_PATH/libopenmpt" ;;
-            libxmp)         PROJ="$ABSOLUTE_PATH/libxmp"; CMAKE=1 ;;
-            libayfly)       PROJ="$ABSOLUTE_PATH/ayfly"; CMAKE=1 ;;
-            ufmod)          PROJ="$ABSOLUTE_PATH/ufmod_c" ;;
-            libvgm)         PROJ="$ABSOLUTE_PATH/libvgm"; CMAKE=1 ;;
-            libgme)         PROJ="$ABSOLUTE_PATH/libgme"; CMAKE=1 ;;
-            libresid)       PROJ="$ABSOLUTE_PATH/resid"; CMAKE=1 ;;
-            libresidfp)     PROJ="$ABSOLUTE_PATH/libresidfp"; CMAKE=1 ;;
-            libsidplayfp)   PROJ="$ABSOLUTE_PATH/libsidplayfp"; CMAKE=1 ;;
-            crsid)          PROJ="$ABSOLUTE_PATH/cRSID"; CMAKE=1 ;;
-            lazyusf2)       PROJ="$ABSOLUTE_PATH/lazyusf2" ;;
-            psflib)         PROJ="$ABSOLUTE_PATH/psflib" ;;
-            vio2sf)         PROJ="$ABSOLUTE_PATH/2sf/vio2sf/src/vio2sf" ;;
-            fluidsynth)     PROJ="$ABSOLUTE_PATH/fluidsynth"; CMAKE=1 ;;
-            sc68)           PROJ="$ABSOLUTE_PATH/sc68" ;;
-            libbinio)       PROJ="$ABSOLUTE_PATH/libbinio"; CMAKE=1 ;;
-            adplug)         PROJ="$ABSOLUTE_PATH/adplug"; CMAKE=1 ;;
-            libzakalwe)     PROJ="$ABSOLUTE_PATH/libzakalwe" ;;
-            bencodetools)   PROJ="$ABSOLUTE_PATH/bencodetools" ;;
-            vasm)           PROJ="$ABSOLUTE_PATH/vasm" ;;
-            uade)           PROJ="$ABSOLUTE_PATH/uade"; CMAKE=1 ;;
-            hivelytracker)  PROJ="$ABSOLUTE_PATH/hivelytracker"; CMAKE=1 ;;
-            klystrack)      PROJ="$ABSOLUTE_PATH/klystrack"; CMAKE=1 ;;
-            furnace)        PROJ="$ABSOLUTE_PATH/furnace"; CMAKE=1 ;;
-            projectm)       PROJ="$ABSOLUTE_PATH/projectm"; CMAKE=1 ;;
-            dnfamitracker)  PROJ="$ABSOLUTE_PATH/dnfamitracker"; CMAKE=1 ;;
-            libupse)        PROJ="$ABSOLUTE_PATH/libupse"; CMAKE=1 ;;
-            viogsf)         PROJ="$ABSOLUTE_PATH/viogsf"; CMAKE=1 ;;
-            nezplugpp)      PROJ="$ABSOLUTE_PATH/nezplugpp"; CMAKE=1 ;;
+            libsoxr)         PROJ="$ABSOLUTE_PATH/libsoxr"; CMAKE=1 ;;
+            mbedtls)         PROJ="$MBEDTLS_DIR"; CMAKE=1 ;;
+            ffmpeg)          PROJ="$ABSOLUTE_PATH/ffmpeg" ;;
+            libopenmpt)      PROJ="$ABSOLUTE_PATH/libopenmpt" ;;
+            libxmp)          PROJ="$ABSOLUTE_PATH/libxmp"; CMAKE=1 ;;
+            libayfly)        PROJ="$ABSOLUTE_PATH/ayfly"; CMAKE=1 ;;
+            ufmod)           PROJ="$ABSOLUTE_PATH/ufmod_c" ;;
+            libvgm)          PROJ="$ABSOLUTE_PATH/libvgm"; CMAKE=1 ;;
+            libgme)          PROJ="$ABSOLUTE_PATH/libgme"; CMAKE=1 ;;
+            libresid)        PROJ="$ABSOLUTE_PATH/resid"; CMAKE=1 ;;
+            libresidfp)      PROJ="$ABSOLUTE_PATH/libresidfp"; CMAKE=1 ;;
+            libsidplayfp)    PROJ="$ABSOLUTE_PATH/libsidplayfp"; CMAKE=1 ;;
+            crsid)           PROJ="$ABSOLUTE_PATH/cRSID"; CMAKE=1 ;;
+            lazyusf2)        PROJ="$ABSOLUTE_PATH/lazyusf2" ;;
+            psflib)          PROJ="$ABSOLUTE_PATH/psflib" ;;
+            vio2sf)          PROJ="$ABSOLUTE_PATH/2sf/vio2sf/src/vio2sf" ;;
+            fluidsynth)      PROJ="$ABSOLUTE_PATH/fluidsynth"; CMAKE=1 ;;
+            sc68)            PROJ="$ABSOLUTE_PATH/sc68" ;;
+            libbinio)        PROJ="$ABSOLUTE_PATH/libbinio"; CMAKE=1 ;;
+            adplug)          PROJ="$ABSOLUTE_PATH/adplug"; CMAKE=1 ;;
+            libzakalwe)      PROJ="$ABSOLUTE_PATH/libzakalwe" ;;
+            bencodetools)    PROJ="$ABSOLUTE_PATH/bencodetools" ;;
+            vasm)            PROJ="$ABSOLUTE_PATH/vasm" ;;
+            uade)            PROJ="$ABSOLUTE_PATH/uade"; CMAKE=1 ;;
+            hivelytracker)   PROJ="$ABSOLUTE_PATH/hivelytracker"; CMAKE=1 ;;
+            klystrack)       PROJ="$ABSOLUTE_PATH/klystrack"; CMAKE=1 ;;
+            furnace)         PROJ="$ABSOLUTE_PATH/furnace"; CMAKE=1 ;;
+            projectm)        PROJ="$ABSOLUTE_PATH/projectm"; CMAKE=1 ;;
+            dnfamitracker)   PROJ="$ABSOLUTE_PATH/dnfamitracker"; CMAKE=1 ;;
+            libupse)         PROJ="$ABSOLUTE_PATH/libupse"; CMAKE=1 ;;
+            viogsf)          PROJ="$ABSOLUTE_PATH/viogsf"; CMAKE=1 ;;
+            nezplugpp)       PROJ="$ABSOLUTE_PATH/nezplugpp"; CMAKE=1 ;;
+            libmysofa)       PROJ="$ABSOLUTE_PATH/libmysofa"; CMAKE=1 ;;
+            libspatialaudio) PROJ="$ABSOLUTE_PATH/libspatialaudio"; CMAKE=1 ;;
         esac
 
         # Clean CMake build_android_* directories
@@ -2899,6 +3010,8 @@ clean_target_artifacts() {
                 libupse) rm -f "$inst/lib/libupse.so" "$inst/lib/.libupse_gitrev" 2>/dev/null || true; rm -rf "$inst/include/upse" 2>/dev/null || true ;;
                 viogsf) rm -f "$inst/lib/libviogsf.so" "$inst/lib/.viogsf_gitrev" 2>/dev/null || true; rm -rf "$inst/include/viogsf" 2>/dev/null || true ;;
                 nezplugpp) rm -f "$inst/lib/libnezplugpp.so" "$inst/lib/.nezplugpp_gitrev" 2>/dev/null || true; rm -rf "$inst/include/nezplugpp" 2>/dev/null || true ;;
+                libmysofa) rm -f "$inst/lib/libmysofa.so"* 2>/dev/null || true; rm -f "$inst/include/mysofa.h" "$inst/include/mysofa_export.h" 2>/dev/null || true ;;
+                libspatialaudio) rm -f "$inst/lib/libspatialaudio.so"* 2>/dev/null || true; rm -rf "$inst/include/spatialaudio" 2>/dev/null || true ;;
             esac
         done
     done
@@ -3141,6 +3254,14 @@ for ABI in "${ABIS[@]}"; do
 
     if target_has_lib "nezplugpp"; then
         build_nezplugpp "$ABI"
+    fi
+
+    if target_has_lib "libmysofa"; then
+        build_libmysofa "$ABI"
+    fi
+
+    if target_has_lib "libspatialaudio"; then
+        build_libspatialaudio "$ABI"
     fi
 done
 

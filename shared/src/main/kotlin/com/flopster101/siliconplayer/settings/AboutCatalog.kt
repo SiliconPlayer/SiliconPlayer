@@ -536,6 +536,29 @@ internal object AboutCatalog {
             links = listOf(
                 AboutEntityLink("Source", "https://github.com/libsndfile/libsamplerate")
             )
+        ),
+        AboutEntity(
+            id = "lib.mysofa",
+            kind = AboutEntityKind.Library,
+            name = "libmysofa",
+            description = "SOFA HRTF file reader used to load custom head-related transfer functions.",
+            author = "Christian Hoene and libmysofa contributors",
+            license = "BSD-3-Clause",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/hoene/libmysofa")
+            )
+        ),
+        AboutEntity(
+            id = "lib.spatialaudio",
+            kind = AboutEntityKind.Library,
+            name = "libspatialaudio",
+            description = "Ambisonics and loudspeaker binauralization engine used by the spatializer.",
+            author = "VideoLAN and VideoLabs contributors",
+            license = "LGPL-2.1-or-later",
+            links = listOf(
+                AboutEntityLink("Project", "https://spatialaudio.videolan.org/"),
+                AboutEntityLink("Source", "https://github.com/videolan/libspatialaudio")
+            )
         )
     )
 

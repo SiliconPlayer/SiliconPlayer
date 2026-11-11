@@ -119,6 +119,12 @@ endif()
 add_library(libprojectM-4 SHARED IMPORTED)
 set_target_properties(libprojectM-4 PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libprojectM-4.so")
 
+add_library(libmysofa_prebuilt SHARED IMPORTED)
+set_target_properties(libmysofa_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libmysofa.so")
+
+add_library(libspatialaudio_prebuilt SHARED IMPORTED)
+set_target_properties(libspatialaudio_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libspatialaudio.so")
+
 add_library(siliconplayer_desktop SHARED ${MAIN_SOURCES})
 
 target_include_directories(siliconplayer_desktop PRIVATE ${COMMON_INCLUDES})
@@ -138,6 +144,8 @@ target_compile_definitions(siliconplayer_desktop PRIVATE
 target_link_libraries(siliconplayer_desktop PRIVATE
     silicon_vis
     libprojectM-4
+    libmysofa_prebuilt
+    libspatialaudio_prebuilt
     OpenGL::GL
     ${X11_LIBRARIES}
     Threads::Threads

@@ -161,38 +161,40 @@ clean_target_artifacts() {
     for lib in "${lib_list[@]}"; do
         local PROJ=""
         case "$lib" in
-            libsoxr)        PROJ="$ABSOLUTE_PATH/libsoxr" ;;
-            mbedtls)        PROJ="$MBEDTLS_DIR" ;;
-            ffmpeg)         PROJ="$ABSOLUTE_PATH/ffmpeg" ;;
-            libopenmpt)     PROJ="$ABSOLUTE_PATH/libopenmpt" ;;
-            libxmp)         PROJ="$ABSOLUTE_PATH/libxmp" ;;
-            libayfly)       PROJ="$ABSOLUTE_PATH/ayfly" ;;
-            ufmod)          PROJ="$ABSOLUTE_PATH/ufmod_c" ;;
-            libvgm)         PROJ="$ABSOLUTE_PATH/libvgm" ;;
-            libgme)         PROJ="$ABSOLUTE_PATH/libgme" ;;
-            libresid)       PROJ="$ABSOLUTE_PATH/resid" ;;
-            libresidfp)     PROJ="$ABSOLUTE_PATH/libresidfp" ;;
-            libsidplayfp)   PROJ="$ABSOLUTE_PATH/libsidplayfp" ;;
-            crsid)          PROJ="$ABSOLUTE_PATH/cRSID" ;;
-            lazyusf2)       PROJ="$ABSOLUTE_PATH/lazyusf2" ;;
-            psflib)         PROJ="$ABSOLUTE_PATH/psflib" ;;
-            vio2sf)         PROJ="$ABSOLUTE_PATH/2sf/vio2sf/src/vio2sf" ;;
-            fluidsynth)     PROJ="$ABSOLUTE_PATH/fluidsynth" ;;
-            sc68)           PROJ="$ABSOLUTE_PATH/sc68" ;;
-            libbinio)       PROJ="$ABSOLUTE_PATH/libbinio" ;;
-            adplug)         PROJ="$ABSOLUTE_PATH/adplug" ;;
-            libzakalwe)     PROJ="$ABSOLUTE_PATH/libzakalwe" ;;
-            bencodetools)   PROJ="$ABSOLUTE_PATH/bencodetools" ;;
-            vasm)           PROJ="$ABSOLUTE_PATH/vasm" ;;
-            uade)           PROJ="$ABSOLUTE_PATH/uade" ;;
-            hivelytracker)  PROJ="$ABSOLUTE_PATH/hivelytracker" ;;
-            klystrack)      PROJ="$ABSOLUTE_PATH/klystrack" ;;
-            furnace)        PROJ="$ABSOLUTE_PATH/furnace" ;;
-            projectm)       PROJ="$ABSOLUTE_PATH/projectm" ;;
-            dnfamitracker)  PROJ="$ABSOLUTE_PATH/dnfamitracker" ;;
-            libupse)        PROJ="$ABSOLUTE_PATH/libupse" ;;
-            viogsf)         PROJ="$ABSOLUTE_PATH/viogsf" ;;
-            nezplugpp)      PROJ="$ABSOLUTE_PATH/nezplugpp" ;;
+            libsoxr)         PROJ="$ABSOLUTE_PATH/libsoxr" ;;
+            mbedtls)         PROJ="$MBEDTLS_DIR" ;;
+            ffmpeg)          PROJ="$ABSOLUTE_PATH/ffmpeg" ;;
+            libopenmpt)      PROJ="$ABSOLUTE_PATH/libopenmpt" ;;
+            libxmp)          PROJ="$ABSOLUTE_PATH/libxmp" ;;
+            libayfly)        PROJ="$ABSOLUTE_PATH/ayfly" ;;
+            ufmod)           PROJ="$ABSOLUTE_PATH/ufmod_c" ;;
+            libvgm)          PROJ="$ABSOLUTE_PATH/libvgm" ;;
+            libgme)          PROJ="$ABSOLUTE_PATH/libgme" ;;
+            libresid)        PROJ="$ABSOLUTE_PATH/resid" ;;
+            libresidfp)      PROJ="$ABSOLUTE_PATH/libresidfp" ;;
+            libsidplayfp)    PROJ="$ABSOLUTE_PATH/libsidplayfp" ;;
+            crsid)           PROJ="$ABSOLUTE_PATH/cRSID" ;;
+            lazyusf2)        PROJ="$ABSOLUTE_PATH/lazyusf2" ;;
+            psflib)          PROJ="$ABSOLUTE_PATH/psflib" ;;
+            vio2sf)          PROJ="$ABSOLUTE_PATH/2sf/vio2sf/src/vio2sf" ;;
+            fluidsynth)      PROJ="$ABSOLUTE_PATH/fluidsynth" ;;
+            sc68)            PROJ="$ABSOLUTE_PATH/sc68" ;;
+            libbinio)        PROJ="$ABSOLUTE_PATH/libbinio" ;;
+            adplug)          PROJ="$ABSOLUTE_PATH/adplug" ;;
+            libzakalwe)      PROJ="$ABSOLUTE_PATH/libzakalwe" ;;
+            bencodetools)    PROJ="$ABSOLUTE_PATH/bencodetools" ;;
+            vasm)            PROJ="$ABSOLUTE_PATH/vasm" ;;
+            uade)            PROJ="$ABSOLUTE_PATH/uade" ;;
+            hivelytracker)   PROJ="$ABSOLUTE_PATH/hivelytracker" ;;
+            klystrack)       PROJ="$ABSOLUTE_PATH/klystrack" ;;
+            furnace)         PROJ="$ABSOLUTE_PATH/furnace" ;;
+            projectm)        PROJ="$ABSOLUTE_PATH/projectm" ;;
+            dnfamitracker)   PROJ="$ABSOLUTE_PATH/dnfamitracker" ;;
+            libupse)         PROJ="$ABSOLUTE_PATH/libupse" ;;
+            viogsf)          PROJ="$ABSOLUTE_PATH/viogsf" ;;
+            nezplugpp)       PROJ="$ABSOLUTE_PATH/nezplugpp" ;;
+            libmysofa)       PROJ="$ABSOLUTE_PATH/libmysofa" ;;
+            libspatialaudio) PROJ="$ABSOLUTE_PATH/libspatialaudio" ;;
         esac
 
         [ -n "$PROJ" ] && rm -rf "$PROJ/build_desktop_${ARCH}" 2>/dev/null || true
@@ -229,6 +231,8 @@ clean_target_artifacts() {
             libupse) rm -f "$INSTALL_DIR/lib/libupse.so" "$INSTALL_DIR/lib/.libupse_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/upse" "$PREBUILT_BASE/.zlib-linkonly-$ARCH" 2>/dev/null || true ;;
             viogsf) rm -f "$INSTALL_DIR/lib/libviogsf.so" "$INSTALL_DIR/lib/.viogsf_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/viogsf" 2>/dev/null || true ;;
             nezplugpp) rm -f "$INSTALL_DIR/lib/libnezplugpp.so" "$INSTALL_DIR/lib/.nezplugpp_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/nezplugpp" 2>/dev/null || true ;;
+            libmysofa) rm -f "$INSTALL_DIR/lib/libmysofa.so"* 2>/dev/null || true; rm -f "$INSTALL_DIR/include/mysofa.h" "$INSTALL_DIR/include/mysofa_export.h" 2>/dev/null || true ;;
+            libspatialaudio) rm -f "$INSTALL_DIR/lib/libspatialaudio.so"* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/spatialaudio" 2>/dev/null || true ;;
         esac
     done
 
@@ -1236,6 +1240,63 @@ build_nezplugpp() {
     dep_write_source_stamp "$INSTALL_DIR" nezplugpp "$PROJECT_PATH"
 }
 
+build_libmysofa() {
+    local PROJECT_PATH="$ABSOLUTE_PATH/libmysofa"
+    local BUILD_DIR="$PROJECT_PATH/build_desktop_${ARCH}"
+    if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libmysofa.so" ] && \
+       [ -f "$INSTALL_DIR/include/mysofa.h" ]; then return 0; fi
+    echo "Building libmysofa for host..."
+    rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
+    cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS="$CFLAGS" \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DBUILD_TESTS=OFF \
+        -DBUILD_SHARED_LIBS=ON \
+        -DBUILD_STATIC_LIBS=OFF \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+    if [ ! -f "$INSTALL_DIR/lib/libmysofa.so" ]; then
+        echo "Error: libmysofa shared library not found after build."
+        return 1
+    fi
+}
+
+build_libspatialaudio() {
+    local PROJECT_PATH="$ABSOLUTE_PATH/libspatialaudio"
+    local BUILD_DIR="$PROJECT_PATH/build_desktop_${ARCH}"
+    local MYSOFA_LIB="$INSTALL_DIR/lib/libmysofa.so"
+    if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
+    if [ ! -f "$MYSOFA_LIB" ]; then
+        echo "Error: libmysofa missing at $MYSOFA_LIB (build libmysofa first)."
+        return 1
+    fi
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libspatialaudio.so" ] && \
+       [ -f "$INSTALL_DIR/include/spatialaudio/SpeakersBinauralizer.h" ]; then return 0; fi
+    echo "Building libspatialaudio for host..."
+    rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
+    cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS="$CFLAGS" \
+        -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DBUILD_SHARED_LIBS=ON \
+        -DBUILD_TESTING=OFF \
+        -DHAVE_MIT_HRTF=ON \
+        -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON \
+        -DMYSOFA_LIBRARIES="$MYSOFA_LIB" \
+        -DMYSOFA_INCLUDE_DIRS="$INSTALL_DIR/include" \
+        -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+    cmake --build "$BUILD_DIR" -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+    if [ ! -f "$INSTALL_DIR/lib/libspatialaudio.so" ]; then
+        echo "Error: libspatialaudio shared library not found after build."
+        return 1
+    fi
+}
+
 # Run build targets
 for ARCH in "${TARGET_ARCHES[@]}"; do
     configure_desktop_toolchain "$ARCH"
@@ -1289,6 +1350,8 @@ for ARCH in "${TARGET_ARCHES[@]}"; do
     if target_has_lib "libupse"; then build_libupse; fi
     if target_has_lib "viogsf"; then build_viogsf; fi
     if target_has_lib "nezplugpp"; then build_nezplugpp; fi
+    if target_has_lib "libmysofa"; then build_libmysofa; fi
+    if target_has_lib "libspatialaudio"; then build_libspatialaudio; fi
 
     echo "========================================"
     echo "Desktop Dependency Build Complete for $ARCH!"

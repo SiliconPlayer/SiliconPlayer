@@ -283,6 +283,17 @@ spdx = "Apache-2.0"
 note = "Bundled Roboto Medium; VU meter typeface on Android and desktop."
 
 [[dep]]
+id = "lib.mysofa"
+spdx = "BSD-3-Clause"
+source = "external/libmysofa"
+
+[[dep]]
+id = "lib.spatialaudio"
+spdx = "LGPL-2.1-or-later"
+source = "external/libspatialaudio"
+note = "Shared build so the LGPL grant stays relinkable; used by the spatializer backend."
+
+[[dep]]
 id = "app.siliconplayer"
 spdx = "GPL-3.0"
 license_dir = "."
