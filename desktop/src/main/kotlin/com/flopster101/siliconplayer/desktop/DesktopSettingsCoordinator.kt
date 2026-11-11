@@ -91,9 +91,6 @@ import com.flopster101.siliconplayer.XmpOptionKeys
 import com.flopster101.siliconplayer.applyDecoderPriorityOrder
 import com.flopster101.siliconplayer.PlaylistLibraryState
 import com.flopster101.siliconplayer.StoredPlaylist
-import com.flopster101.siliconplayer.audio.EffectChain
-import com.flopster101.siliconplayer.audio.applyEffectChainToNative
-import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
 import com.flopster101.siliconplayer.readPluginVolumeForDecoder
 import com.flopster101.siliconplayer.buildSettingsScreenState
 import com.flopster101.siliconplayer.clearAllAudioParameterPrefs
@@ -101,6 +98,13 @@ import com.flopster101.siliconplayer.clearAllDecoderPluginVolumes
 import com.flopster101.siliconplayer.parseEnabledVisualizationModes
 import com.flopster101.siliconplayer.persistAllPluginConfigurations
 import com.flopster101.siliconplayer.savePluginConfiguration
+import com.flopster101.siliconplayer.audio.EffectChain
+import com.flopster101.siliconplayer.audio.SpatializerConfig
+import com.flopster101.siliconplayer.audio.applyEffectChainToNative
+import com.flopster101.siliconplayer.audio.applySpatializerConfigToNative
+import com.flopster101.siliconplayer.audio.readSpatializerConfig
+import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
+import com.flopster101.siliconplayer.audio.writeSpatializerConfig
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.restoreAudioBufferPresetForBackend
 import com.flopster101.siliconplayer.restoreAudioPerformanceModeForBackend
@@ -381,6 +385,7 @@ internal fun rememberDesktopSettings(
             audioOutputLimiterEnabled = prefs.getBoolean(AppPreferenceKeys.AUDIO_OUTPUT_LIMITER_ENABLED, AppDefaults.AudioProcessing.outputLimiterEnabled),
             lookaheadClipperMode = LookaheadClipperMode.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_LOOKAHEAD_CLIPPER_MODE, AppDefaults.AudioProcessing.lookaheadClipperMode.storageValue)),
             multiChannelOutputMode = MultiChannelOutputMode.fromStorage(prefs.getString(AppPreferenceKeys.AUDIO_MULTI_CHANNEL_OUTPUT_MODE, AppDefaults.OutputPipeline.multiChannelOutputMode.storageValue)),
+            spatializerConfig = readSpatializerConfig(prefs),
             audioAllowBackendFallback = prefs.getBoolean(AppPreferenceKeys.AUDIO_ALLOW_BACKEND_FALLBACK, true),
             bitPerfectUsbAudio = prefs.getBoolean(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, AppDefaults.OutputPipeline.bitPerfectUsbAudio),
             openPlayerFromNotification = prefs.getBoolean(AppPreferenceKeys.OPEN_PLAYER_FROM_NOTIFICATION, true),
@@ -484,6 +489,7 @@ internal fun rememberDesktopSettings(
                     NativeBridge.setMasterGain(0f)
                     NativeBridge.setPluginGain(0f)
                     NativeBridge.setSongGain(0f)
+                    applySpatializerConfigToNative(SpatializerConfig())
                     applyEffectChainToNative(
                         resolveEffectiveEffectChainForPrefs(
                             prefs = prefs,
@@ -755,6 +761,15 @@ internal fun rememberDesktopSettings(
             onLookaheadClipperModeChanged = {
                 putString(AppPreferenceKeys.AUDIO_LOOKAHEAD_CLIPPER_MODE, it.storageValue)
                 runCatching { NativeBridge.setLookaheadClipperMode(it.nativeValue) }
+            },
+            onSpatializerConfigChanged = { config ->
+                val updated = config.copy(spatializeStereo = false)
+                prefs.edit().also { editor ->
+                    writeSpatializerConfig(editor, updated)
+                    editor.apply()
+                }
+                runCatching { NativeBridge.setSpatializerConfig(updated.toJson()) }
+                changeToken++
             },
             onMultiChannelOutputModeChanged = {
                 putString(AppPreferenceKeys.AUDIO_MULTI_CHANNEL_OUTPUT_MODE, it.storageValue)

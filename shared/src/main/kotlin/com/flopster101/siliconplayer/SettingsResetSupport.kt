@@ -336,6 +336,7 @@ internal fun clearAllAudioParameterPrefs(prefs: AppPreferences) {
     editor.remove(AppPreferenceKeys.AUDIO_EFFECT_CHAIN)
     editor.remove(AppPreferenceKeys.AUDIO_EFFECTS_BYPASS_ALL)
     editor.remove(AppPreferenceKeys.AUDIO_EFFECT_PRESETS)
+    editor.remove(AppPreferenceKeys.AUDIO_SPATIALIZER_CONFIG)
     editor.remove(AppPreferenceKeys.AUDIO_DSP_EDITOR_NAMESPACE)
     editor.remove(AppPreferenceKeys.AUDIO_DSP_BASS_ENABLED)
     editor.remove(AppPreferenceKeys.AUDIO_DSP_BASS_DEPTH)

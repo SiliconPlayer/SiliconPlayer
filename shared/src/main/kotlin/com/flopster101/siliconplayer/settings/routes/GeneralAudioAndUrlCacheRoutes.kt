@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.flopster101.siliconplayer.audio.SpatializerConfig
 import com.flopster101.siliconplayer.platform.LocalAppPreferences
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.dp
@@ -39,6 +40,7 @@ internal data class GeneralAudioRouteState(
     val audioOutputLimiterEnabled: Boolean,
     val lookaheadClipperMode: LookaheadClipperMode,
     val multiChannelOutputMode: MultiChannelOutputMode,
+    val spatializerConfig: SpatializerConfig,
     val audioAllowBackendFallback: Boolean,
     val bitPerfectUsbAudio: Boolean
 )
@@ -59,6 +61,7 @@ internal data class GeneralAudioRouteActions(
     val onAudioOutputLimiterEnabledChanged: (Boolean) -> Unit,
     val onLookaheadClipperModeChanged: (LookaheadClipperMode) -> Unit,
     val onMultiChannelOutputModeChanged: (MultiChannelOutputMode) -> Unit,
+    val onSpatializerConfigChanged: (SpatializerConfig) -> Unit,
     val onAudioAllowBackendFallbackChanged: (Boolean) -> Unit,
     val onBitPerfectUsbAudioChanged: (Boolean) -> Unit
 )
@@ -174,6 +177,10 @@ internal fun GeneralAudioRouteContent(
         onClearAll = actions.onClearAllAudioParameters,
         onClearPlugins = actions.onClearPluginAudioParameters,
         onClearSongs = actions.onClearSongAudioParameters
+    )
+    SpatializerSettingsSection(
+        config = state.spatializerConfig,
+        onConfigChanged = actions.onSpatializerConfigChanged
     )
     SettingsSectionLabel("Audio output pipeline")
     AudioBackendSelectorCard(

@@ -49,6 +49,30 @@ import com.flopster101.siliconplayer.NetworkCredentialStore
 import com.flopster101.siliconplayer.NetworkNodesHolder
 import com.flopster101.siliconplayer.PROGRESSIVE_REMOTE_SOURCE_CACHE_DIR
 import com.flopster101.siliconplayer.REMOTE_SOURCE_CACHE_DIR
+import com.flopster101.siliconplayer.audio.EffectChain
+import com.flopster101.siliconplayer.audio.EffectChainScopeTarget
+import com.flopster101.siliconplayer.audio.SpatializerConfig
+import com.flopster101.siliconplayer.audio.activeDialogPreviewChainProvider
+import com.flopster101.siliconplayer.audio.applyEffectChainToNative
+import com.flopster101.siliconplayer.audio.applySpatializerConfigToNative
+import com.flopster101.siliconplayer.audio.queryEffectDescriptors
+import com.flopster101.siliconplayer.audio.readBypassAllEffects
+import com.flopster101.siliconplayer.audio.readCoreEffectChain
+import com.flopster101.siliconplayer.audio.readEffectPresets
+import com.flopster101.siliconplayer.audio.readGlobalEffectChain
+import com.flopster101.siliconplayer.audio.readPlaylistEffectChain
+import com.flopster101.siliconplayer.audio.readSongEffectChain
+import com.flopster101.siliconplayer.audio.readSpatializerConfig
+import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChain
+import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
+import com.flopster101.siliconplayer.audio.resolveInitialDialogScope
+import com.flopster101.siliconplayer.audio.shouldShowSpatializerNode
+import com.flopster101.siliconplayer.audio.writeBypassAllEffects
+import com.flopster101.siliconplayer.audio.writeCoreEffectChain
+import com.flopster101.siliconplayer.audio.writeEffectPresets
+import com.flopster101.siliconplayer.audio.writeGlobalEffectChain
+import com.flopster101.siliconplayer.audio.writePlaylistEffectChain
+import com.flopster101.siliconplayer.audio.writeSongEffectChain
 import com.flopster101.siliconplayer.platform.LocalAppCacheDir
 import com.flopster101.siliconplayer.platform.LocalAppConfigDir
 import com.flopster101.siliconplayer.ManualSourceType
@@ -151,26 +175,6 @@ import com.flopster101.siliconplayer.FAVORITES_PLAYLIST_ID
 import com.flopster101.siliconplayer.favoritesAsStoredPlaylist
 import com.flopster101.siliconplayer.LookaheadClipperMode
 import com.flopster101.siliconplayer.MultiChannelOutputMode
-import com.flopster101.siliconplayer.audio.EffectChain
-import com.flopster101.siliconplayer.audio.EffectChainScopeTarget
-import com.flopster101.siliconplayer.audio.activeDialogPreviewChainProvider
-import com.flopster101.siliconplayer.audio.applyEffectChainToNative
-import com.flopster101.siliconplayer.audio.queryEffectDescriptors
-import com.flopster101.siliconplayer.audio.readBypassAllEffects
-import com.flopster101.siliconplayer.audio.readCoreEffectChain
-import com.flopster101.siliconplayer.audio.readEffectPresets
-import com.flopster101.siliconplayer.audio.readGlobalEffectChain
-import com.flopster101.siliconplayer.audio.readPlaylistEffectChain
-import com.flopster101.siliconplayer.audio.readSongEffectChain
-import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChain
-import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
-import com.flopster101.siliconplayer.audio.resolveInitialDialogScope
-import com.flopster101.siliconplayer.audio.writeBypassAllEffects
-import com.flopster101.siliconplayer.audio.writeCoreEffectChain
-import com.flopster101.siliconplayer.audio.writeEffectPresets
-import com.flopster101.siliconplayer.audio.writeGlobalEffectChain
-import com.flopster101.siliconplayer.audio.writePlaylistEffectChain
-import com.flopster101.siliconplayer.audio.writeSongEffectChain
 import com.flopster101.siliconplayer.fileMatchesSupportedExtensions
 import com.flopster101.siliconplayer.playlistContainsTrack
 import com.flopster101.siliconplayer.samePath
@@ -1189,6 +1193,11 @@ fun main(args: Array<String>) = application {
             // to the engine and sweeps stored keys once so cold starts apply them.
             DisposableEffect(prefs, session) {
                 val listener = AppPreferences.OnChangeListener { _, key ->
+                    if (key == AppPreferenceKeys.AUDIO_SPATIALIZER_CONFIG || key == null) {
+                        runCatching {
+                            applySpatializerConfigToNative(readSpatializerConfig(prefs))
+                        }
+                    }
                     if (key != null) {
                         runCatching {
                             pushDesktopCorePrefToNative(
@@ -1627,6 +1636,7 @@ fun main(args: Array<String>) = application {
             var tempPlaylistChain by remember { mutableStateOf(currentPlaylistEffectChain()) }
             var tempSongChain by remember { mutableStateOf(currentSongEffectChain()) }
             var tempBypassAllEffects by remember { mutableStateOf(bypassAllEffects) }
+            var tempSpatializerConfig by remember { mutableStateOf(readSpatializerConfig(prefs)) }
             var tempEffectPresets by remember { mutableStateOf(effectPresets) }
             SideEffect {
                 session.activePlaylistProvider = { activePlaylist }
@@ -1687,6 +1697,7 @@ fun main(args: Array<String>) = application {
                 tempPlaylistChain = playlistChain
                 tempSongChain = songChain
                 tempBypassAllEffects = bypassAllEffects
+                tempSpatializerConfig = readSpatializerConfig(prefs)
                 tempEffectPresets = effectPresets
                 tempSelectedScope = resolveInitialDialogScope(
                     savedScope = selectedScope,
@@ -2051,6 +2062,7 @@ fun main(args: Array<String>) = application {
                 pushStoredTrackOptionsToNative(prefs)
                 pushAudioPipelineConfigToNative(prefs)
                 applyEffectChainToNative(globalChain)
+                applySpatializerConfigToNative(readSpatializerConfig(prefs))
             }
             LaunchedEffect(
                 showAudioEffectsDialog,
@@ -3775,6 +3787,12 @@ fun main(args: Array<String>) = application {
                             songChain = tempSongChain,
                             availableEffects = availableEffects,
                             bypassAllEffects = tempBypassAllEffects,
+                            showSpatializer = shouldShowSpatializerNode(
+                                decoderName = session.decoderName,
+                                channelCount = session.channelCount,
+                                config = tempSpatializerConfig
+                            ),
+                            spatializerConfig = tempSpatializerConfig,
                             presets = tempEffectPresets,
                             onMasterVolumeChange = {
                                 tempMasterVolumeDb = it

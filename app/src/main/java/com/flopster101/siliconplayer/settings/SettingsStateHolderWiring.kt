@@ -77,6 +77,7 @@ internal fun buildSettingsScreenStateFromStateHolders(
         audioOutputLimiterEnabled = settingsStates.audioOutputLimiterEnabled.value,
         lookaheadClipperMode = settingsStates.lookaheadClipperMode.value,
         multiChannelOutputMode = settingsStates.multiChannelOutputMode.value,
+        spatializerConfig = settingsStates.spatializerConfig.value,
         audioAllowBackendFallback = settingsStates.audioAllowBackendFallback.value,
         bitPerfectUsbAudio = settingsStates.bitPerfectUsbAudio.value,
         openPlayerFromNotification = settingsStates.openPlayerFromNotification.value,

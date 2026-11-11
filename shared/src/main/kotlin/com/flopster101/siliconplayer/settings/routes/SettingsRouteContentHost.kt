@@ -243,6 +243,7 @@ internal fun SettingsRouteContentHost(
                             audioOutputLimiterEnabled = state.audioOutputLimiterEnabled,
                             lookaheadClipperMode = state.lookaheadClipperMode,
                             multiChannelOutputMode = state.multiChannelOutputMode,
+                            spatializerConfig = state.spatializerConfig,
                             audioAllowBackendFallback = state.audioAllowBackendFallback,
                             bitPerfectUsbAudio = state.bitPerfectUsbAudio
                         ),
@@ -262,6 +263,7 @@ internal fun SettingsRouteContentHost(
                             onAudioOutputLimiterEnabledChanged = actions.onAudioOutputLimiterEnabledChanged,
                             onLookaheadClipperModeChanged = actions.onLookaheadClipperModeChanged,
                             onMultiChannelOutputModeChanged = actions.onMultiChannelOutputModeChanged,
+                            onSpatializerConfigChanged = actions.onSpatializerConfigChanged,
                             onAudioAllowBackendFallbackChanged = actions.onAudioAllowBackendFallbackChanged,
                             onBitPerfectUsbAudioChanged = actions.onBitPerfectUsbAudioChanged
                         )

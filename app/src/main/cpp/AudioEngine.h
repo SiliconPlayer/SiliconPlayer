@@ -364,9 +364,7 @@ public:
     siliconplayer::effects::EffectChainSpec getEffectChainSpec();
     void setSpatializerConfig(const siliconplayer::spatial::SpatializerConfig& config);
     siliconplayer::spatial::SpatializerConfig getSpatializerConfig();
-    double getEffectChainLatencyFrames() const {
-        return effectChain.latencyFrames() + spatializerEngine.latencyFrames();
-    }
+    double getEffectChainLatencyFrames() const;
     void setMasterChannelMute(int channelIndex, bool enabled);
     void setMasterChannelSolo(int channelIndex, bool enabled);
     void setEndFadeApplyToAllTracks(bool enabled);

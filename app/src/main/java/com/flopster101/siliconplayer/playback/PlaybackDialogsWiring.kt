@@ -17,6 +17,7 @@ import androidx.compose.runtime.key
 import java.io.File
 import com.flopster101.siliconplayer.audio.EffectChain
 import com.flopster101.siliconplayer.audio.EffectChainScopeTarget
+import com.flopster101.siliconplayer.audio.SpatializerConfig
 import com.flopster101.siliconplayer.audio.activeDialogPreviewChainProvider
 import com.flopster101.siliconplayer.audio.applyEffectChainToNative
 import com.flopster101.siliconplayer.audio.queryEffectDescriptors
@@ -26,9 +27,11 @@ import com.flopster101.siliconplayer.audio.readEffectPresets
 import com.flopster101.siliconplayer.audio.readGlobalEffectChain
 import com.flopster101.siliconplayer.audio.readPlaylistEffectChain
 import com.flopster101.siliconplayer.audio.readSongEffectChain
+import com.flopster101.siliconplayer.audio.readSpatializerConfig
 import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChain
 import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
 import com.flopster101.siliconplayer.audio.resolveInitialDialogScope
+import com.flopster101.siliconplayer.audio.shouldShowSpatializerNode
 import com.flopster101.siliconplayer.audio.writeBypassAllEffects
 import com.flopster101.siliconplayer.audio.writeCoreEffectChain
 import com.flopster101.siliconplayer.audio.writeEffectPresets
@@ -48,6 +51,7 @@ internal fun AppNavigationPlaybackDialogsSection(
     volumeDatabase: VolumeDatabase,
     selectedFile: File?,
     lastUsedCoreName: String?,
+    metadataChannelCount: Int = 0,
     manualOpenDelegates: AppNavigationManualOpenDelegates,
     playbackStateDelegates: AppNavigationPlaybackStateDelegates,
     onCancelRemoteLoadJob: () -> Unit,
@@ -182,6 +186,7 @@ internal fun AppNavigationPlaybackDialogsSection(
     var tempPlaylistChain by remember { mutableStateOf(currentPlaylistEffectChain()) }
     var tempSongChain by remember { mutableStateOf(currentSongEffectChain()) }
     var tempBypassAllEffects by remember { mutableStateOf(bypassAllEffects) }
+    var tempSpatializerConfig by remember { mutableStateOf(readSpatializerConfig(appPrefs)) }
     var tempEffectPresets by remember { mutableStateOf(effectPresets) }
 
     fun resolveCurrentTempChain(): EffectChain =
@@ -219,6 +224,7 @@ internal fun AppNavigationPlaybackDialogsSection(
         tempPlaylistChain = playlistChain
         tempSongChain = songChain
         tempBypassAllEffects = bypassAllEffects
+        tempSpatializerConfig = readSpatializerConfig(appPrefs)
         tempEffectPresets = effectPresets
         tempSelectedScope = resolveInitialDialogScope(
             savedScope = selectedScope,
@@ -347,6 +353,12 @@ internal fun AppNavigationPlaybackDialogsSection(
         tempSongChain = tempSongChain,
         availableEffects = availableEffects,
         tempBypassAllEffects = tempBypassAllEffects,
+        tempSpatializerConfig = tempSpatializerConfig,
+        showSpatializer = shouldShowSpatializerNode(
+            decoderName = lastUsedCoreName,
+            channelCount = metadataChannelCount,
+            config = tempSpatializerConfig
+        ),
         tempPresets = tempEffectPresets,
         onMasterVolumeChange = {
             onTempMasterVolumeDbChanged(it)

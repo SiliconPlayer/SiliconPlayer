@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.audio.SpatializerConfig
+
 internal fun buildSettingsScreenState(
     selectedPluginName: String?,
     autoPlayOnTrackSelect: Boolean,
@@ -20,6 +22,7 @@ internal fun buildSettingsScreenState(
     audioOutputLimiterEnabled: Boolean,
     lookaheadClipperMode: LookaheadClipperMode,
     multiChannelOutputMode: MultiChannelOutputMode,
+    spatializerConfig: SpatializerConfig,
     audioAllowBackendFallback: Boolean,
     bitPerfectUsbAudio: Boolean,
     openPlayerFromNotification: Boolean,
@@ -107,6 +110,7 @@ internal fun buildSettingsScreenState(
         audioOutputLimiterEnabled = audioOutputLimiterEnabled,
         lookaheadClipperMode = lookaheadClipperMode,
         multiChannelOutputMode = multiChannelOutputMode,
+        spatializerConfig = spatializerConfig,
         audioAllowBackendFallback = audioAllowBackendFallback,
         bitPerfectUsbAudio = bitPerfectUsbAudio,
         openPlayerFromNotification = openPlayerFromNotification,

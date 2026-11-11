@@ -95,7 +95,9 @@ int AudioEngine::resolveOutputStreamChannelsForTrackLocked() const {
     if (uac.isStreaming()) {
         return uac.currentFormat().channels > 0 ? uac.currentFormat().channels : 2;
     }
-    if (spatializerEngine.isActiveForMultichannel()) {
+    if (decoder && std::string(decoder->getName()) == "FFmpeg" &&
+        decoder->getSourceChannelCount() > 2 &&
+        spatializerEngine.isActiveForMultichannel()) {
         return 2;
     }
     const int mode = multiChannelOutputMode.load(std::memory_order_relaxed);
@@ -122,7 +124,8 @@ int AudioEngine::resolveDecoderOutputChannelsForTrackLocked() const {
     if (!decoder) {
         return 2;
     }
-    if (spatializerEngine.isActiveForMultichannel()) {
+    if (std::string(decoder->getName()) == "FFmpeg" &&
+        spatializerEngine.isActiveForMultichannel()) {
         const int srcChannels = decoder->getSourceChannelCount();
         if (srcChannels > 2) {
             const int preferredBed = decoder->getCoreIntInfo("preferredSpatialBedChannels", 0);

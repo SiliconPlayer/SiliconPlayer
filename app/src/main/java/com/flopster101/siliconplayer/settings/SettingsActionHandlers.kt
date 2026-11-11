@@ -38,6 +38,9 @@ internal fun clearAllAudioParametersAction(
     NativeBridge.setMasterGain(0f)
     NativeBridge.setPluginGain(0f)
     NativeBridge.setSongGain(0f)
+    com.flopster101.siliconplayer.audio.applySpatializerConfigToNative(
+        com.flopster101.siliconplayer.audio.SpatializerConfig()
+    )
     com.flopster101.siliconplayer.audio.applyEffectiveEffectChainFromPrefsToNative(
         prefs = appPrefs,
         coreName = readCurrentDecoderName(),

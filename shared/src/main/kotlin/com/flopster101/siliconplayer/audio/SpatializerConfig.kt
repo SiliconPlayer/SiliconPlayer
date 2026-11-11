@@ -1,6 +1,10 @@
 package com.flopster101.siliconplayer.audio
 
+import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.NativeBridge
+import com.flopster101.siliconplayer.matchesDecoderName
+import com.flopster101.siliconplayer.platform.AppPreferences
 import org.json.JSONObject
 
 enum class SpatializerBackend(val id: String) {
@@ -74,8 +78,31 @@ data class SpatializerConfig(
 }
 
 internal fun applySpatializerConfigToNative(config: SpatializerConfig) {
-    NativeBridge.setSpatializerConfig(config.toJson())
+    NativeBridge.setSpatializerConfig(config.copy(spatializeStereo = false).toJson())
 }
 
 internal fun loadSpatializerConfigFromNative(): SpatializerConfig =
     SpatializerConfig.fromJson(NativeBridge.getSpatializerConfig())
+
+internal fun readSpatializerConfig(prefs: AppPreferences): SpatializerConfig =
+    SpatializerConfig.fromJson(prefs.getString(AppPreferenceKeys.AUDIO_SPATIALIZER_CONFIG, null))
+
+internal fun writeSpatializerConfig(
+    editor: AppPreferences.Editor,
+    config: SpatializerConfig
+) {
+    editor.putString(
+        AppPreferenceKeys.AUDIO_SPATIALIZER_CONFIG,
+        config.copy(spatializeStereo = false).toJson()
+    )
+}
+
+internal fun shouldShowSpatializerNode(
+    decoderName: String?,
+    channelCount: Int,
+    config: SpatializerConfig
+): Boolean =
+    decoderName.matchesDecoderName(DecoderNames.FFMPEG) &&
+        channelCount > 2 &&
+        config.enabled &&
+        config.backend != SpatializerBackend.Off

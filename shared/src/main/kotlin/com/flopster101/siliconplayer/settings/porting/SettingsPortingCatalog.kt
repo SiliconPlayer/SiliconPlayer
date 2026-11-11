@@ -24,6 +24,7 @@ private fun generalVolumeKeys(): List<TypedPrefValue> = listOf(
 private fun audioBackendKeys(): List<TypedPrefValue> = listOf(
     boolV(AppPreferenceKeys.AUDIO_ALLOW_BACKEND_FALLBACK, true),
     stringV(AppPreferenceKeys.AUDIO_BACKEND_PREFERENCE, "auto"),
+    stringV(AppPreferenceKeys.AUDIO_SPATIALIZER_CONFIG, "", onlyWhenSet = true),
     stringV(AppPreferenceKeys.AUDIO_BUFFER_PRESET, "", onlyWhenSet = true),
     stringV(AppPreferenceKeys.BIT_PERFECT_DRIVER_METHOD, "", onlyWhenSet = true),
     boolV(AppPreferenceKeys.BIT_PERFECT_USB_AUDIO, false),

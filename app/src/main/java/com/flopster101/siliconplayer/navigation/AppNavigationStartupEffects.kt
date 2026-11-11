@@ -4,7 +4,9 @@ import android.content.SharedPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import com.flopster101.siliconplayer.audio.applyEffectChainToNative
+import com.flopster101.siliconplayer.audio.applySpatializerConfigToNative
 import com.flopster101.siliconplayer.audio.readGlobalEffectChain
+import com.flopster101.siliconplayer.audio.readSpatializerConfig
 import com.flopster101.siliconplayer.platform.AndroidAppPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -77,6 +79,7 @@ internal fun AppNavigationStartupEffects(
         NativeBridge.setLookaheadClipperMode(lookaheadClipperMode.nativeValue)
         NativeBridge.setMultiChannelOutputMode(multiChannelOutputMode.nativeValue)
         applyEffectChainToNative(globalChain)
+        applySpatializerConfigToNative(readSpatializerConfig(appPrefs))
 
         withContext(Dispatchers.IO) {
             loadPluginConfigurations(prefs)

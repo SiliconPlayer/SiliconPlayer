@@ -5,6 +5,7 @@ import com.flopster101.siliconplayer.audio.EffectChain
 import com.flopster101.siliconplayer.audio.EffectChainScopeTarget
 import com.flopster101.siliconplayer.audio.EffectDescriptor
 import com.flopster101.siliconplayer.audio.EffectPreset
+import com.flopster101.siliconplayer.audio.SpatializerConfig
 import com.flopster101.siliconplayer.ui.dialogs.AudioEffectsDialog
 import com.flopster101.siliconplayer.ui.dialogs.BrowserPlaylistPrompt
 import com.flopster101.siliconplayer.ui.dialogs.BrowserPlaylistPromptDialogs
@@ -66,6 +67,8 @@ internal fun PlaybackDialogsHost(
     tempSongChain: EffectChain?,
     availableEffects: List<EffectDescriptor>,
     tempBypassAllEffects: Boolean = false,
+    tempSpatializerConfig: SpatializerConfig = SpatializerConfig(),
+    showSpatializer: Boolean = false,
     tempPresets: List<EffectPreset> = emptyList(),
     onMasterVolumeChange: (Float) -> Unit,
     onPluginVolumeChange: (Float) -> Unit,
@@ -150,6 +153,8 @@ internal fun PlaybackDialogsHost(
             songChain = tempSongChain,
             availableEffects = availableEffects,
             bypassAllEffects = tempBypassAllEffects,
+            showSpatializer = showSpatializer,
+            spatializerConfig = tempSpatializerConfig,
             presets = tempPresets,
             onMasterVolumeChange = onMasterVolumeChange,
             onPluginVolumeChange = onPluginVolumeChange,

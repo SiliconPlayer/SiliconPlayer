@@ -38,8 +38,14 @@ std::unique_ptr<ISpatializer> createBackendInstance(SpatializerBackendId backend
 void SpatializerEngine::setConfig(const SpatializerConfig& config) {
     const bool backendChanged = (config.backend != currentConfig.backend);
     const bool enabledChanged = (config.enabled != currentConfig.enabled);
+    const bool rendererChanged =
+            config.renderMethod != currentConfig.renderMethod ||
+            config.ambisonicOrder != currentConfig.ambisonicOrder ||
+            config.yawDegrees != currentConfig.yawDegrees ||
+            config.customSofaPath != currentConfig.customSofaPath;
     currentConfig = config;
-    if (backendChanged || enabledChanged || currentConfig.backend == SpatializerBackendId::None) {
+    if (backendChanged || enabledChanged || rendererChanged ||
+        currentConfig.backend == SpatializerBackendId::None) {
         activeBackend = createBackendInstance(currentConfig.backend);
         preparedSampleRate = 0;
         preparedInputChannels = 0;
@@ -385,7 +391,7 @@ void SpatializerEngine::processOrDownmix(
                              currentConfig.backend != SpatializerBackendId::None &&
                              activeBackend != nullptr &&
                              outChannels == 2 &&
-                             (decodeChannels > 2 || (decodeChannels == 2 && currentConfig.spatializeStereo));
+                             decodeChannels > 2;
 
     if (!wantSpatial) {
         if (decodeChannels == outChannels) {

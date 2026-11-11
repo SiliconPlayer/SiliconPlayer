@@ -107,6 +107,8 @@ import com.flopster101.siliconplayer.VerticalScrollbarTrack
 import com.flopster101.siliconplayer.WatchDialogContainer
 import com.flopster101.siliconplayer.adaptiveDialogModifier
 import com.flopster101.siliconplayer.adaptiveDialogProperties
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
+import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.audio.EffectChain
 import com.flopster101.siliconplayer.audio.EffectChainScopeTarget
 import com.flopster101.siliconplayer.audio.EffectDescriptor
@@ -115,10 +117,10 @@ import com.flopster101.siliconplayer.audio.EffectNodeIds
 import com.flopster101.siliconplayer.audio.EffectParamDescriptor
 import com.flopster101.siliconplayer.audio.EffectParamType
 import com.flopster101.siliconplayer.audio.EffectPreset
+import com.flopster101.siliconplayer.audio.SpatializerBackend
+import com.flopster101.siliconplayer.audio.SpatializerConfig
 import com.flopster101.siliconplayer.audio.createDefaultEffectNode
 import com.flopster101.siliconplayer.audio.findEffectDescriptor
-import com.flopster101.siliconplayer.onGloballyPositionedDeferred
-import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.platform.isWatchDevice
 import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
 import com.flopster101.siliconplayer.rememberScrollStateScrollbarDragHandler
@@ -190,6 +192,8 @@ internal fun AudioEffectsDialog(
     availableEffects: List<EffectDescriptor>,
     bypassAllEffects: Boolean = false,
     presets: List<EffectPreset> = emptyList(),
+    showSpatializer: Boolean = false,
+    spatializerConfig: SpatializerConfig = SpatializerConfig(),
     onMasterVolumeChange: (Float) -> Unit,
     onPluginVolumeChange: (Float) -> Unit,
     onSongVolumeChange: (Float) -> Unit,
@@ -261,6 +265,8 @@ internal fun AudioEffectsDialog(
                     availableEffects = availableEffects,
                     bypassAllEffects = bypassAllEffects,
                     presets = presets,
+                    showSpatializer = showSpatializer,
+                    spatializerConfig = spatializerConfig,
                     onMasterVolumeChange = onMasterVolumeChange,
                     onPluginVolumeChange = onPluginVolumeChange,
                     onSongVolumeChange = onSongVolumeChange,
@@ -338,6 +344,8 @@ internal fun AudioEffectsDialog(
                 availableEffects = availableEffects,
                 bypassAllEffects = bypassAllEffects,
                 presets = presets,
+                showSpatializer = showSpatializer,
+                spatializerConfig = spatializerConfig,
                 onMasterVolumeChange = onMasterVolumeChange,
                 onPluginVolumeChange = onPluginVolumeChange,
                 onSongVolumeChange = onSongVolumeChange,
@@ -448,6 +456,8 @@ private fun EffectChainEditorSection(
     availableEffects: List<EffectDescriptor>,
     bypassAllEffects: Boolean,
     presets: List<EffectPreset>,
+    showSpatializer: Boolean,
+    spatializerConfig: SpatializerConfig,
     onMasterVolumeChange: (Float) -> Unit,
     onPluginVolumeChange: (Float) -> Unit,
     onSongVolumeChange: (Float) -> Unit,
@@ -704,6 +714,8 @@ private fun EffectChainEditorSection(
             songChain = songChain,
             availableEffects = availableEffects,
             bypassAllEffects = bypassAllEffects,
+            showSpatializer = showSpatializer,
+            spatializerConfig = spatializerConfig,
             onMasterVolumeChange = onMasterVolumeChange,
             onPluginVolumeChange = onPluginVolumeChange,
             onSongVolumeChange = onSongVolumeChange,
@@ -1041,6 +1053,8 @@ private fun WatchEffectChainTabContent(
     availableEffects: List<EffectDescriptor>,
     bypassAllEffects: Boolean,
     presets: List<EffectPreset>,
+    showSpatializer: Boolean = false,
+    spatializerConfig: SpatializerConfig = SpatializerConfig(),
     onMasterVolumeChange: (Float) -> Unit,
     onPluginVolumeChange: (Float) -> Unit,
     onSongVolumeChange: (Float) -> Unit,
@@ -1146,6 +1160,8 @@ private fun WatchEffectChainTabContent(
                     songChain = songChain,
                     availableEffects = availableEffects,
                     bypassAllEffects = bypassAllEffects,
+                    showSpatializer = showSpatializer,
+                    spatializerConfig = spatializerConfig,
                     onMasterVolumeChange = onMasterVolumeChange,
                     onPluginVolumeChange = onPluginVolumeChange,
                     onSongVolumeChange = onSongVolumeChange,
@@ -1154,7 +1170,7 @@ private fun WatchEffectChainTabContent(
                     onMutateChain = { next -> commitWatchScopeChain(next) },
                     onToggleScopeOverride = { enabled ->
                         commitWatchScopeChain(if (enabled) EffectChain.Empty else null)
-                    }
+                    },
                 )
             }
 
@@ -1192,13 +1208,15 @@ private fun EffectChainPipelineEditor(
     songChain: EffectChain?,
     availableEffects: List<EffectDescriptor>,
     bypassAllEffects: Boolean,
+    showSpatializer: Boolean,
+    spatializerConfig: SpatializerConfig,
     onMasterVolumeChange: (Float) -> Unit,
     onPluginVolumeChange: (Float) -> Unit,
     onSongVolumeChange: (Float) -> Unit,
     onIgnoreCoreVolumeForSongChange: (Boolean) -> Unit,
     onBypassAllEffectsChange: (Boolean) -> Unit,
     onMutateChain: (EffectChain) -> Unit,
-    onToggleScopeOverride: (Boolean) -> Unit
+    onToggleScopeOverride: (Boolean) -> Unit,
 ) {
     val selectedScopeCustomChain: EffectChain? = when (selectedScope) {
         EffectChainScopeTarget.Global -> globalChain
@@ -1392,6 +1410,10 @@ private fun EffectChainPipelineEditor(
                     }
                 }
             )
+
+            if (showSpatializer) {
+                SpatializerCard(config = spatializerConfig)
+            }
 
             if (displayedChain.nodes.isNotEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth()) {
@@ -1694,6 +1716,61 @@ private fun EffectChainPipelineEditor(
                         )
                     }
                 }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpatializerCard(config: SpatializerConfig) {
+    val backendLabel = when (config.backend) {
+        SpatializerBackend.Off -> "Off"
+        SpatializerBackend.LibSpatialAudio -> "libspatialaudio"
+        SpatializerBackend.SteamAudio -> "Steam Audio"
+    }
+    GroupedRowCard(isFirst = false, isLast = false) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(Radius.Compact)
+                    .background(MaterialTheme.colorScheme.tertiaryContainer)
+                    .padding(horizontal = 7.dp, vertical = 3.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "HRTF",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    fontSize = 10.sp
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Spatializer",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = if (config.enabled) backendLabel else "$backendLabel · Bypassed",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp
+                )
+            }
+
+            Text(
+                text = "Configured in settings",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

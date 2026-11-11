@@ -1,4 +1,6 @@
 package com.flopster101.siliconplayer
+import com.flopster101.siliconplayer.audio.applySpatializerConfigToNative
+import com.flopster101.siliconplayer.audio.readSpatializerConfig
 import com.flopster101.siliconplayer.data.findExistingCachedFileForSource
 
 import android.app.Activity
@@ -1939,6 +1941,19 @@ private fun AppNavigation(
     }
 
     val settingsStates = rememberAppNavigationSettingsStates(prefs)
+    androidx.compose.runtime.DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == AppPreferenceKeys.AUDIO_SPATIALIZER_CONFIG) {
+                val config = readSpatializerConfig(
+                    com.flopster101.siliconplayer.platform.AndroidAppPreferences(prefs)
+                )
+                settingsStates.spatializerConfig.value = config
+                applySpatializerConfigToNative(config)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
 
 
 
@@ -3509,6 +3524,7 @@ private fun AppNavigation(
             volumeDatabase = volumeDatabase,
             selectedFile = selectedFile,
             lastUsedCoreName = lastUsedCoreName,
+            metadataChannelCount = metadataChannelCount,
             manualOpenDelegates = manualOpenDelegates,
             playbackStateDelegates = playbackStateDelegates,
             onCancelRemoteLoadJob = {

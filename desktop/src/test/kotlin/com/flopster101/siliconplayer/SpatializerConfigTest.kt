@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.audio.SpatializerBackend
 import com.flopster101.siliconplayer.audio.SpatializerConfig
+import com.flopster101.siliconplayer.audio.shouldShowSpatializerNode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -28,6 +29,16 @@ class SpatializerConfigTest {
         )
         val restored = SpatializerConfig.fromJson(config.toJson())
         assertEquals(config, restored)
+    }
+
+    @Test
+    fun showsImplicitNodeOnlyForEnabledFfmpegMultichannel() {
+        val config = SpatializerConfig(backend = SpatializerBackend.SteamAudio)
+        assertTrue(shouldShowSpatializerNode(DecoderNames.FFMPEG, 6, config))
+        assertFalse(shouldShowSpatializerNode(DecoderNames.FFMPEG, 2, config))
+        assertFalse(shouldShowSpatializerNode(DecoderNames.LIB_OPEN_MPT, 6, config))
+        assertFalse(shouldShowSpatializerNode(DecoderNames.FFMPEG, 6, config.copy(enabled = false)))
+        assertFalse(shouldShowSpatializerNode(DecoderNames.FFMPEG, 6, SpatializerConfig()))
     }
 
     @Test

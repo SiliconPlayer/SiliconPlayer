@@ -1,5 +1,7 @@
 package com.flopster101.siliconplayer
 
+import com.flopster101.siliconplayer.audio.SpatializerConfig
+
 internal data class SettingsPluginCoreState(
     val ffmpegSampleRateHz: Int,
     val ffmpegGaplessRepeatTrack: Boolean,
@@ -221,6 +223,7 @@ internal data class SettingsScreenState(
     val audioOutputLimiterEnabled: Boolean,
     val lookaheadClipperMode: LookaheadClipperMode,
     val multiChannelOutputMode: MultiChannelOutputMode,
+    val spatializerConfig: SpatializerConfig,
     val audioAllowBackendFallback: Boolean,
     val bitPerfectUsbAudio: Boolean,
     val openPlayerFromNotification: Boolean,
@@ -342,6 +345,7 @@ internal data class SettingsScreenActions(
     val onAudioOutputLimiterEnabledChanged: (Boolean) -> Unit,
     val onLookaheadClipperModeChanged: (LookaheadClipperMode) -> Unit,
     val onMultiChannelOutputModeChanged: (MultiChannelOutputMode) -> Unit,
+    val onSpatializerConfigChanged: (SpatializerConfig) -> Unit,
     val onAudioAllowBackendFallbackChanged: (Boolean) -> Unit,
     val onBitPerfectUsbAudioChanged: (Boolean) -> Unit,
     val onOpenPlayerFromNotificationChanged: (Boolean) -> Unit,

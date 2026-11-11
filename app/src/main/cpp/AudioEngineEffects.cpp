@@ -255,6 +255,15 @@ siliconplayer::spatial::SpatializerConfig AudioEngine::getSpatializerConfig() {
     return spatializerEngine.config();
 }
 
+double AudioEngine::getEffectChainLatencyFrames() const {
+    const bool spatializerActive = decoder &&
+            std::string(decoder->getName()) == "FFmpeg" &&
+            decoder->getSourceChannelCount() > 2 &&
+            spatializerEngine.isActiveForMultichannel();
+    return effectChain.latencyFrames() +
+           (spatializerActive ? spatializerEngine.latencyFrames() : 0.0);
+}
+
 void AudioEngine::setEffectChainJson(std::string_view chainJson) {
     setEffectChainSpec(siliconplayer::effects::parseEffectChainJson(chainJson));
 }

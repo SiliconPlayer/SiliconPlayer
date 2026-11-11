@@ -3,6 +3,8 @@ package com.flopster101.siliconplayer
 import android.content.Context
 import android.content.SharedPreferences
 import android.widget.Toast
+import com.flopster101.siliconplayer.audio.applySpatializerConfigToNative
+import com.flopster101.siliconplayer.audio.writeSpatializerConfig
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 
@@ -586,6 +588,15 @@ internal fun buildMainActivitySettingsScreenActions(
         onAudioOutputLimiterEnabledChanged = { settingsStates.audioOutputLimiterEnabled.value = it },
         onLookaheadClipperModeChanged = { settingsStates.lookaheadClipperMode.value = it },
         onMultiChannelOutputModeChanged = { settingsStates.multiChannelOutputMode.value = it },
+        onSpatializerConfigChanged = { config ->
+            val appPrefs = com.flopster101.siliconplayer.platform.AndroidAppPreferences(prefs)
+            appPrefs.edit().also { editor ->
+                writeSpatializerConfig(editor, config.copy(spatializeStereo = false))
+                editor.apply()
+            }
+            applySpatializerConfigToNative(config.copy(spatializeStereo = false))
+            settingsStates.spatializerConfig.value = config.copy(spatializeStereo = false)
+        },
         onAudioAllowBackendFallbackChanged = { settingsStates.audioAllowBackendFallback.value = it },
         onBitPerfectUsbAudioChanged = { settingsStates.bitPerfectUsbAudio.value = it },
         onOpenPlayerFromNotificationChanged = { settingsStates.openPlayerFromNotification.value = it },

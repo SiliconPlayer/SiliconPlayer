@@ -15,6 +15,7 @@ import com.flopster101.siliconplayer.data.ARCHIVE_CACHE_MAX_MOUNTS_DEFAULT
 import kotlinx.coroutines.Job
 
 internal data class AppNavigationSettingsStates(
+    val spatializerConfig: MutableState<com.flopster101.siliconplayer.audio.SpatializerConfig>,
     val ffmpegCoreSampleRateHz: MutableIntState,
     val ffmpegGaplessRepeatTrack: MutableState<Boolean>,
     val openMptCoreSampleRateHz: MutableIntState,
@@ -148,6 +149,13 @@ internal data class AppNavigationSettingsStates(
 internal fun rememberAppNavigationSettingsStates(
     prefs: SharedPreferences
 ): AppNavigationSettingsStates {
+    val spatializerConfig = remember {
+        mutableStateOf(
+            com.flopster101.siliconplayer.audio.readSpatializerConfig(
+                com.flopster101.siliconplayer.platform.AndroidAppPreferences(prefs)
+            )
+        )
+    }
     val ffmpegCoreSampleRateHz = remember {
         mutableIntStateOf(prefs.getInt(CorePreferenceKeys.CORE_RATE_FFMPEG, FfmpegDefaults.coreSampleRateHz))
     }
@@ -696,6 +704,7 @@ internal fun rememberAppNavigationSettingsStates(
     val currentPlaybackSourceId = remember { mutableStateOf<String?>(null) }
 
     return AppNavigationSettingsStates(
+        spatializerConfig = spatializerConfig,
         ffmpegCoreSampleRateHz = ffmpegCoreSampleRateHz,
         ffmpegGaplessRepeatTrack = ffmpegGaplessRepeatTrack,
         openMptCoreSampleRateHz = openMptCoreSampleRateHz,
