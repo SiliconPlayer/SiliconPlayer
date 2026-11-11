@@ -16,6 +16,7 @@
 #include "ChannelScopeSharedState.h"
 #include "decoders/AudioDecoder.h"
 #include "effects/AudioEffectChain.h"
+#include "spatial/SpatializerEngine.h"
 #include "silicon/vis/IVisualizationAudioProvider.h"
 
 struct SwrContext;
@@ -361,7 +362,11 @@ public:
     std::string getEffectChainJson();
     void setEffectChainSpec(const siliconplayer::effects::EffectChainSpec& spec);
     siliconplayer::effects::EffectChainSpec getEffectChainSpec();
-    double getEffectChainLatencyFrames() const { return effectChain.latencyFrames(); }
+    void setSpatializerConfig(const siliconplayer::spatial::SpatializerConfig& config);
+    siliconplayer::spatial::SpatializerConfig getSpatializerConfig();
+    double getEffectChainLatencyFrames() const {
+        return effectChain.latencyFrames() + spatializerEngine.latencyFrames();
+    }
     void setMasterChannelMute(int channelIndex, bool enabled);
     void setMasterChannelSolo(int channelIndex, bool enabled);
     void setEndFadeApplyToAllTracks(bool enabled);
@@ -548,6 +553,7 @@ private:
     std::atomic<int> lookaheadClipperMode { 1 };
     std::atomic<int> multiChannelOutputMode { 0 }; // 0 ffmpeg only, 1 all decoders, 2 disabled
     siliconplayer::effects::AudioEffectChain effectChain;
+    siliconplayer::spatial::SpatializerEngine spatializerEngine;
     float outputLimiterGain = 1.0f;
     std::vector<float> lookaheadClipperDelayLine;
     size_t lookaheadClipperWriteIndex = 0;
@@ -614,6 +620,8 @@ private:
 
     int resolveOutputSampleRateForCore(const std::string& coreName) const;
     int resolveOutputStreamChannelsForTrackLocked() const;
+    int resolveDecoderOutputChannelsForTrackLocked() const;
+    siliconplayer::spatial::BedLayoutId resolveDecoderOutputBedLayoutLocked(int decodeChannels) const;
     void applyStreamBufferPreset();
     void resetResamplerStateLocked(bool preserveBuffer = false);
     // Callers must hold decoderMutex, which also orders it before the decoder

@@ -91,6 +91,7 @@ void AudioEngine::resetResamplerStateLocked(bool preserveBuffer) {
     timelineSmootherInitialized = false;
     if (!preserveBuffer) {
         effectChain.reset();
+        spatializerEngine.reset();
     }
     resetLookaheadClipperStateLocked();
     pendingBackwardTimelineTargetSeconds = -1.0;
@@ -512,38 +513,12 @@ int AudioEngine::renderOfflineAudioFrames(float* outputStereo, int numFrames, in
     if (!decoder) return -1;
 
     const int decodeChannels = std::clamp(decoder->getChannelCount(), 1, 16);
-    std::vector<float> buffer(static_cast<size_t>(numFrames) * decodeChannels);
+    const auto bedLayout = resolveDecoderOutputBedLayoutLocked(decodeChannels);
+    std::vector<float> buffer(static_cast<size_t>(numFrames) * static_cast<size_t>(std::max(2, decodeChannels)));
     bool reachedEnd = false;
     int renderedFrames = 0;
     renderResampledLocked(buffer.data(), numFrames, decodeChannels, sampleRateHz, reachedEnd, &renderedFrames);
     renderedFrames = std::clamp(renderedFrames, 0, numFrames);
-
-    if (decodeChannels != 2) {
-        if (decodeChannels > 2) {
-            for (int frame = 0; frame < renderedFrames; ++frame) {
-                const float* src = buffer.data() + static_cast<size_t>(frame) * decodeChannels;
-                outputStereo[frame * 2] = 0.0f;
-                outputStereo[frame * 2 + 1] = 0.0f;
-                int leftCount = 0;
-                int rightCount = 0;
-                for (int ch = 0; ch < decodeChannels; ++ch) {
-                    const int side = ch & 1;
-                    outputStereo[frame * 2 + side] += src[ch];
-                    if (side == 0) ++leftCount;
-                    else ++rightCount;
-                }
-                outputStereo[frame * 2] /= static_cast<float>(leftCount);
-                outputStereo[frame * 2 + 1] /= static_cast<float>(rightCount);
-            }
-        } else {
-            for (int frame = 0; frame < renderedFrames; ++frame) {
-                outputStereo[frame * 2] = buffer[frame];
-                outputStereo[frame * 2 + 1] = buffer[frame];
-            }
-        }
-    } else {
-        std::copy(buffer.begin(), buffer.begin() + renderedFrames * 2, outputStereo);
-    }
 
     const double nextPosition = positionSeconds.load(std::memory_order_relaxed) +
             static_cast<double>(renderedFrames) / sampleRateHz;
@@ -551,9 +526,26 @@ int AudioEngine::renderOfflineAudioFrames(float* outputStereo, int numFrames, in
     positionSeconds.store(duration > 0.0 ? std::min(nextPosition, duration) : nextPosition,
                           std::memory_order_relaxed);
     const float endFadeGain = computeEndFadeGainLocked(positionSeconds.load(std::memory_order_relaxed));
-    applyGain(outputStereo, renderedFrames, 2, endFadeGain);
+
+    applyGain(buffer.data(), renderedFrames, decodeChannels, endFadeGain);
+    effectChain.processInputStage(buffer.data(), renderedFrames, decodeChannels);
+    spatializerEngine.processOrDownmix(
+            buffer.data(),
+            renderedFrames,
+            decodeChannels,
+            bedLayout,
+            2,
+            sampleRateHz
+    );
+    std::copy(buffer.begin(), buffer.begin() + static_cast<size_t>(renderedFrames) * 2, outputStereo);
     applyMasterChannelRouting(outputStereo, renderedFrames, 2);
-    applyEffectChain(outputStereo, renderedFrames, 2, sampleRateHz);
+    effectChain.processNodesAndMasterStage(
+            outputStereo,
+            renderedFrames,
+            2,
+            sampleRateHz,
+            decodeChannels != 2
+    );
     applyOutputLimiter(outputStereo, renderedFrames, 2);
     applyLookaheadClipper(outputStereo, renderedFrames, 2, sampleRateHz);
     for (int i = 0; i < renderedFrames * 2; ++i) {
@@ -943,39 +935,6 @@ void AudioEngine::renderWorkerLoop() {
                     std::chrono::steady_clock::now().time_since_epoch()
             ).count();
             renderResampledLocked(localBuffer.data(), chunkFrames, decodeChannels, outputSampleRate, reachedEnd);
-
-            // Adapt decoder stride to stream stride so downstream DSP and the
-            // render queue (both at streamChannelCount) always stay in bounds.
-            if (decodeChannels != channels) {
-                float* src = localBuffer.data();
-                if (decodeChannels > channels) {
-                    // Fold inputs onto their mapped output; ascending writes never
-                    // overtake the wider source stride.
-                    for (int frame = 0; frame < chunkFrames; ++frame) {
-                        const float* srcFrame = src + static_cast<size_t>(frame) * decodeChannels;
-                        float* dstFrame = src + static_cast<size_t>(frame) * channels;
-                        for (int outCh = 0; outCh < channels; ++outCh) {
-                            float sum = 0.0f;
-                            int contributors = 0;
-                            for (int inCh = outCh; inCh < decodeChannels; inCh += channels) {
-                                sum += srcFrame[inCh];
-                                ++contributors;
-                            }
-                            dstFrame[outCh] = contributors > 0 ? sum / static_cast<float>(contributors) : 0.0f;
-                        }
-                    }
-                } else {
-                    // Replicate inputs across the wider output; descending writes
-                    // never clobber source frames still to be read.
-                    for (int frame = chunkFrames - 1; frame >= 0; --frame) {
-                        const float* srcFrame = src + static_cast<size_t>(frame) * decodeChannels;
-                        float* dstFrame = src + static_cast<size_t>(frame) * channels;
-                        for (int outCh = 0; outCh < channels; ++outCh) {
-                            dstFrame[outCh] = outCh < decodeChannels ? srcFrame[outCh] : 0.0f;
-                        }
-                    }
-                }
-            }
             const int64_t decodeEndNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
                     std::chrono::steady_clock::now().time_since_epoch()
             ).count();
@@ -1084,11 +1043,27 @@ void AudioEngine::renderWorkerLoop() {
                 }
             }
 
+            const auto bedLayout = resolveDecoderOutputBedLayoutLocked(decodeChannels);
             const double gainTimelinePosition = positionSeconds.load();
             const float endFadeGain = computeEndFadeGainLocked(gainTimelinePosition);
-            applyGain(localBuffer.data(), chunkFrames, channels, endFadeGain);
+            applyGain(localBuffer.data(), chunkFrames, decodeChannels, endFadeGain);
+            effectChain.processInputStage(localBuffer.data(), chunkFrames, decodeChannels);
+            spatializerEngine.processOrDownmix(
+                    localBuffer.data(),
+                    chunkFrames,
+                    decodeChannels,
+                    bedLayout,
+                    channels,
+                    outputSampleRate
+            );
             applyMasterChannelRouting(localBuffer.data(), chunkFrames, channels);
-            applyEffectChain(localBuffer.data(), chunkFrames, channels, outputSampleRate);
+            effectChain.processNodesAndMasterStage(
+                    localBuffer.data(),
+                    chunkFrames,
+                    channels,
+                    outputSampleRate,
+                    decodeChannels != 2
+            );
             applyOutputLimiter(localBuffer.data(), chunkFrames, channels);
             applyLookaheadClipper(localBuffer.data(), chunkFrames, channels, outputSampleRate);
 

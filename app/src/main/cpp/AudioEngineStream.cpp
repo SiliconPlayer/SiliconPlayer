@@ -95,6 +95,9 @@ int AudioEngine::resolveOutputStreamChannelsForTrackLocked() const {
     if (uac.isStreaming()) {
         return uac.currentFormat().channels > 0 ? uac.currentFormat().channels : 2;
     }
+    if (spatializerEngine.isActiveForMultichannel()) {
+        return 2;
+    }
     const int mode = multiChannelOutputMode.load(std::memory_order_relaxed);
     if (mode == 2 || !decoder) { // 2 = disabled
         return 2;
@@ -113,6 +116,38 @@ int AudioEngine::resolveOutputStreamChannelsForTrackLocked() const {
         return 12;
     }
     return 2;
+}
+
+int AudioEngine::resolveDecoderOutputChannelsForTrackLocked() const {
+    if (!decoder) {
+        return 2;
+    }
+    if (spatializerEngine.isActiveForMultichannel()) {
+        const int srcChannels = decoder->getSourceChannelCount();
+        if (srcChannels > 2) {
+            const int preferredBed = decoder->getCoreIntInfo("preferredSpatialBedChannels", 0);
+            if (preferredBed >= 4) {
+                return preferredBed;
+            }
+            if (srcChannels == 4) return 4;
+            if (srcChannels <= 6) return 6;
+            if (srcChannels <= 8) return 8;
+            return 12;
+        }
+        return 2;
+    }
+    return resolveOutputStreamChannelsForTrackLocked();
+}
+
+siliconplayer::spatial::BedLayoutId AudioEngine::resolveDecoderOutputBedLayoutLocked(int decodeChannels) const {
+    if (decoder) {
+        const int layoutRaw = decoder->getCoreIntInfo("outputBedLayout", -1);
+        if (layoutRaw >= static_cast<int>(siliconplayer::spatial::BedLayoutId::Mono_1_0) &&
+            layoutRaw <= static_cast<int>(siliconplayer::spatial::BedLayoutId::Atmos_7_1_4)) {
+            return static_cast<siliconplayer::spatial::BedLayoutId>(layoutRaw);
+        }
+    }
+    return siliconplayer::spatial::canonicalBedLayoutForChannelCount(decodeChannels);
 }
 
 bool AudioEngine::createMiniaudioStream() {
@@ -175,7 +210,8 @@ bool AudioEngine::createMiniaudioStream() {
         std::lock_guard<std::mutex> lock(decoderMutex);
         targetChannels = resolveOutputStreamChannelsForTrackLocked();
         if (decoder) {
-            decoder->setOutputChannelCount(targetChannels);
+            const int decodeTargetChannels = resolveDecoderOutputChannelsForTrackLocked();
+            decoder->setOutputChannelCount(decodeTargetChannels);
             metadataCacheDirty.store(true, std::memory_order_release);
         }
     }

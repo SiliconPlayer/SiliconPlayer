@@ -1,4 +1,5 @@
 #include "FFmpegDecoder.h"
+#include "../spatial/SpeakerLayout.h"
 #define SP_LOG_MODULE "FFmpegDecoder"
 #include "../SiliconLog.h"
 #include <algorithm>
@@ -822,10 +823,26 @@ bool FFmpegDecoder::initResampler() {
     // Build and initialize a new resampler first. Only swap it in on success.
     SwrContext* newSwrContext = nullptr;
 
-    // Calculate channel layout from channel count logic since layout might be 0 for some files.
+    // Map outputChannelCount to deterministic canonical speaker bed layouts.
     AVChannelLayout out_ch_layout{};
     if (outputChannelCount == 12) {
         out_ch_layout = AV_CHANNEL_LAYOUT_7POINT1POINT4_BACK;
+    } else if (outputChannelCount == 8) {
+        out_ch_layout = AV_CHANNEL_LAYOUT_7POINT1;
+    } else if (outputChannelCount == 6) {
+        if (codecContext &&
+            codecContext->ch_layout.order == AV_CHANNEL_ORDER_NATIVE &&
+            codecContext->ch_layout.u.mask == AV_CH_LAYOUT_5POINT1) {
+            out_ch_layout = AV_CHANNEL_LAYOUT_5POINT1;
+        } else {
+            out_ch_layout = AV_CHANNEL_LAYOUT_5POINT1_BACK;
+        }
+    } else if (outputChannelCount == 4) {
+        out_ch_layout = AV_CHANNEL_LAYOUT_QUAD;
+    } else if (outputChannelCount == 2) {
+        out_ch_layout = AV_CHANNEL_LAYOUT_STEREO;
+    } else if (outputChannelCount == 1) {
+        out_ch_layout = AV_CHANNEL_LAYOUT_MONO;
     } else if (outputChannelCount == sourceChannelCount && codecContext->ch_layout.nb_channels > 0) {
         av_channel_layout_copy(&out_ch_layout, &codecContext->ch_layout);
     } else {
@@ -877,11 +894,36 @@ bool FFmpegDecoder::initResampler() {
             toggleChannelMuted.end(),
             [](bool muted) { return muted; }
     );
+    const bool stereoDownmixFromMultichannel = (inChannelCount > 2 && outChannelCount == 2);
+    const double centerMixLevel = stereoDownmixFromMultichannel
+            ? (useItuDownmixMatrix ? M_SQRT1_2 : 1.0)
+            : 1.0;
+    const double surroundMixLevel = stereoDownmixFromMultichannel
+            ? (useItuDownmixMatrix ? M_SQRT1_2 : 1.25)
+            : 1.0;
+    const double lfeMixLevel = stereoDownmixFromMultichannel
+            ? (useItuDownmixMatrix ? 0.5 : 1.0)
+            : 1.0;
+    const AVMatrixEncoding matrixEncoding = (stereoDownmixFromMultichannel && !useItuDownmixMatrix)
+            ? AV_MATRIX_ENCODING_DPLII
+            : AV_MATRIX_ENCODING_NONE;
+
     if (hasMutedSourceChannels && inChannelCount > 0 && outChannelCount > 0) {
-        const bool useDeterministicMultichannelMuteMatrix = inChannelCount > outChannelCount;
-        if (useDeterministicMultichannelMuteMatrix) {
-            // For multichannel->fewer-channel output with per-channel mutes enabled, use a
-            // stable index-mapped matrix so muting one input does not rebalance unrelated inputs.
+        result = swr_build_matrix2(
+                &in_ch_layout,
+                &out_ch_layout,
+                centerMixLevel,
+                surroundMixLevel,
+                lfeMixLevel,
+                1.0,
+                1.0,
+                matrix.data(),
+                stride,
+                matrixEncoding,
+                nullptr
+        );
+        if (result < 0) {
+            LOGD("swr_build_matrix2 failed; using index-mapped fallback matrix");
             std::vector<int> outputLoad(static_cast<size_t>(outChannelCount), 0);
             for (int inputChannel = 0; inputChannel < inChannelCount; ++inputChannel) {
                 const int mappedOutput = inputChannel % outChannelCount;
@@ -894,60 +936,31 @@ bool FFmpegDecoder::initResampler() {
                 matrix[inputChannel + stride * mappedOutput] = gain;
             }
             result = 0;
-        } else {
-            result = swr_build_matrix2(
-                    &in_ch_layout,
-                    &out_ch_layout,
-                    1.0,
-                    1.0,
-                    1.0,
-                    1.0,
-                    1.0,
-                    matrix.data(),
-                    stride,
-                    AV_MATRIX_ENCODING_NONE,
-                    nullptr
-            );
-            if (result < 0) {
-                LOGD("swr_build_matrix2 failed; using index-mapped fallback matrix");
-                std::vector<int> outputLoad(static_cast<size_t>(outChannelCount), 0);
-                for (int inputChannel = 0; inputChannel < inChannelCount; ++inputChannel) {
-                    const int mappedOutput = inputChannel % outChannelCount;
-                    outputLoad[static_cast<size_t>(mappedOutput)]++;
-                }
-                for (int inputChannel = 0; inputChannel < inChannelCount; ++inputChannel) {
-                    const int mappedOutput = inputChannel % outChannelCount;
-                    const int load = outputLoad[static_cast<size_t>(mappedOutput)];
-                    const double gain = load > 0 ? (1.0 / static_cast<double>(load)) : 0.0;
-                    matrix[inputChannel + stride * mappedOutput] = gain;
-                }
-                result = 0;
+        }
+        // Zero muted input columns after building the full unmuted matrix so
+        // unmuted speakers keep their exact layout weights without rebalancing.
+        for (int inputChannel = 0; inputChannel < inChannelCount; ++inputChannel) {
+            if (inputChannel >= static_cast<int>(toggleChannelMuted.size()) ||
+                !toggleChannelMuted[static_cast<size_t>(inputChannel)]) {
+                continue;
+            }
+            for (int outputChannel = 0; outputChannel < outChannelCount; ++outputChannel) {
+                matrix[inputChannel + stride * outputChannel] = 0.0;
             }
         }
-        if (result >= 0) {
-            for (int inputChannel = 0; inputChannel < inChannelCount; ++inputChannel) {
-                if (inputChannel >= static_cast<int>(toggleChannelMuted.size()) ||
-                    !toggleChannelMuted[static_cast<size_t>(inputChannel)]) {
-                    continue;
-                }
-                for (int outputChannel = 0; outputChannel < outChannelCount; ++outputChannel) {
-                    matrix[inputChannel + stride * outputChannel] = 0.0;
-                }
-            }
-            result = swr_set_matrix(newSwrContext, matrix.data(), stride);
-        }
-    } else if (inChannelCount > 2 && outChannelCount == 2) {
+        result = swr_set_matrix(newSwrContext, matrix.data(), stride);
+    } else if (stereoDownmixFromMultichannel) {
         result = swr_build_matrix2(
                 &in_ch_layout,
                 &out_ch_layout,
-                1.0,
-                1.25,
-                1.0,
+                centerMixLevel,
+                surroundMixLevel,
+                lfeMixLevel,
                 1.0,
                 1.0,
                 matrix.data(),
                 stride,
-                AV_MATRIX_ENCODING_DPLII,
+                matrixEncoding,
                 nullptr
         );
         if (result >= 0) {
@@ -1525,6 +1538,17 @@ void FFmpegDecoder::setOption(const char* name, const char* value) {
     const std::string optionName(name);
     if (optionName == "ffmpeg.gapless_repeat_track") {
         gaplessRepeatTrack = parseBoolString(value, gaplessRepeatTrack);
+    } else if (optionName == "ffmpeg.downmix_matrix") {
+        const std::string modeLower = toLowerAscii(value);
+        const bool wantItu = (modeLower == "itu" || modeLower == "standard" || modeLower == "none");
+        if (useItuDownmixMatrix != wantItu) {
+            useItuDownmixMatrix = wantItu;
+            if (codecContext) {
+                initResampler();
+                sampleBuffer.clear();
+                sampleBufferCursor = 0;
+            }
+        }
     }
 }
 
@@ -1602,6 +1626,38 @@ int FFmpegDecoder::getCoreIntInfo(const char* name, int fallback) {
                 : static_cast<int>(value);
     }
     if (key == "isVbr") return isVBR() ? 1 : 0;
+    if (key == "preferredSpatialBedChannels") {
+        std::lock_guard<std::mutex> lock(decodeMutex);
+        const int srcCh = sourceChannelCount > 0 ? sourceChannelCount : outputChannelCount;
+        if (srcCh <= 1) return 1;
+        if (srcCh == 2) return 2;
+        if (codecContext && codecContext->ch_layout.order == AV_CHANNEL_ORDER_NATIVE) {
+            constexpr uint64_t kHeightMask =
+                    AV_CH_TOP_CENTER |
+                    AV_CH_TOP_FRONT_LEFT |
+                    AV_CH_TOP_FRONT_CENTER |
+                    AV_CH_TOP_FRONT_RIGHT |
+                    AV_CH_TOP_BACK_LEFT |
+                    AV_CH_TOP_BACK_CENTER |
+                    AV_CH_TOP_BACK_RIGHT;
+            if ((codecContext->ch_layout.u.mask & kHeightMask) != 0 || srcCh > 8) {
+                return 12;
+            }
+            if (srcCh == 4 &&
+                (codecContext->ch_layout.u.mask & (AV_CH_FRONT_CENTER | AV_CH_LOW_FREQUENCY)) == 0) {
+                return 4;
+            }
+        }
+        if (srcCh <= 6) return 6;
+        if (srcCh <= 8) return 8;
+        return 12;
+    }
+    if (key == "outputBedLayout") {
+        std::lock_guard<std::mutex> lock(decodeMutex);
+        return static_cast<int>(
+                siliconplayer::spatial::canonicalBedLayoutForChannelCount(outputChannelCount)
+        );
+    }
     return fallback;
 }
 
@@ -1713,6 +1769,16 @@ void FFmpegDecoder::rebuildToggleChannelsLocked() {
     }
 
     for (int channel = 0; channel < totalChannels; ++channel) {
+        if (codecContext && codecContext->ch_layout.nb_channels == totalChannels) {
+            const AVChannel chEnum = av_channel_layout_channel_from_index(&codecContext->ch_layout, channel);
+            if (chEnum != AV_CHAN_NONE && chEnum != AV_CHAN_UNUSED) {
+                char chNameBuf[32] = {0};
+                if (av_channel_name(chNameBuf, sizeof(chNameBuf), chEnum) > 0 && chNameBuf[0] != '\0') {
+                    toggleChannelNames.emplace_back(chNameBuf);
+                    continue;
+                }
+            }
+        }
         toggleChannelNames.push_back("Ch " + std::to_string(channel + 1));
     }
 }

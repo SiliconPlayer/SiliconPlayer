@@ -706,23 +706,31 @@ bool AudioEffectChain::updateIfStructurallyEqual(const EffectChainSpec& spec) {
     return true;
 }
 
-void AudioEffectChain::process(float* buffer, int frames, int channels, int sampleRate) {
+void AudioEffectChain::processInputStage(float* buffer, int frames, int channels) {
+    if (!buffer || frames <= 0 || channels <= 0) {
+        return;
+    }
+    applyGainDbIfNonZero(buffer, frames, channels, inputGainDb.load(std::memory_order_relaxed));
+    if (channels == 2) {
+        applyMonoIfEnabled(buffer, frames, channels, inputMono.load(std::memory_order_relaxed));
+    }
+}
+
+void AudioEffectChain::processNodesAndMasterStage(
+        float* buffer,
+        int frames,
+        int channels,
+        int sampleRate,
+        bool applyDeferredInputMono) {
     if (!buffer || frames <= 0 || channels <= 0) {
         return;
     }
     if (sampleRate > 0 && (sampleRate != preparedSampleRate || channels != preparedChannels)) {
         prepare(sampleRate, channels);
     }
-    process(buffer, frames, channels);
-}
-
-void AudioEffectChain::process(float* buffer, int frames, int channels) {
-    if (!buffer || frames <= 0 || channels <= 0) {
-        return;
+    if (applyDeferredInputMono && channels == 2) {
+        applyMonoIfEnabled(buffer, frames, channels, inputMono.load(std::memory_order_relaxed));
     }
-
-    applyGainDbIfNonZero(buffer, frames, channels, inputGainDb.load(std::memory_order_relaxed));
-    applyMonoIfEnabled(buffer, frames, channels, inputMono.load(std::memory_order_relaxed));
 
     for (auto& node : liveNodes) {
         if (!node.enabled || !node.effect) {
@@ -734,6 +742,18 @@ void AudioEffectChain::process(float* buffer, int frames, int channels) {
 
     applyGainDbIfNonZero(buffer, frames, channels, masterGainDb.load(std::memory_order_relaxed));
     applyMonoIfEnabled(buffer, frames, channels, masterMono.load(std::memory_order_relaxed));
+}
+
+void AudioEffectChain::process(float* buffer, int frames, int channels, int sampleRate) {
+    if (!buffer || frames <= 0 || channels <= 0) {
+        return;
+    }
+    processInputStage(buffer, frames, channels);
+    processNodesAndMasterStage(buffer, frames, channels, sampleRate, channels != 2);
+}
+
+void AudioEffectChain::process(float* buffer, int frames, int channels) {
+    process(buffer, frames, channels, preparedSampleRate);
 }
 
 void AudioEffectChain::refreshLatencyLocked() {

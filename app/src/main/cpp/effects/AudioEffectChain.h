@@ -38,6 +38,13 @@ public:
     void reset();
     void process(float* buffer, int frames, int channels);
     void process(float* buffer, int frames, int channels, int sampleRate);
+    void processInputStage(float* buffer, int frames, int channels);
+    void processNodesAndMasterStage(
+            float* buffer,
+            int frames,
+            int channels,
+            int sampleRate,
+            bool applyDeferredInputMono = false);
 
     // Caller must hold decoderMutex.
     void setSpec(const EffectChainSpec& spec, int sampleRate, int channels);

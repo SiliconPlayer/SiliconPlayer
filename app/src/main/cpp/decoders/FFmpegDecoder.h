@@ -128,6 +128,7 @@ private:
     double loopStartSeconds = 0.0;
     double loopEndSeconds = 0.0;
     bool gaplessRepeatTrack = true;
+    bool useItuDownmixMatrix = false;
 
     mutable std::mutex decodeMutex;
     AVIOContext* avioContext = nullptr;

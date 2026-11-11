@@ -224,11 +224,35 @@ void AudioEngine::setMultiChannelOutputMode(int mode) {
         } else {
             std::lock_guard<std::mutex> lock(decoderMutex);
             if (decoder) {
-                const int desiredChannels = resolveOutputStreamChannelsForTrackLocked();
-                decoder->setOutputChannelCount(desiredChannels);
+                const int desiredDecodeChannels = resolveDecoderOutputChannelsForTrackLocked();
+                decoder->setOutputChannelCount(desiredDecodeChannels);
             }
         }
     }
+}
+
+void AudioEngine::setSpatializerConfig(const siliconplayer::spatial::SpatializerConfig& config) {
+    bool needStreamReconfigure = false;
+    {
+        std::lock_guard<std::mutex> lock(decoderMutex);
+        const int prevStreamChannels = resolveOutputStreamChannelsForTrackLocked();
+        spatializerEngine.setConfig(config);
+        const int nextStreamChannels = resolveOutputStreamChannelsForTrackLocked();
+        if (decoder) {
+            const int desiredDecodeChannels = resolveDecoderOutputChannelsForTrackLocked();
+            decoder->setOutputChannelCount(desiredDecodeChannels);
+            metadataCacheDirty.store(true, std::memory_order_release);
+        }
+        needStreamReconfigure = (prevStreamChannels != nextStreamChannels) && isPlaying.load();
+    }
+    if (needStreamReconfigure) {
+        reconfigureStream(true);
+    }
+}
+
+siliconplayer::spatial::SpatializerConfig AudioEngine::getSpatializerConfig() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    return spatializerEngine.config();
 }
 
 void AudioEngine::setEffectChainJson(std::string_view chainJson) {

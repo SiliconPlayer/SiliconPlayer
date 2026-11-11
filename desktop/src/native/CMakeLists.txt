@@ -92,6 +92,7 @@ set(MAIN_SOURCES
     "${APP_CPP_DIR}/AudioEngineEffects.cpp"
     "${APP_CPP_DIR}/effects/EffectRegistry.cpp"
     "${APP_CPP_DIR}/effects/AudioEffectChain.cpp"
+    "${APP_CPP_DIR}/spatial/SpatializerEngine.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptBassEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptSurroundEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptReverbEffect.cpp"

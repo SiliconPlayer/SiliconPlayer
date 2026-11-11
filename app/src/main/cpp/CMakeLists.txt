@@ -32,6 +32,7 @@ add_library(
         AudioEngineEffects.cpp
         effects/EffectRegistry.cpp
         effects/AudioEffectChain.cpp
+        spatial/SpatializerEngine.cpp
         effects/nodes/OpenMptBassEffect.cpp
         effects/nodes/OpenMptSurroundEffect.cpp
         effects/nodes/OpenMptReverbEffect.cpp

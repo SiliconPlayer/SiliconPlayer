@@ -140,9 +140,9 @@ bool AudioEngine::start() {
             std::lock_guard<std::mutex> lock(decoderMutex);
             if (decoder) {
                 const int desiredRate = resolveOutputSampleRateForCore(decoder->getName());
-                const int desiredChannels = resolveOutputStreamChannelsForTrackLocked();
+                const int desiredDecodeChannels = resolveDecoderOutputChannelsForTrackLocked();
                 decoder->setOutputSampleRate(desiredRate);
-                decoder->setOutputChannelCount(desiredChannels);
+                decoder->setOutputChannelCount(desiredDecodeChannels);
                 decoderRenderSampleRate = decoder->getRenderSampleRate();
                 resetResamplerStateLocked();
                 metadataCacheDirty.store(true, std::memory_order_release);
@@ -625,8 +625,8 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
                 state->setCaptureGateBypass(true);
             }
         }
-        const int desiredChannels = resolveOutputStreamChannelsForTrackLocked();
-        decoder->setOutputChannelCount(desiredChannels);
+        const int desiredDecodeChannels = resolveDecoderOutputChannelsForTrackLocked();
+        decoder->setOutputChannelCount(desiredDecodeChannels);
         // Re-read under the lock: a setCoreOption landing mid-open targets this
         // instance, and the pre-open snapshot no longer holds it.
         const auto optionsIt = coreOptions.find(decoder->getName());
