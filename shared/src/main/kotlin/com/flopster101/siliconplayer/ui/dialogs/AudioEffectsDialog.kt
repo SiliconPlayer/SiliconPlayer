@@ -2,16 +2,19 @@ package com.flopster101.siliconplayer.ui.dialogs
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,6 +41,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Save
@@ -54,6 +59,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentEnforcement
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -68,30 +74,33 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.flopster101.siliconplayer.GroupedRowCard
 import com.flopster101.siliconplayer.TrackTextInputActive
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
@@ -108,6 +117,7 @@ import com.flopster101.siliconplayer.audio.EffectParamType
 import com.flopster101.siliconplayer.audio.EffectPreset
 import com.flopster101.siliconplayer.audio.createDefaultEffectNode
 import com.flopster101.siliconplayer.audio.findEffectDescriptor
+import com.flopster101.siliconplayer.onGloballyPositionedDeferred
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.platform.isWatchDevice
 import com.flopster101.siliconplayer.rememberDialogScrollbarAlpha
@@ -546,7 +556,7 @@ private fun EffectChainEditorSection(
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -573,7 +583,7 @@ private fun EffectChainEditorSection(
                         }
                         availableTargets.forEach { target ->
                             DropdownMenuItem(
-                                text = { Text(scopeDisplayLabel(target), fontSize = 13.sp) },
+                                text = { Text(scopeDisplayLabel(target), style = MaterialTheme.typography.bodyMedium) },
                                 onClick = {
                                     scopeDropdownExpanded = false
                                     onSelectedScopeChange(target)
@@ -585,7 +595,7 @@ private fun EffectChainEditorSection(
 
                 FilledTonalButton(
                     onClick = { activeModal = EffectPresetModalState.CopyFromScope },
-                    modifier = Modifier.height(36.dp),
+                    modifier = Modifier.height(38.dp),
                     shape = Radius.Control,
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -595,7 +605,7 @@ private fun EffectChainEditorSection(
                 ) {
                     Text(
                         text = "Copy from…",
-                        fontSize = 12.5.sp,
+                        style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -625,14 +635,14 @@ private fun EffectChainEditorSection(
                         modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     ) {
                         DropdownMenuItem(
-                            text = { Text("(empty)", fontSize = 13.sp) },
+                            text = { Text("(empty)", style = MaterialTheme.typography.bodyMedium) },
                             onClick = {
                                 presetDropdownExpanded = false
                                 onSelectPreset(PRESET_EMPTY_ID)
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Custom", fontSize = 13.sp) },
+                            text = { Text("Custom", style = MaterialTheme.typography.bodyMedium) },
                             onClick = {
                                 presetDropdownExpanded = false
                                 onSelectPreset(PRESET_CUSTOM_ID)
@@ -640,7 +650,7 @@ private fun EffectChainEditorSection(
                         )
                         presets.forEach { preset ->
                             DropdownMenuItem(
-                                text = { Text(preset.name, fontSize = 13.sp) },
+                                text = { Text(preset.name, style = MaterialTheme.typography.bodyMedium) },
                                 onClick = {
                                     presetDropdownExpanded = false
                                     onSelectPreset(preset.id)
@@ -732,18 +742,18 @@ private fun EffectChainEditorSection(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(Radius.ControlCompact)
                                     .clickable {
                                         onActiveChainMutated(srcChain.withFreshNodeUids())
                                         activeModal = null
                                     },
                                 color = MaterialTheme.colorScheme.surfaceContainer,
-                                shape = RoundedCornerShape(10.dp)
+                                shape = Radius.ControlCompact
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -932,17 +942,14 @@ private fun CompactLabeledDropdownField(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(
+        DialogSectionLabel(
             text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
         )
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(36.dp)
+                .height(38.dp)
                 .clip(Radius.Control)
                 .clickable(onClick = onClick),
             shape = Radius.Control,
@@ -952,13 +959,13 @@ private fun CompactLabeledDropdownField(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = selectedText,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
@@ -969,7 +976,7 @@ private fun CompactLabeledDropdownField(
                     imageVector = Icons.Default.KeyboardArrowDown,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -991,7 +998,7 @@ private fun CompactOutlinedActionIconButton(
     }
     Surface(
         modifier = Modifier
-            .size(36.dp)
+            .size(38.dp)
             .clip(Radius.Control)
             .let { base ->
                 if (enabled) base.clickable(onClick = onClick) else base
@@ -1008,7 +1015,7 @@ private fun CompactOutlinedActionIconButton(
                 imageVector = icon,
                 contentDescription = contentDescription,
                 tint = tint,
-                modifier = Modifier.size(17.dp)
+                modifier = Modifier.size(18.dp)
             )
         }
     }
@@ -1208,10 +1215,67 @@ private fun EffectChainPipelineEditor(
     var expandedNodeUids by remember(selectedScope) { mutableStateOf(setOf<Long>()) }
     var enteringNodeUids by remember(selectedScope) { mutableStateOf(setOf<Long>()) }
     var exitingNodeUids by remember(selectedScope) { mutableStateOf(setOf<Long>()) }
-    var draggedNodeUid by remember { mutableStateOf<Long?>(null) }
     var showAddEffectMenu by remember(selectedScope) { mutableStateOf(false) }
     val latestDisplayedChain by rememberUpdatedState(displayedChain)
     val latestOnMutateChain by rememberUpdatedState(onMutateChain)
+
+    var draggingNodeUid by remember(selectedScope) { mutableStateOf<Long?>(null) }
+    var dragVisualOffsetPx by remember(selectedScope) { mutableFloatStateOf(0f) }
+    var dragSwapRemainderPx by remember(selectedScope) { mutableFloatStateOf(0f) }
+    var dragOriginTopPx by remember(selectedScope) { mutableFloatStateOf(0f) }
+    var dragStartIndex by remember(selectedScope) { mutableIntStateOf(-1) }
+    var measuredNodeHeightPx by remember(selectedScope) { mutableFloatStateOf(0f) }
+    val rowNudgeOffsetPx = remember(selectedScope) { mutableStateMapOf<Long, Float>() }
+    val rowNudgeNonce = remember(selectedScope) { mutableStateMapOf<Long, Int>() }
+    val rowTopPx = remember(selectedScope) { mutableStateMapOf<Long, Float>() }
+    val rowHeightPx = remember(selectedScope) { mutableStateMapOf<Long, Float>() }
+    val density = LocalDensity.current
+    val spacerPx = with(density) { 2.dp.toPx() }
+    val fallbackStepPx = with(density) { 58.dp.toPx() }
+    val edgeOverscrollPx = with(density) { 14.dp.toPx() }
+
+    fun stepPxForNode(uid: Long?): Float {
+        val h = (uid?.let { rowHeightPx[it] } ?: 0f).let {
+            if (it > 0f) it else measuredNodeHeightPx
+        }
+        return if (h > 0f) h + spacerPx else fallbackStepPx
+    }
+
+    fun neighborStepPx(nodeUid: Long, direction: Int): Float? {
+        val nodes = latestDisplayedChain.nodes
+        val currentIndex = nodes.indexOfFirst { it.uid == nodeUid }
+        if (currentIndex < 0) return null
+        val targetIndex = currentIndex + direction
+        if (targetIndex !in nodes.indices) return null
+        return stepPxForNode(nodes[targetIndex].uid)
+    }
+
+    fun moveNodeWithNudge(nodeUid: Long, direction: Int): Boolean {
+        val currentChain = latestDisplayedChain
+        val currentIndex = currentChain.nodes.indexOfFirst { it.uid == nodeUid }
+        if (currentIndex < 0) return false
+        val targetIndex = (currentIndex + direction).coerceIn(0, currentChain.nodes.lastIndex)
+        if (targetIndex == currentIndex) return false
+        val displacedUid = currentChain.nodes[targetIndex].uid
+        val draggedStep = stepPxForNode(nodeUid)
+        val displacedStartOffset = if (direction > 0) draggedStep * 0.42f else -draggedStep * 0.42f
+        val reordered = currentChain.moveNode(currentIndex, targetIndex)
+        Snapshot.withMutableSnapshot {
+            rowNudgeOffsetPx[displacedUid] = displacedStartOffset
+            rowNudgeNonce[displacedUid] = (rowNudgeNonce[displacedUid] ?: 0) + 1
+            latestOnMutateChain(reordered)
+        }
+        return true
+    }
+
+    fun finishDraggingNode(nodeUid: Long) {
+        if (draggingNodeUid != nodeUid) return
+        draggingNodeUid = null
+        dragOriginTopPx = 0f
+        dragVisualOffsetPx = 0f
+        dragSwapRemainderPx = 0f
+        dragStartIndex = -1
+    }
 
     val overrideLabel = when (selectedScope) {
         EffectChainScopeTarget.Core -> "Use custom chain for this core"
@@ -1249,7 +1313,7 @@ private fun EffectChainPipelineEditor(
                     title = "Bypass all effects",
                     checked = bypassAllEffects,
                     onCheckedChange = onBypassAllEffectsChange,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                 )
             }
             if (!isGlobal) {
@@ -1258,7 +1322,7 @@ private fun EffectChainPipelineEditor(
                         title = overrideLabel,
                         checked = isScopeOverridden,
                         onCheckedChange = onToggleScopeOverride,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                     )
                 }
             }
@@ -1329,84 +1393,181 @@ private fun EffectChainPipelineEditor(
                 }
             )
 
-            displayedChain.nodes.forEachIndexed { index, node ->
-                key(node.uid) {
-                    val descriptor = findEffectDescriptor(node.id, availableEffects)
-                    val isExpanded = node.uid in expandedNodeUids
-                    val isExiting = node.uid in exitingNodeUids
-                    val visibleState = remember {
-                        MutableTransitionState(node.uid !in enteringNodeUids)
-                    }
-                    LaunchedEffect(node.uid, isExiting) {
-                        visibleState.targetState = !isExiting
-                        if (!isExiting && node.uid in enteringNodeUids) {
-                            enteringNodeUids = enteringNodeUids - node.uid
-                        }
-                    }
-                    LaunchedEffect(visibleState.isIdle, visibleState.currentState, isExiting) {
-                        if (isExiting && visibleState.isIdle && !visibleState.currentState) {
-                            exitingNodeUids = exitingNodeUids - node.uid
-                            expandedNodeUids = expandedNodeUids - node.uid
-                            val removeIdx = latestDisplayedChain.nodes.indexOfFirst { it.uid == node.uid }
-                            if (removeIdx >= 0) {
-                                latestOnMutateChain(latestDisplayedChain.removeNodeAt(removeIdx))
+            if (displayedChain.nodes.isNotEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        displayedChain.nodes.forEachIndexed { index, node ->
+                            key(node.uid) {
+                                val descriptor = findEffectDescriptor(node.id, availableEffects)
+                                val isExpanded = node.uid in expandedNodeUids
+                                val isDraggedRow = draggingNodeUid == node.uid
+                                val isExiting = node.uid in exitingNodeUids
+                                val visibleState = remember {
+                                    MutableTransitionState(node.uid !in enteringNodeUids)
+                                }
+                                LaunchedEffect(node.uid, isExiting) {
+                                    visibleState.targetState = !isExiting
+                                    if (!isExiting && node.uid in enteringNodeUids) {
+                                        enteringNodeUids = enteringNodeUids - node.uid
+                                    }
+                                }
+                                LaunchedEffect(visibleState.isIdle, visibleState.currentState, isExiting) {
+                                    if (isExiting && visibleState.isIdle && !visibleState.currentState) {
+                                        exitingNodeUids = exitingNodeUids - node.uid
+                                        expandedNodeUids = expandedNodeUids - node.uid
+                                        val removeIdx = latestDisplayedChain.nodes.indexOfFirst { it.uid == node.uid }
+                                        if (removeIdx >= 0) {
+                                            latestOnMutateChain(latestDisplayedChain.removeNodeAt(removeIdx))
+                                        }
+                                    }
+                                }
+
+                                AnimatedVisibility(
+                                    visibleState = visibleState,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .onGloballyPositionedDeferred { coords ->
+                                            rowTopPx[node.uid] = coords.positionInParent().y
+                                        }
+                                        .onSizeChangedDeferred { size ->
+                                            if (size.height > 0) {
+                                                rowHeightPx[node.uid] = size.height.toFloat()
+                                            }
+                                        },
+                                    enter = fadeIn(tween(180)) + expandVertically(
+                                        animationSpec = tween(220, easing = FastOutSlowInEasing)
+                                    ),
+                                    exit = fadeOut(tween(140)) + shrinkVertically(
+                                        animationSpec = tween(200, easing = FastOutSlowInEasing)
+                                    )
+                                ) {
+                                    EffectNodeCard(
+                                        node = node,
+                                        descriptor = descriptor,
+                                        totalNodes = displayedChain.nodes.size,
+                                        isExpanded = isExpanded,
+                                        isDragging = false,
+                                        dragOffsetPx = 0f,
+                                        nudgeOffsetPx = if (isDraggedRow) 0f else (rowNudgeOffsetPx[node.uid] ?: 0f),
+                                        nudgeNonce = if (isDraggedRow) 0 else (rowNudgeNonce[node.uid] ?: 0),
+                                        cardAlpha = if (isDraggedRow) 0f else 1f,
+                                        enableInteractions = (draggingNodeUid == null || draggingNodeUid == node.uid),
+                                        onMeasuredHeight = { h ->
+                                            if (!isExpanded && h > 0f) measuredNodeHeightPx = h
+                                        },
+                                        onToggleExpand = {
+                                            expandedNodeUids = if (isExpanded) {
+                                                expandedNodeUids - node.uid
+                                            } else {
+                                                expandedNodeUids + node.uid
+                                            }
+                                        },
+                                        onEnabledChange = { enabled ->
+                                            onMutateChain(displayedChain.setNodeEnabledAt(index, enabled))
+                                        },
+                                        onRemove = {
+                                            exitingNodeUids = exitingNodeUids + node.uid
+                                        },
+                                        onDragStart = {
+                                            if (draggingNodeUid == null || draggingNodeUid == node.uid) {
+                                                expandedNodeUids = expandedNodeUids - node.uid
+                                                draggingNodeUid = node.uid
+                                                dragVisualOffsetPx = 0f
+                                                dragSwapRemainderPx = 0f
+                                                dragStartIndex = latestDisplayedChain.nodes.indexOfFirst { it.uid == node.uid }
+                                                dragOriginTopPx = rowTopPx[node.uid] ?: 0f
+                                            }
+                                        },
+                                        onDragDelta = { deltaY ->
+                                            if (draggingNodeUid != node.uid) return@EffectNodeCard
+                                            dragVisualOffsetPx += deltaY
+                                            dragSwapRemainderPx += deltaY
+                                            while (true) {
+                                                val downStep = neighborStepPx(node.uid, 1)
+                                                if (downStep == null) {
+                                                    if (dragSwapRemainderPx > edgeOverscrollPx) {
+                                                        dragSwapRemainderPx = edgeOverscrollPx
+                                                    }
+                                                    break
+                                                }
+                                                if (dragSwapRemainderPx < downStep * 0.62f) break
+                                                if (!moveNodeWithNudge(node.uid, 1)) break
+                                                dragSwapRemainderPx -= downStep
+                                            }
+                                            while (true) {
+                                                val upStep = neighborStepPx(node.uid, -1)
+                                                if (upStep == null) {
+                                                    if (dragSwapRemainderPx < -edgeOverscrollPx) {
+                                                        dragSwapRemainderPx = -edgeOverscrollPx
+                                                    }
+                                                    break
+                                                }
+                                                if (dragSwapRemainderPx > -upStep * 0.62f) break
+                                                if (!moveNodeWithNudge(node.uid, -1)) break
+                                                dragSwapRemainderPx += upStep
+                                            }
+                                            val nodes = latestDisplayedChain.nodes
+                                            val totalHeight = nodes.sumOf {
+                                                stepPxForNode(it.uid).toDouble()
+                                            }.toFloat() - spacerPx
+                                            val draggedHeight = stepPxForNode(node.uid) - spacerPx
+                                            val minVisualOffset = -dragOriginTopPx - edgeOverscrollPx
+                                            val maxVisualOffset =
+                                                (totalHeight - draggedHeight - dragOriginTopPx).coerceAtLeast(0f) + edgeOverscrollPx
+                                            dragVisualOffsetPx = dragVisualOffsetPx.coerceIn(minVisualOffset, maxVisualOffset)
+                                        },
+                                        onDragEnd = {
+                                            finishDraggingNode(node.uid)
+                                        },
+                                        onParamChange = { paramId, value ->
+                                            onMutateChain(
+                                                displayedChain.setNodeParamAt(
+                                                    index = index,
+                                                    paramId = paramId,
+                                                    value = value,
+                                                    descriptors = availableEffects
+                                                )
+                                            )
+                                        },
+                                        onMonoChange = { mono ->
+                                            onMutateChain(displayedChain.setNodeMonoAt(index, mono))
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
 
-                    AnimatedVisibility(
-                        visibleState = visibleState,
-                        enter = fadeIn(tween(180)) + expandVertically(
-                            animationSpec = tween(220, easing = FastOutSlowInEasing)
-                        ),
-                        exit = fadeOut(tween(140)) + shrinkVertically(
-                            animationSpec = tween(200, easing = FastOutSlowInEasing)
-                        )
-                    ) {
-                        EffectNodeCard(
-                            node = node,
-                            descriptor = descriptor,
-                            totalNodes = displayedChain.nodes.size,
-                            isExpanded = isExpanded,
-                            isDragged = draggedNodeUid == node.uid,
-                            onToggleExpand = {
-                                expandedNodeUids = if (isExpanded) {
-                                    expandedNodeUids - node.uid
-                                } else {
-                                    expandedNodeUids + node.uid
-                                }
-                            },
-                            onEnabledChange = { enabled ->
-                                onMutateChain(displayedChain.setNodeEnabledAt(index, enabled))
-                            },
-                            onRemove = {
-                                exitingNodeUids = exitingNodeUids + node.uid
-                            },
-                            onDragStart = { draggedNodeUid = node.uid },
-                            onDragStep = { step ->
-                                val currentIdx = displayedChain.nodes.indexOfFirst { it.uid == node.uid }
-                                if (currentIdx >= 0) {
-                                    val targetIdx = (currentIdx + step).coerceIn(0, displayedChain.nodes.lastIndex)
-                                    if (targetIdx != currentIdx) {
-                                        onMutateChain(displayedChain.moveNode(currentIdx, targetIdx))
-                                    }
-                                }
-                            },
-                            onDragEnd = { draggedNodeUid = null },
-                            onParamChange = { paramId, value ->
-                                onMutateChain(
-                                    displayedChain.setNodeParamAt(
-                                        index = index,
-                                        paramId = paramId,
-                                        value = value,
-                                        descriptors = availableEffects
-                                    )
-                                )
-                            },
-                            onMonoChange = { mono ->
-                                onMutateChain(displayedChain.setNodeMonoAt(index, mono))
-                            }
-                        )
+                    val activeDraggedUid = draggingNodeUid
+                    if (activeDraggedUid != null) {
+                        val draggedNode = displayedChain.nodes.firstOrNull { it.uid == activeDraggedUid }
+                        if (draggedNode != null) {
+                            val draggedDescriptor = findEffectDescriptor(draggedNode.id, availableEffects)
+                            EffectNodeCard(
+                                node = draggedNode,
+                                descriptor = draggedDescriptor,
+                                totalNodes = displayedChain.nodes.size,
+                                isExpanded = false,
+                                isDragging = true,
+                                dragOffsetPx = dragOriginTopPx + dragVisualOffsetPx,
+                                nudgeOffsetPx = 0f,
+                                nudgeNonce = 0,
+                                cardAlpha = 1f,
+                                enableInteractions = false,
+                                onMeasuredHeight = {},
+                                onToggleExpand = {},
+                                onEnabledChange = {},
+                                onRemove = {},
+                                onDragStart = {},
+                                onDragDelta = {},
+                                onDragEnd = {},
+                                onParamChange = { _, _ -> },
+                                onMonoChange = {}
+                            )
+                        }
                     }
                 }
             }
@@ -1415,7 +1576,7 @@ private fun EffectChainPipelineEditor(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
                 ) {
                     TextButton(
                         onClick = { showAddEffectMenu = !showAddEffectMenu },
@@ -1423,9 +1584,16 @@ private fun EffectChainPipelineEditor(
                         shape = Radius.ControlCompact,
                         contentPadding = PaddingValues(vertical = 6.dp)
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "＋ Add effect",
-                            fontSize = 13.sp,
+                            text = "Add effect",
+                            style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -1454,7 +1622,7 @@ private fun EffectChainPipelineEditor(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clip(RoundedCornerShape(10.dp))
+                                            .clip(Radius.ControlCompact)
                                             .clickable {
                                                 val newNode = createDefaultEffectNode(descriptor.id, availableEffects)
                                                 if (newNode != null) {
@@ -1465,21 +1633,21 @@ private fun EffectChainPipelineEditor(
                                                 }
                                                 showAddEffectMenu = false
                                             }
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
                                             text = descriptor.displayName,
-                                            fontSize = 13.sp,
+                                            style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Medium,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
-                                        Text(
-                                            text = "＋",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = "Add ${descriptor.displayName}",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
@@ -1555,30 +1723,30 @@ private fun AnchorNodeCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onToggleExpand)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
+                        .clip(Radius.Compact)
                         .background(MaterialTheme.colorScheme.secondaryContainer)
                         .padding(horizontal = 7.dp, vertical = 3.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = badgeText,
-                        fontSize = 10.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        letterSpacing = 0.4.sp
+                        fontSize = 10.sp
                     )
                 }
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        fontSize = 13.5.sp,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -1586,8 +1754,9 @@ private fun AnchorNodeCard(
                     )
                     Text(
                         text = subtitle,
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1598,7 +1767,7 @@ private fun AnchorNodeCard(
                     contentDescription = if (isExpanded) "Collapse" else "Expand",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
-                        .size(18.dp)
+                        .size(20.dp)
                         .rotate(arrowRotation)
                 )
             }
@@ -1611,11 +1780,11 @@ private fun AnchorNodeCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                     )
                     extraDrawerContent()
                     SingleLineToggleRow(
@@ -1635,58 +1804,99 @@ private fun EffectNodeCard(
     descriptor: EffectDescriptor?,
     totalNodes: Int,
     isExpanded: Boolean,
-    isDragged: Boolean,
+    isDragging: Boolean,
+    dragOffsetPx: Float,
+    nudgeOffsetPx: Float,
+    nudgeNonce: Int,
+    cardAlpha: Float,
+    enableInteractions: Boolean,
+    onMeasuredHeight: (Float) -> Unit,
     onToggleExpand: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onRemove: () -> Unit,
     onDragStart: () -> Unit,
-    onDragStep: (Int) -> Unit,
+    onDragDelta: (Float) -> Unit,
     onDragEnd: () -> Unit,
     onParamChange: (String, Float) -> Unit,
     onMonoChange: (Boolean) -> Unit
 ) {
+    val rowNudgeAnim = remember(nudgeNonce) { Animatable(nudgeOffsetPx) }
+    LaunchedEffect(nudgeNonce) {
+        if (nudgeNonce > 0 && nudgeOffsetPx != 0f) {
+            rowNudgeAnim.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = 160, easing = LinearOutSlowInEasing)
+            )
+        }
+    }
+    val animatedDragOffsetY by animateFloatAsState(
+        targetValue = if (isDragging) dragOffsetPx else 0f,
+        animationSpec = if (isDragging) snap() else spring(
+            dampingRatio = 1.0f,
+            stiffness = 520f
+        ),
+        label = "effectNodeDragOffset"
+    )
+    val displayOffsetY = animatedDragOffsetY + if (isDragging) 0f else rowNudgeAnim.value
+
     val arrowRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         animationSpec = tween(200),
         label = "nodeArrowRotation"
     )
     val contentAlpha = if (node.enabled) 1f else 0.45f
+    val rowShape = RoundedCornerShape(Radius.InnerSize)
 
-    GroupedRowCard(isFirst = false, isLast = false) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .let { base ->
-                    if (isDragged) {
-                        base.border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
-                    } else {
-                        base
-                    }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .zIndex(if (isDragging) 100f else 0f)
+            .alpha(cardAlpha)
+            .offset { IntOffset(x = 0, y = displayOffsetY.roundToInt()) }
+            .clip(rowShape)
+            .let { base ->
+                if (isDragging) {
+                    base.border(1.5.dp, MaterialTheme.colorScheme.primary, rowShape)
+                } else {
+                    base
                 }
-        ) {
+            },
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = rowShape,
+        tonalElevation = if (isDragging) 4.dp else 0.dp
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .onSizeChangedDeferred { onMeasuredHeight(it.height.toFloat()) }
+                    .padding(start = 10.dp, end = 16.dp, top = 11.dp, bottom = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 EffectNodeReorderHandle(
-                    reorderEnabled = totalNodes > 1,
-                    isDragged = isDragged,
+                    nodeUid = node.uid,
+                    reorderEnabled = totalNodes > 1 && enableInteractions,
+                    isDragging = isDragging,
                     onDragStart = onDragStart,
-                    onDragStep = onDragStep,
+                    onDragDelta = onDragDelta,
                     onDragEnd = onDragEnd
                 )
+
+                Spacer(modifier = Modifier.width(6.dp))
 
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable(onClick = onToggleExpand)
+                        .clip(Radius.Compact)
+                        .let { base ->
+                            if (enableInteractions) {
+                                base.clickable(onClick = onToggleExpand)
+                            } else {
+                                base
+                            }
+                        }
                         .padding(vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(
                         modifier = Modifier
@@ -1695,7 +1905,7 @@ private fun EffectNodeCard(
                     ) {
                         Text(
                             text = descriptor?.displayName ?: node.id,
-                            fontSize = 13.5.sp,
+                            style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -1703,49 +1913,57 @@ private fun EffectNodeCard(
                         )
                         Text(
                             text = formatEffectNodeSubtitle(node, descriptor),
-                            fontSize = 11.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = if (isExpanded) "Collapse" else "Expand",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
-                            .size(18.dp)
+                            .size(20.dp)
                             .rotate(arrowRotation)
                     )
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
                 Box(
                     modifier = Modifier
                         .width(1.dp)
-                        .height(24.dp)
-                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f))
+                        .height(28.dp)
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
                 )
+
+                Spacer(modifier = Modifier.width(12.dp))
 
                 CompactMd3Switch(
                     checked = node.enabled,
-                    onCheckedChange = onEnabledChange
+                    enabled = true,
+                    onCheckedChange = { if (enableInteractions) onEnabledChange(it) }
                 )
             }
 
             AnimatedVisibility(
-                visible = isExpanded,
+                visible = isExpanded && !isDragging,
                 enter = fadeIn(tween(180)) + expandVertically(tween(200)),
                 exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                     )
 
                     descriptor?.params.orEmpty().forEach { param ->
@@ -1764,7 +1982,7 @@ private fun EffectNodeCard(
                             label = "Mix",
                             value = mixPercent.toFloat(),
                             valueRange = 0f..100f,
-                            step = 1f,
+                            step = 5f,
                             valueText = "$mixPercent%",
                             enabled = node.enabled,
                             onValueChange = { pct ->
@@ -1781,7 +1999,7 @@ private fun EffectNodeCard(
                     )
 
                     HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
                     )
 
                     Row(
@@ -1789,20 +2007,20 @@ private fun EffectNodeCard(
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable(onClick = onRemove),
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.32f))
+                        OutlinedButton(
+                            onClick = onRemove,
+                            shape = Radius.ControlCompact,
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            modifier = Modifier.height(32.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.38f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
                         ) {
                             Text(
                                 text = "Remove",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
@@ -1814,18 +2032,20 @@ private fun EffectNodeCard(
 
 @Composable
 private fun EffectNodeReorderHandle(
+    nodeUid: Long,
     reorderEnabled: Boolean,
-    isDragged: Boolean,
+    isDragging: Boolean,
     onDragStart: () -> Unit,
-    onDragStep: (Int) -> Unit,
+    onDragDelta: (Float) -> Unit,
     onDragEnd: () -> Unit
 ) {
-    var dragSwapRemainderPx by remember { mutableFloatStateOf(0f) }
-    val dragSwapThresholdPx = with(LocalDensity.current) { 42.dp.toPx() }
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDragDelta by rememberUpdatedState(onDragDelta)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     val handleTint by animateColorAsState(
         targetValue = when {
+            isDragging -> MaterialTheme.colorScheme.primary
             !reorderEnabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.32f)
-            isDragged -> MaterialTheme.colorScheme.primary
             else -> MaterialTheme.colorScheme.onSurfaceVariant
         },
         animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
@@ -1833,35 +2053,18 @@ private fun EffectNodeReorderHandle(
     )
     Box(
         modifier = Modifier
-            .size(width = 24.dp, height = 30.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .size(width = 28.dp, height = 34.dp)
+            .clip(Radius.Compact)
             .let { base ->
                 if (reorderEnabled) {
-                    base.pointerInput(Unit) {
+                    base.pointerInput(nodeUid) {
                         detectDragGestures(
-                            onDragStart = {
-                                dragSwapRemainderPx = 0f
-                                onDragStart()
-                            },
-                            onDragEnd = {
-                                dragSwapRemainderPx = 0f
-                                onDragEnd()
-                            },
-                            onDragCancel = {
-                                dragSwapRemainderPx = 0f
-                                onDragEnd()
-                            },
+                            onDragStart = { currentOnDragStart() },
+                            onDragEnd = { currentOnDragEnd() },
+                            onDragCancel = { currentOnDragEnd() },
                             onDrag = { change, dragAmount ->
                                 change.consume()
-                                dragSwapRemainderPx += dragAmount.y
-                                while (dragSwapRemainderPx >= dragSwapThresholdPx) {
-                                    onDragStep(1)
-                                    dragSwapRemainderPx -= dragSwapThresholdPx
-                                }
-                                while (dragSwapRemainderPx <= -dragSwapThresholdPx) {
-                                    onDragStep(-1)
-                                    dragSwapRemainderPx += dragSwapThresholdPx
-                                }
+                                currentOnDragDelta(dragAmount.y)
                             }
                         )
                     }
@@ -1871,16 +2074,12 @@ private fun EffectNodeReorderHandle(
             },
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(18.dp)) {
-            val dotRadius = 1.8.dp.toPx()
-            val colLeft = size.width * 0.36f
-            val colRight = size.width * 0.64f
-            val rows = floatArrayOf(size.height * 0.25f, size.height * 0.50f, size.height * 0.75f)
-            for (y in rows) {
-                drawCircle(color = handleTint, radius = dotRadius, center = Offset(colLeft, y))
-                drawCircle(color = handleTint, radius = dotRadius, center = Offset(colRight, y))
-            }
-        }
+        Icon(
+            imageVector = Icons.Default.DragIndicator,
+            contentDescription = "Drag to reorder",
+            tint = handleTint,
+            modifier = Modifier.size(22.dp)
+        )
     }
 }
 
@@ -1893,28 +2092,29 @@ private fun SingleLineToggleRow(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val contentAlpha = if (enabled) 1f else 0.45f
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .clip(Radius.ControlCompact)
             .let { base ->
                 if (enabled) {
                     base.clickable { onCheckedChange(!checked) }
                 } else {
                     base
                 }
-            },
+            }
+            .alpha(if (enabled) 1f else 0.38f),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
             text = title,
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
                 .weight(1f)
-                .padding(end = 10.dp)
+                .padding(end = 12.dp)
         )
         CompactMd3Switch(
             checked = checked,
@@ -1936,7 +2136,6 @@ private fun CompactMd3Switch(
             checked = checked,
             enabled = enabled,
             onCheckedChange = onCheckedChange,
-            modifier = Modifier.graphicsLayer(scaleX = 0.82f, scaleY = 0.82f),
             colors = SwitchDefaults.colors(
                 checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                 checkedTrackColor = MaterialTheme.colorScheme.primary
@@ -2037,53 +2236,86 @@ private fun CompactParamSliderRow(
     enabled: Boolean = true,
     onValueChange: (Float) -> Unit
 ) {
-    val contentAlpha = if (enabled) 1f else 0.45f
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.width(76.dp)
-        )
-        CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
-            Slider(
-                value = value.coerceIn(valueRange.start, valueRange.endInclusive),
-                onValueChange = { raw ->
-                    val snapped = if (step > 0f) {
-                        ((raw / step).roundToInt() * step)
-                            .coerceIn(valueRange.start, valueRange.endInclusive)
-                    } else {
-                        raw.coerceIn(valueRange.start, valueRange.endInclusive)
-                    }
-                    onValueChange(snapped)
-                },
-                valueRange = valueRange,
-                enabled = enabled,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(26.dp),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                )
+    val contentAlpha = if (enabled) 1f else 0.38f
+    val safeStep = if (step > 0f) step else 0.5f
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
+            )
+            Text(
+                text = valueText,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = contentAlpha)
             )
         }
-        Text(
-            text = valueText,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = contentAlpha),
-            textAlign = TextAlign.End,
-            maxLines = 1,
-            modifier = Modifier.width(52.dp)
-        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedIconButton(
+                onClick = {
+                    val next = (((value - safeStep) / safeStep).roundToInt() * safeStep)
+                        .coerceIn(valueRange.start, valueRange.endInclusive)
+                    onValueChange(next)
+                },
+                enabled = enabled && value > valueRange.start,
+                modifier = Modifier.size(32.dp),
+                shape = Radius.Small
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Remove,
+                    contentDescription = "Decrease $label",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
+                Slider(
+                    value = value.coerceIn(valueRange.start, valueRange.endInclusive),
+                    onValueChange = { raw ->
+                        val snapped = ((raw / safeStep).roundToInt() * safeStep)
+                            .coerceIn(valueRange.start, valueRange.endInclusive)
+                        onValueChange(snapped)
+                    },
+                    valueRange = valueRange,
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                    )
+                )
+            }
+
+            OutlinedIconButton(
+                onClick = {
+                    val next = (((value + safeStep) / safeStep).roundToInt() * safeStep)
+                        .coerceIn(valueRange.start, valueRange.endInclusive)
+                    onValueChange(next)
+                },
+                enabled = enabled && value < valueRange.endInclusive,
+                modifier = Modifier.size(32.dp),
+                shape = Radius.Small
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Increase $label",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
     }
 }
 
@@ -2095,27 +2327,26 @@ private fun CompactEnumDropdownRow(
     enabled: Boolean,
     onValueChange: (Int) -> Unit
 ) {
-    val contentAlpha = if (enabled) 1f else 0.45f
+    val contentAlpha = if (enabled) 1f else 0.38f
     var expanded by remember { mutableStateOf(false) }
     val safeValue = value.coerceIn(0, (options.size - 1).coerceAtLeast(0))
     val selectedName = options.getOrElse(safeValue) { "$safeValue" }
 
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             text = label,
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
-            modifier = Modifier.width(76.dp)
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
         )
-        Box(modifier = Modifier.weight(1f)) {
+        Box(modifier = Modifier.fillMaxWidth()) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(32.dp)
+                    .height(36.dp)
                     .clip(Radius.Control)
                     .let { base ->
                         if (enabled) base.clickable { expanded = true } else base
@@ -2127,13 +2358,13 @@ private fun CompactEnumDropdownRow(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = "$safeValue - $selectedName",
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
                         maxLines = 1,
@@ -2144,7 +2375,7 @@ private fun CompactEnumDropdownRow(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -2155,7 +2386,7 @@ private fun CompactEnumDropdownRow(
             ) {
                 options.forEachIndexed { index, name ->
                     DropdownMenuItem(
-                        text = { Text("$index - $name", fontSize = 12.sp) },
+                        text = { Text("$index - $name", style = MaterialTheme.typography.bodySmall) },
                         onClick = {
                             onValueChange(index)
                             expanded = false
