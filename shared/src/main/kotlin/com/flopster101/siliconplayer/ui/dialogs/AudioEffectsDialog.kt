@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer.ui.dialogs
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -65,7 +66,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -1203,8 +1206,12 @@ private fun EffectChainPipelineEditor(
     var inputAnchorExpanded by rememberSaveable(selectedScope.storageKey) { mutableStateOf(false) }
     var masterAnchorExpanded by rememberSaveable(selectedScope.storageKey) { mutableStateOf(false) }
     var expandedNodeUids by remember(selectedScope) { mutableStateOf(setOf<Long>()) }
+    var enteringNodeUids by remember(selectedScope) { mutableStateOf(setOf<Long>()) }
+    var exitingNodeUids by remember(selectedScope) { mutableStateOf(setOf<Long>()) }
     var draggedNodeUid by remember { mutableStateOf<Long?>(null) }
     var showAddEffectMenu by remember(selectedScope) { mutableStateOf(false) }
+    val latestDisplayedChain by rememberUpdatedState(displayedChain)
+    val latestOnMutateChain by rememberUpdatedState(onMutateChain)
 
     val overrideLabel = when (selectedScope) {
         EffectChainScopeTarget.Core -> "Use custom chain for this core"
@@ -1326,51 +1333,81 @@ private fun EffectChainPipelineEditor(
                 key(node.uid) {
                     val descriptor = findEffectDescriptor(node.id, availableEffects)
                     val isExpanded = node.uid in expandedNodeUids
-                    EffectNodeCard(
-                        node = node,
-                        descriptor = descriptor,
-                        totalNodes = displayedChain.nodes.size,
-                        isExpanded = isExpanded,
-                        isDragged = draggedNodeUid == node.uid,
-                        onToggleExpand = {
-                            expandedNodeUids = if (isExpanded) {
-                                expandedNodeUids - node.uid
-                            } else {
-                                expandedNodeUids + node.uid
-                            }
-                        },
-                        onEnabledChange = { enabled ->
-                            onMutateChain(displayedChain.setNodeEnabledAt(index, enabled))
-                        },
-                        onRemove = {
-                            expandedNodeUids = expandedNodeUids - node.uid
-                            onMutateChain(displayedChain.removeNodeAt(index))
-                        },
-                        onDragStart = { draggedNodeUid = node.uid },
-                        onDragStep = { step ->
-                            val currentIdx = displayedChain.nodes.indexOfFirst { it.uid == node.uid }
-                            if (currentIdx >= 0) {
-                                val targetIdx = (currentIdx + step).coerceIn(0, displayedChain.nodes.lastIndex)
-                                if (targetIdx != currentIdx) {
-                                    onMutateChain(displayedChain.moveNode(currentIdx, targetIdx))
-                                }
-                            }
-                        },
-                        onDragEnd = { draggedNodeUid = null },
-                        onParamChange = { paramId, value ->
-                            onMutateChain(
-                                displayedChain.setNodeParamAt(
-                                    index = index,
-                                    paramId = paramId,
-                                    value = value,
-                                    descriptors = availableEffects
-                                )
-                            )
-                        },
-                        onMonoChange = { mono ->
-                            onMutateChain(displayedChain.setNodeMonoAt(index, mono))
+                    val isExiting = node.uid in exitingNodeUids
+                    val visibleState = remember {
+                        MutableTransitionState(node.uid !in enteringNodeUids)
+                    }
+                    LaunchedEffect(node.uid, isExiting) {
+                        visibleState.targetState = !isExiting
+                        if (!isExiting && node.uid in enteringNodeUids) {
+                            enteringNodeUids = enteringNodeUids - node.uid
                         }
-                    )
+                    }
+                    LaunchedEffect(visibleState.isIdle, visibleState.currentState, isExiting) {
+                        if (isExiting && visibleState.isIdle && !visibleState.currentState) {
+                            exitingNodeUids = exitingNodeUids - node.uid
+                            expandedNodeUids = expandedNodeUids - node.uid
+                            val removeIdx = latestDisplayedChain.nodes.indexOfFirst { it.uid == node.uid }
+                            if (removeIdx >= 0) {
+                                latestOnMutateChain(latestDisplayedChain.removeNodeAt(removeIdx))
+                            }
+                        }
+                    }
+
+                    AnimatedVisibility(
+                        visibleState = visibleState,
+                        enter = fadeIn(tween(180)) + expandVertically(
+                            animationSpec = tween(220, easing = FastOutSlowInEasing)
+                        ),
+                        exit = fadeOut(tween(140)) + shrinkVertically(
+                            animationSpec = tween(200, easing = FastOutSlowInEasing)
+                        )
+                    ) {
+                        EffectNodeCard(
+                            node = node,
+                            descriptor = descriptor,
+                            totalNodes = displayedChain.nodes.size,
+                            isExpanded = isExpanded,
+                            isDragged = draggedNodeUid == node.uid,
+                            onToggleExpand = {
+                                expandedNodeUids = if (isExpanded) {
+                                    expandedNodeUids - node.uid
+                                } else {
+                                    expandedNodeUids + node.uid
+                                }
+                            },
+                            onEnabledChange = { enabled ->
+                                onMutateChain(displayedChain.setNodeEnabledAt(index, enabled))
+                            },
+                            onRemove = {
+                                exitingNodeUids = exitingNodeUids + node.uid
+                            },
+                            onDragStart = { draggedNodeUid = node.uid },
+                            onDragStep = { step ->
+                                val currentIdx = displayedChain.nodes.indexOfFirst { it.uid == node.uid }
+                                if (currentIdx >= 0) {
+                                    val targetIdx = (currentIdx + step).coerceIn(0, displayedChain.nodes.lastIndex)
+                                    if (targetIdx != currentIdx) {
+                                        onMutateChain(displayedChain.moveNode(currentIdx, targetIdx))
+                                    }
+                                }
+                            },
+                            onDragEnd = { draggedNodeUid = null },
+                            onParamChange = { paramId, value ->
+                                onMutateChain(
+                                    displayedChain.setNodeParamAt(
+                                        index = index,
+                                        paramId = paramId,
+                                        value = value,
+                                        descriptors = availableEffects
+                                    )
+                                )
+                            },
+                            onMonoChange = { mono ->
+                                onMutateChain(displayedChain.setNodeMonoAt(index, mono))
+                            }
+                        )
+                    }
                 }
             }
 
@@ -1421,9 +1458,10 @@ private fun EffectChainPipelineEditor(
                                             .clickable {
                                                 val newNode = createDefaultEffectNode(descriptor.id, availableEffects)
                                                 if (newNode != null) {
+                                                    enteringNodeUids = enteringNodeUids + newNode.uid
+                                                    expandedNodeUids = expandedNodeUids + newNode.uid
                                                     val nextChain = displayedChain.copy(nodes = displayedChain.nodes + newNode)
                                                     onMutateChain(nextChain)
-                                                    expandedNodeUids = expandedNodeUids + newNode.uid
                                                 }
                                                 showAddEffectMenu = false
                                             }
