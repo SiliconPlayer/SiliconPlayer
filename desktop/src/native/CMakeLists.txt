@@ -129,6 +129,9 @@ set_target_properties(libmysofa_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUIL
 add_library(libspatialaudio_prebuilt SHARED IMPORTED)
 set_target_properties(libspatialaudio_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libspatialaudio.so")
 
+add_library(libphonon_prebuilt SHARED IMPORTED)
+set_target_properties(libphonon_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libphonon.so")
+
 add_library(siliconplayer_desktop SHARED ${MAIN_SOURCES})
 
 target_include_directories(siliconplayer_desktop PRIVATE
@@ -153,6 +156,7 @@ target_link_libraries(siliconplayer_desktop PRIVATE
     libprojectM-4
     libmysofa_prebuilt
     libspatialaudio_prebuilt
+    libphonon_prebuilt
     OpenGL::GL
     ${X11_LIBRARIES}
     Threads::Threads

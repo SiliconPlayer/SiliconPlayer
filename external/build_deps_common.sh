@@ -43,10 +43,13 @@ ALL_DEPENDENCY_LIBS=(
     nezplugpp
     libmysofa
     libspatialaudio
+    pffft
+    flatbuffers
+    steamaudio
 )
 
 # Aliases documented here, shared by all build_deps usage screens.
-LIB_ALIASES_HINT="sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft, upse/libupse, viogsf, nezplugpp, mysofa/libmysofa, spatialaudio/libspatialaudio/spaudio"
+LIB_ALIASES_HINT="sox/soxr, gme, xmp, ayfly, resid/residfp, sid/sidplayfp, crsid/cRSID/libcrsid, usf/lazyusf, psf, 2sf/twosf, fluid/libfluidsynth, libsc68, binio, libadplug, zakalwe, bencode, assembler/vasm, libuade, hvl/hively, kly/kt, fur, dnfamitracker/dnft, upse/libupse, viogsf, nezplugpp, mysofa/libmysofa, spatialaudio/libspatialaudio/spaudio, pffft, flatbuffers/flatc, steamaudio/phonon/libphonon"
 
 # Comma-separated "all,<libs...>" for usage text.
 all_libs_csv() {
@@ -214,6 +217,62 @@ PATCH
     rm -f "$patch_file"
 }
 
+build_flatbuffers_host() {
+    local PROJECT_PATH="$ABSOLUTE_PATH/flatbuffers"
+    local BUILD_DIR="$PROJECT_PATH/build_host"
+    local FLATC="$BUILD_DIR/flatc"
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "flatbuffers source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    if [ -x "$FLATC" ]; then
+        echo "flatc host tool already built -> skipping"
+        return 0
+    fi
+
+    echo "Building flatc host tool..."
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR"
+
+    cmake -Wno-dev -Wno-deprecated \
+        -S "$PROJECT_PATH" \
+        -B "$BUILD_DIR" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_CXX_STANDARD=17 \
+        -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG -Wno-error" \
+        -DFLATBUFFERS_BUILD_TESTS=OFF \
+        -DFLATBUFFERS_BUILD_FLATLIB=OFF \
+        -DFLATBUFFERS_BUILD_FLATHASH=OFF \
+        -DFLATBUFFERS_BUILD_FLATC=ON
+
+    cmake --build "$BUILD_DIR" --target flatc -j"$NPROC"
+
+    if [ ! -x "$FLATC" ]; then
+        echo "Error: flatc host tool not found after build."
+        return 1
+    fi
+}
+
+apply_steamaudio_patches() {
+    local PROJECT_PATH="$ABSOLUTE_PATH/steam-audio"
+    local CMAKE_FILE="$PROJECT_PATH/core/CMakeLists.txt"
+
+    if [ ! -f "$CMAKE_FILE" ]; then
+        return
+    fi
+
+    if grep -Fq "set(CMAKE_CXX_STANDARD 17)" "$CMAKE_FILE"; then
+        echo "steam-audio C++17 patch already applied."
+        return
+    fi
+
+    echo "Applying steam-audio patch: C++17 for the flatbuffers headers"
+    sed -i 's/^set(CMAKE_CXX_STANDARD 14)$/set(CMAKE_CXX_STANDARD 17)/' "$CMAKE_FILE"
+}
+
 build_vasm_host() {
     echo "Building vasm host tool..."
     local PROJECT_PATH="$ABSOLUTE_PATH/vasm"
@@ -331,6 +390,12 @@ normalize_lib_name() {
             ;;
         spatialaudio|libspatialaudio|spaudio)
             echo "libspatialaudio"
+            ;;
+        flatbuffers|flatc)
+            echo "flatbuffers"
+            ;;
+        steamaudio|phonon|libphonon)
+            echo "steamaudio"
             ;;
         *)
             echo "$lib"

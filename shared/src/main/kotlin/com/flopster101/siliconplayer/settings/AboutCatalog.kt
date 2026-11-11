@@ -559,6 +559,29 @@ internal object AboutCatalog {
                 AboutEntityLink("Project", "https://spatialaudio.videolan.org/"),
                 AboutEntityLink("Source", "https://github.com/videolan/libspatialaudio")
             )
+        ),
+        AboutEntity(
+            id = "lib.steamaudio",
+            kind = AboutEntityKind.Library,
+            name = "Steam Audio",
+            description = "Binaural and virtual surround engine used by the spatializer.",
+            author = "Valve Corporation",
+            license = "Apache-2.0",
+            links = listOf(
+                AboutEntityLink("Project", "https://valvesoftware.github.io/steam-audio/"),
+                AboutEntityLink("Source", "https://github.com/valvesoftware/steam-audio")
+            )
+        ),
+        AboutEntity(
+            id = "lib.pffft",
+            kind = AboutEntityKind.Library,
+            name = "PFFFT",
+            description = "FFT library used for the Steam Audio convolution and reverb processing.",
+            author = "Julien Pommier and PFFFT contributors",
+            license = "BSD-3-Clause",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/marton78/pffft")
+            )
         )
     )
 

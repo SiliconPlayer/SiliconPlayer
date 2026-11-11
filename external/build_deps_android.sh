@@ -2722,6 +2722,140 @@ build_libspatialaudio() {
 }
 
 # -----------------------------------------------------------------------------
+# Function: Build pffft (Steam Audio FFT backend, static)
+# -----------------------------------------------------------------------------
+build_pffft() {
+    local ABI=$1
+    local PROJECT_PATH="$ABSOLUTE_PATH/pffft"
+    local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
+    local PFFFT_DIR="$INSTALL_DIR/pffft"
+    local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "pffft source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$PFFFT_DIR/lib/libpffft.a" ] && \
+       [ -f "$PFFFT_DIR/include/pffft.h" ]; then
+        echo "pffft already built for $ABI -> skipping"
+        return 0
+    fi
+
+    echo "Building pffft for $ABI..."
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR" "$PFFFT_DIR"
+
+    cmake -Wno-dev -Wno-deprecated \
+        -S "$PROJECT_PATH" \
+        -B "$BUILD_DIR" \
+        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DANDROID_ABI="$ABI" \
+        -DANDROID_PLATFORM="android-$ANDROID_API" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DINSTALL_PFFFT=ON \
+        -DCMAKE_INSTALL_PREFIX="$PFFFT_DIR"
+
+    cmake --build "$BUILD_DIR" --target PFFFT -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+
+    if [ ! -f "$PFFFT_DIR/lib/libpffft.a" ]; then
+        echo "Error: libpffft.a not found after build."
+        return 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Function: Build Steam Audio (libphonon, shared)
+# -----------------------------------------------------------------------------
+build_steamaudio() {
+    local ABI=$1
+    local PROJECT_PATH="$ABSOLUTE_PATH/steam-audio"
+    local INSTALL_DIR="$ABSOLUTE_PATH/../app/src/main/cpp/prebuilt/$ABI"
+    local PFFFT_DIR="$INSTALL_DIR/pffft"
+    local BUILD_DIR="$PROJECT_PATH/build_android_${ABI}"
+    local FLATC="$ABSOLUTE_PATH/flatbuffers/build_host/flatc"
+    local MYSOFA_LIB="$INSTALL_DIR/lib/libmysofa.so"
+    local ZLIB_LIB="$SYSROOT/usr/lib/$SYSROOT_TRIPLE/$ANDROID_API/libz.so"
+
+    if [ ! -d "$PROJECT_PATH" ]; then
+        echo "steam-audio source not found at $PROJECT_PATH (skipping)."
+        return 0
+    fi
+
+    if [ ! -x "$FLATC" ]; then
+        echo "Error: flatc host tool missing (build flatbuffers first)."
+        return 1
+    fi
+
+    if [ ! -f "$PFFFT_DIR/lib/libpffft.a" ]; then
+        echo "Error: pffft missing at $PFFFT_DIR (build pffft first)."
+        return 1
+    fi
+
+    if [ ! -f "$MYSOFA_LIB" ]; then
+        echo "Error: libmysofa missing at $MYSOFA_LIB (build libmysofa first)."
+        return 1
+    fi
+
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libphonon.so" ] && \
+       [ -f "$INSTALL_DIR/include/phonon/phonon.h" ]; then
+        echo "steam-audio already built for $ABI -> skipping"
+        return 0
+    fi
+
+    echo "Building steam-audio for $ABI..."
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR" "$INSTALL_DIR/lib" "$INSTALL_DIR/include/phonon"
+
+    cmake -Wno-dev -Wno-deprecated \
+        -S "$PROJECT_PATH/core" \
+        -B "$BUILD_DIR" \
+        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DANDROID_ABI="$ABI" \
+        -DANDROID_PLATFORM="android-$ANDROID_API" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DCMAKE_CXX_FLAGS="-fdelayed-template-parsing" \
+        -DBUILD_SHARED_LIBS=ON \
+        -DSTEAMAUDIO_BUILD_TESTS=OFF \
+        -DSTEAMAUDIO_BUILD_SAMPLES=OFF \
+        -DSTEAMAUDIO_BUILD_BENCHMARKS=OFF \
+        -DSTEAMAUDIO_BUILD_DOCS=OFF \
+        -DSTEAMAUDIO_ENABLE_EMBREE=OFF \
+        -DSTEAMAUDIO_ENABLE_RADEONRAYS=OFF \
+        -DSTEAMAUDIO_ENABLE_TRUEAUDIONEXT=OFF \
+        -DSTEAMAUDIO_ENABLE_IPP=OFF \
+        -DSTEAMAUDIO_ENABLE_MKL=OFF \
+        -DPFFFT_INCLUDE_DIR="$PFFFT_DIR/include" \
+        -DPFFFT_LIBRARY="$PFFFT_DIR/lib/libpffft.a" \
+        -DMySOFA_INCLUDE_DIR="$INSTALL_DIR/include" \
+        -DMySOFA_LIBRARY="$MYSOFA_LIB" \
+        -DFlatBuffers_INCLUDE_DIR="$ABSOLUTE_PATH/flatbuffers/include" \
+        -DFlatBuffers_EXECUTABLE="$FLATC" \
+        -DZLIB_INCLUDE_DIR="$SYSROOT/usr/include" \
+        -DZLIB_LIBRARY="$ZLIB_LIB" \
+        -DCMAKE_INSTALL_PREFIX="$BUILD_DIR/install"
+
+    cmake --build "$BUILD_DIR" --target phonon -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+
+    local installed_lib
+    installed_lib="$(find "$BUILD_DIR/install" -type f -name 'libphonon.so' | head -n 1)"
+    if [ -z "$installed_lib" ]; then
+        echo "Error: libphonon.so not found after build."
+        return 1
+    fi
+    cp "$installed_lib" "$INSTALL_DIR/lib/libphonon.so"
+    cp "$BUILD_DIR/install/include/phonon.h" "$INSTALL_DIR/include/phonon/"
+    cp "$BUILD_DIR/install/include/phonon_interfaces.h" "$INSTALL_DIR/include/phonon/"
+    cp "$BUILD_DIR/install/include/phonon_version.h" "$INSTALL_DIR/include/phonon/"
+}
+
+# -----------------------------------------------------------------------------
 # Argument Parsing
 # -----------------------------------------------------------------------------
 usage() {
@@ -2920,6 +3054,9 @@ clean_target_artifacts() {
             nezplugpp)       PROJ="$ABSOLUTE_PATH/nezplugpp"; CMAKE=1 ;;
             libmysofa)       PROJ="$ABSOLUTE_PATH/libmysofa"; CMAKE=1 ;;
             libspatialaudio) PROJ="$ABSOLUTE_PATH/libspatialaudio"; CMAKE=1 ;;
+            pffft)           PROJ="$ABSOLUTE_PATH/pffft"; CMAKE=1 ;;
+            flatbuffers)     PROJ="$ABSOLUTE_PATH/flatbuffers"; CMAKE=1 ;;
+            steamaudio)      PROJ="$ABSOLUTE_PATH/steam-audio"; CMAKE=1 ;;
         esac
 
         # Clean CMake build_android_* directories
@@ -3012,6 +3149,9 @@ clean_target_artifacts() {
                 nezplugpp) rm -f "$inst/lib/libnezplugpp.so" "$inst/lib/.nezplugpp_gitrev" 2>/dev/null || true; rm -rf "$inst/include/nezplugpp" 2>/dev/null || true ;;
                 libmysofa) rm -f "$inst/lib/libmysofa.so"* 2>/dev/null || true; rm -f "$inst/include/mysofa.h" "$inst/include/mysofa_export.h" 2>/dev/null || true ;;
                 libspatialaudio) rm -f "$inst/lib/libspatialaudio.so"* 2>/dev/null || true; rm -rf "$inst/include/spatialaudio" 2>/dev/null || true ;;
+                pffft) rm -rf "$inst/pffft" 2>/dev/null || true ;;
+                flatbuffers) rm -rf "$ABSOLUTE_PATH/flatbuffers/build_host" 2>/dev/null || true ;;
+                steamaudio) rm -f "$inst/lib/libphonon.so" 2>/dev/null || true; rm -rf "$inst/include/phonon" 2>/dev/null || true ;;
             esac
         done
     done
@@ -3053,6 +3193,14 @@ fi
 
 if target_has_lib "vasm"; then
     build_vasm_host
+fi
+
+if target_has_lib "flatbuffers"; then
+    build_flatbuffers_host
+fi
+
+if target_has_lib "steamaudio"; then
+    apply_steamaudio_patches
 fi
 
 # -----------------------------------------------------------------------------
@@ -3100,21 +3248,25 @@ for ABI in "${ABIS[@]}"; do
             ARCH="aarch64"
             CPU="armv8-a"
             TRIPLE="aarch64-linux-android"
+            SYSROOT_TRIPLE="aarch64-linux-android"
             ;;
         "armeabi-v7a")
             ARCH="arm"
             CPU="armv7-a"
             TRIPLE="armv7a-linux-androideabi"
+            SYSROOT_TRIPLE="arm-linux-androideabi"
             ;;
         "x86_64")
             ARCH="x86_64"
             CPU="x86-64"
             TRIPLE="x86_64-linux-android"
+            SYSROOT_TRIPLE="x86_64-linux-android"
             ;;
         "x86")
             ARCH="x86"
             CPU="i686"
             TRIPLE="i686-linux-android"
+            SYSROOT_TRIPLE="i686-linux-android"
             ;;
     esac
 
@@ -3262,6 +3414,14 @@ for ABI in "${ABIS[@]}"; do
 
     if target_has_lib "libspatialaudio"; then
         build_libspatialaudio "$ABI"
+    fi
+
+    if target_has_lib "pffft"; then
+        build_pffft "$ABI"
+    fi
+
+    if target_has_lib "steamaudio"; then
+        build_steamaudio "$ABI"
     fi
 done
 

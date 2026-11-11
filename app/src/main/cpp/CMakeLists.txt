@@ -200,6 +200,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     add_library(libspatialaudio SHARED IMPORTED)
     set_target_properties(libspatialaudio PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libspatialaudio.so")
 
+    # Import Steam Audio (Shared)
+    add_library(libphonon SHARED IMPORTED)
+    set_target_properties(libphonon PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libphonon.so")
+
     # Import libupse (Shared)
     add_library(libupse SHARED IMPORTED)
     set_target_properties(libupse PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libupse.so")
@@ -285,6 +289,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
             libsoxr
             libmysofa
             libspatialaudio
+            libphonon
             z # zlib is needed for openmpt/ffmpeg/vgm
             m # libbinio can require libm symbols on some toolchains
             usb1.0

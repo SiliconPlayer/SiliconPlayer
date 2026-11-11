@@ -195,6 +195,9 @@ clean_target_artifacts() {
             nezplugpp)       PROJ="$ABSOLUTE_PATH/nezplugpp" ;;
             libmysofa)       PROJ="$ABSOLUTE_PATH/libmysofa" ;;
             libspatialaudio) PROJ="$ABSOLUTE_PATH/libspatialaudio" ;;
+            pffft)           PROJ="$ABSOLUTE_PATH/pffft" ;;
+            flatbuffers)     PROJ="$ABSOLUTE_PATH/flatbuffers" ;;
+            steamaudio)      PROJ="$ABSOLUTE_PATH/steam-audio" ;;
         esac
 
         [ -n "$PROJ" ] && rm -rf "$PROJ/build_desktop_${ARCH}" 2>/dev/null || true
@@ -233,6 +236,9 @@ clean_target_artifacts() {
             nezplugpp) rm -f "$INSTALL_DIR/lib/libnezplugpp.so" "$INSTALL_DIR/lib/.nezplugpp_gitrev" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/nezplugpp" 2>/dev/null || true ;;
             libmysofa) rm -f "$INSTALL_DIR/lib/libmysofa.so"* 2>/dev/null || true; rm -f "$INSTALL_DIR/include/mysofa.h" "$INSTALL_DIR/include/mysofa_export.h" 2>/dev/null || true ;;
             libspatialaudio) rm -f "$INSTALL_DIR/lib/libspatialaudio.so"* 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/spatialaudio" 2>/dev/null || true ;;
+            pffft) rm -rf "$INSTALL_DIR/pffft" 2>/dev/null || true ;;
+            flatbuffers) rm -rf "$ABSOLUTE_PATH/flatbuffers/build_host" 2>/dev/null || true ;;
+            steamaudio) rm -f "$INSTALL_DIR/lib/libphonon.so" 2>/dev/null || true; rm -rf "$INSTALL_DIR/include/phonon" 2>/dev/null || true ;;
         esac
     done
 
@@ -1297,6 +1303,101 @@ build_libspatialaudio() {
     fi
 }
 
+build_pffft() {
+    local PROJECT_PATH="$ABSOLUTE_PATH/pffft"
+    local BUILD_DIR="$PROJECT_PATH/build_desktop_${ARCH}"
+    local PFFFT_DIR="$INSTALL_DIR/pffft"
+    if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$PFFFT_DIR/lib/libpffft.a" ] && \
+       [ -f "$PFFFT_DIR/include/pffft.h" ]; then return 0; fi
+    echo "Building pffft for host..."
+    rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
+    cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH" -B "$BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS="$CFLAGS" \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DINSTALL_PFFFT=ON \
+        -DCMAKE_INSTALL_PREFIX="$PFFFT_DIR"
+    cmake --build "$BUILD_DIR" --target PFFFT -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+    if [ ! -f "$PFFFT_DIR/lib/libpffft.a" ]; then
+        echo "Error: libpffft.a not found after build."
+        return 1
+    fi
+}
+
+build_steamaudio() {
+    local PROJECT_PATH="$ABSOLUTE_PATH/steam-audio"
+    local BUILD_DIR="$PROJECT_PATH/build_desktop_${ARCH}"
+    local PFFFT_DIR="$INSTALL_DIR/pffft"
+    local FLATC="$ABSOLUTE_PATH/flatbuffers/build_host/flatc"
+    local MYSOFA_LIB="$INSTALL_DIR/lib/libmysofa.so"
+    local EXTRA_CXX_FLAGS=""
+    local ZLIB_INCLUDE_DIR="/usr/include"
+    if command -v pkg-config >/dev/null 2>&1; then
+        local pkg_zlib_include
+        pkg_zlib_include="$(pkg-config --cflags-only-I zlib 2>/dev/null | tr ' ' '\n' | sed -n 's/^-I//p' | head -n 1)"
+        if [ -n "$pkg_zlib_include" ]; then
+            ZLIB_INCLUDE_DIR="$pkg_zlib_include"
+        fi
+    fi
+    if [ ! -d "$PROJECT_PATH" ]; then return 0; fi
+    case "$CXX" in
+        *clang*) EXTRA_CXX_FLAGS="-fdelayed-template-parsing" ;;
+    esac
+    if [ ! -x "$FLATC" ]; then
+        echo "Error: flatc host tool missing (build flatbuffers first)."
+        return 1
+    fi
+    if [ ! -f "$PFFFT_DIR/lib/libpffft.a" ]; then
+        echo "Error: pffft missing at $PFFFT_DIR (build pffft first)."
+        return 1
+    fi
+    if [ ! -f "$MYSOFA_LIB" ]; then
+        echo "Error: libmysofa missing at $MYSOFA_LIB (build libmysofa first)."
+        return 1
+    fi
+    if [ "$FORCE_CLEAN" -ne 1 ] && [ -f "$INSTALL_DIR/lib/libphonon.so" ] && \
+       [ -f "$INSTALL_DIR/include/phonon/phonon.h" ]; then return 0; fi
+    echo "Building steam-audio for host..."
+    rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR" "$INSTALL_DIR/include/phonon"
+    cmake $CMAKE_COMMON_FLAGS -S "$PROJECT_PATH/core" -B "$BUILD_DIR" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS="$CFLAGS" \
+        -DCMAKE_CXX_FLAGS="$CXXFLAGS $EXTRA_CXX_FLAGS" \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DBUILD_SHARED_LIBS=ON \
+        -DSTEAMAUDIO_BUILD_TESTS=OFF \
+        -DSTEAMAUDIO_BUILD_SAMPLES=OFF \
+        -DSTEAMAUDIO_BUILD_BENCHMARKS=OFF \
+        -DSTEAMAUDIO_BUILD_DOCS=OFF \
+        -DSTEAMAUDIO_ENABLE_EMBREE=OFF \
+        -DSTEAMAUDIO_ENABLE_RADEONRAYS=OFF \
+        -DSTEAMAUDIO_ENABLE_TRUEAUDIONEXT=OFF \
+        -DSTEAMAUDIO_ENABLE_IPP=OFF \
+        -DSTEAMAUDIO_ENABLE_MKL=OFF \
+        -DPFFFT_INCLUDE_DIR="$PFFFT_DIR/include" \
+        -DPFFFT_LIBRARY="$PFFFT_DIR/lib/libpffft.a" \
+        -DMySOFA_INCLUDE_DIR="$INSTALL_DIR/include" \
+        -DMySOFA_LIBRARY="$MYSOFA_LIB" \
+        -DFlatBuffers_INCLUDE_DIR="$ABSOLUTE_PATH/flatbuffers/include" \
+        -DFlatBuffers_EXECUTABLE="$FLATC" \
+        -DZLIB_INCLUDE_DIR="$ZLIB_INCLUDE_DIR" \
+        -DCMAKE_INSTALL_PREFIX="$BUILD_DIR/install"
+    cmake --build "$BUILD_DIR" --target phonon -j"$NPROC"
+    cmake --install "$BUILD_DIR"
+    local installed_lib
+    installed_lib="$(find "$BUILD_DIR/install" -type f -name 'libphonon.so' | head -n 1)"
+    if [ -z "$installed_lib" ]; then
+        echo "Error: libphonon.so not found after build."
+        return 1
+    fi
+    cp "$installed_lib" "$INSTALL_DIR/lib/libphonon.so"
+    cp "$BUILD_DIR/install/include/phonon.h" "$INSTALL_DIR/include/phonon/"
+    cp "$BUILD_DIR/install/include/phonon_interfaces.h" "$INSTALL_DIR/include/phonon/"
+    cp "$BUILD_DIR/install/include/phonon_version.h" "$INSTALL_DIR/include/phonon/"
+}
+
 # Run build targets
 for ARCH in "${TARGET_ARCHES[@]}"; do
     configure_desktop_toolchain "$ARCH"
@@ -1317,6 +1418,14 @@ for ARCH in "${TARGET_ARCHES[@]}"; do
 
     if target_has_lib "vasm"; then
         build_vasm_host
+    fi
+
+    if target_has_lib "flatbuffers"; then
+        build_flatbuffers_host
+    fi
+
+    if target_has_lib "steamaudio"; then
+        apply_steamaudio_patches
     fi
 
     if target_has_lib "libsoxr"; then build_libsoxr; fi
@@ -1352,6 +1461,8 @@ for ARCH in "${TARGET_ARCHES[@]}"; do
     if target_has_lib "nezplugpp"; then build_nezplugpp; fi
     if target_has_lib "libmysofa"; then build_libmysofa; fi
     if target_has_lib "libspatialaudio"; then build_libspatialaudio; fi
+    if target_has_lib "pffft"; then build_pffft; fi
+    if target_has_lib "steamaudio"; then build_steamaudio; fi
 
     echo "========================================"
     echo "Desktop Dependency Build Complete for $ARCH!"

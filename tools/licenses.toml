@@ -294,6 +294,17 @@ source = "external/libspatialaudio"
 note = "Shared build so the LGPL grant stays relinkable; used by the spatializer backend."
 
 [[dep]]
+id = "lib.steamaudio"
+spdx = "Apache-2.0"
+source = "external/steam-audio"
+
+[[dep]]
+id = "lib.pffft"
+spdx = "BSD-3-Clause"
+source = "external/pffft"
+note = "FFT backend statically linked into the Steam Audio core."
+
+[[dep]]
 id = "app.siliconplayer"
 spdx = "GPL-3.0"
 license_dir = "."
