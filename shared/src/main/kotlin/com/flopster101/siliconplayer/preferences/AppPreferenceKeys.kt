@@ -88,6 +88,8 @@ internal object AppPreferenceKeys {
     const val AUDIO_OUTPUT_LIMITER_ENABLED = "audio_output_limiter_enabled"
     const val AUDIO_LOOKAHEAD_CLIPPER_MODE = "audio_lookahead_clipper_mode"
     const val AUDIO_MULTI_CHANNEL_OUTPUT_MODE = "audio_multi_channel_output_mode"
+    const val AUDIO_EFFECT_CHAIN = "audio_effect_chain"
+    const val AUDIO_EFFECT_CHAIN_CORE_PREFIX = "audio_effect_chain_core_"
     const val AUDIO_DSP_BASS_ENABLED = "audio_dsp_bass_enabled"
     const val AUDIO_DSP_BASS_DEPTH = "audio_dsp_bass_depth"
     const val AUDIO_DSP_BASS_RANGE = "audio_dsp_bass_range"
@@ -360,6 +362,8 @@ const val VISUALIZATION_ADVANCED_FALLBACK_MODE = "visualization_advanced_fallbac
     fun audioDspCoreBitCrushEnabledKey(decoderName: String) = audioDspCoreKey(decoderName, "bitcrush_enabled")
     fun audioDspCoreBitCrushBitsKey(decoderName: String) = audioDspCoreKey(decoderName, "bitcrush_bits")
     fun audioDspCoreIgnoreGlobalKey(decoderName: String) = audioDspCoreKey(decoderName, "ignore_global")
+    fun audioEffectChainCoreKey(decoderName: String) =
+        "$AUDIO_EFFECT_CHAIN_CORE_PREFIX${sanitizeKeyToken(decoderName)}"
     fun audioPerformanceModeForBackend(backend: AudioBackendPreference) =
         "${AUDIO_PERFORMANCE_MODE}_${backend.storageValue}"
     fun audioBufferPresetForBackend(backend: AudioBackendPreference) =

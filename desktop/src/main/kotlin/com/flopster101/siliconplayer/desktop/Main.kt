@@ -152,16 +152,16 @@ import com.flopster101.siliconplayer.favoritesAsStoredPlaylist
 import com.flopster101.siliconplayer.LookaheadClipperMode
 import com.flopster101.siliconplayer.MultiChannelOutputMode
 import com.flopster101.siliconplayer.audio.DspSettingsNamespace
-import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
-import com.flopster101.siliconplayer.audio.defaultDspSettings
-import com.flopster101.siliconplayer.audio.hasCoreDspOverrides
-import com.flopster101.siliconplayer.audio.normalizeSurroundDelayMsPref
-import com.flopster101.siliconplayer.audio.readCoreDspSettings
-import com.flopster101.siliconplayer.audio.readCoreIgnoreGlobalDsp
-import com.flopster101.siliconplayer.audio.readGlobalDspSettings
-import com.flopster101.siliconplayer.audio.resolveEffectiveDspSettings
-import com.flopster101.siliconplayer.audio.writeCoreDspSettings
-import com.flopster101.siliconplayer.audio.writeGlobalDspSettings
+import com.flopster101.siliconplayer.audio.EffectChain
+import com.flopster101.siliconplayer.audio.LegacyDialogChainDraft
+import com.flopster101.siliconplayer.audio.NodeOptions
+import com.flopster101.siliconplayer.audio.applyEffectChainToNative
+import com.flopster101.siliconplayer.audio.readCoreEffectChain
+import com.flopster101.siliconplayer.audio.readGlobalEffectChain
+import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChain
+import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
+import com.flopster101.siliconplayer.audio.writeCoreEffectChain
+import com.flopster101.siliconplayer.audio.writeGlobalEffectChain
 import com.flopster101.siliconplayer.fileMatchesSupportedExtensions
 import com.flopster101.siliconplayer.playlistContainsTrack
 import com.flopster101.siliconplayer.samePath
@@ -1584,20 +1584,17 @@ fun main(args: Array<String>) = application {
             fun applyMasterGainToNative() {
                 NativeBridge.setMasterGain(if (masterMuted) MasterMuteGainDb else masterVolumeDb)
             }
+            var globalChain by remember { mutableStateOf(readGlobalEffectChain(prefs)) }
             var forceMono by remember {
-                mutableStateOf(prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false))
+                mutableStateOf(globalChain.master.mono)
             }
             var songVolumeDb by remember { mutableStateOf(0f) }
             var ignoreCoreVolumeForSong by remember { mutableStateOf(false) }
-            var globalDspSettings by remember { mutableStateOf(readGlobalDspSettings(prefs)) }
-            var coreDspSettings by remember(session.decoderName) {
-                mutableStateOf(readCoreDspSettings(prefs, session.decoderName))
-            }
-            var coreDspHasOverrides by remember(session.decoderName) {
-                mutableStateOf(hasCoreDspOverrides(prefs, session.decoderName))
+            var coreChain by remember(session.decoderName) {
+                mutableStateOf(readCoreEffectChain(prefs, session.decoderName))
             }
             var coreIgnoreGlobalDsp by remember(session.decoderName) {
-                mutableStateOf(readCoreIgnoreGlobalDsp(prefs, session.decoderName))
+                mutableStateOf(coreChain != null && coreChain?.nodes?.isEmpty() == true)
             }
             var dspNamespaceSelection by remember {
                 mutableStateOf(
@@ -1615,22 +1612,36 @@ fun main(args: Array<String>) = application {
             var tempSongVolumeDb by remember { mutableStateOf(songVolumeDb) }
             var tempIgnoreCoreVolumeForSong by remember { mutableStateOf(ignoreCoreVolumeForSong) }
             var tempForceMono by remember { mutableStateOf(forceMono) }
-            var tempGlobalDspSettings by remember { mutableStateOf(globalDspSettings) }
-            var tempCoreDspSettings by remember { mutableStateOf(coreDspSettings) }
+            var tempGlobalDraft by remember { mutableStateOf(LegacyDialogChainDraft.fromChain(globalChain)) }
+            var tempCoreDraft by remember {
+                mutableStateOf(LegacyDialogChainDraft.fromChain(coreChain ?: EffectChain(master = globalChain.master)))
+            }
+            var tempCoreHasChain by remember { mutableStateOf(coreChain != null) }
             var tempCoreIgnoreGlobalDsp by remember { mutableStateOf(coreIgnoreGlobalDsp) }
             var tempDspNamespaceSelection by remember { mutableStateOf(dspNamespaceSelection) }
-            fun applyCurrentTempDspSettingsToNative() {
-                val coreHasTempOverrides = coreDspHasOverrides ||
+            fun resolveTempCoreChain(): EffectChain? {
+                if (session.decoderName == null) return null
+                val active = tempCoreHasChain ||
+                    tempCoreIgnoreGlobalDsp ||
                     tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore
-                applyDspSettingsToNative(
-                    resolveEffectiveDspSettings(
-                        coreName = session.decoderName,
-                        global = tempGlobalDspSettings,
-                        core = tempCoreDspSettings,
-                        coreHasOverrides = coreHasTempOverrides,
-                        ignoreGlobalForCore = tempCoreIgnoreGlobalDsp
+                return if (active) tempCoreDraft.chain.withMasterMono(tempForceMono) else null
+            }
+            fun applyCurrentTempChainToNative() {
+                applyEffectChainToNative(
+                    resolveEffectiveEffectChain(
+                        global = tempGlobalDraft.chain.withMasterMono(tempForceMono),
+                        core = resolveTempCoreChain()
                     )
                 )
+            }
+            fun mutateActiveDraft(transform: (LegacyDialogChainDraft) -> LegacyDialogChainDraft) {
+                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore && session.decoderName != null) {
+                    tempCoreDraft = transform(tempCoreDraft)
+                    tempCoreHasChain = true
+                } else {
+                    tempGlobalDraft = transform(tempGlobalDraft)
+                }
+                applyCurrentTempChainToNative()
             }
             fun applyCommittedAudioParametersToNative() {
                 applyMasterGainToNative()
@@ -1638,34 +1649,32 @@ fun main(args: Array<String>) = application {
                     if (ignoreCoreVolumeForSong) 0f else readPluginVolumeForDecoder(prefs, session.decoderName)
                 )
                 NativeBridge.setSongGain(songVolumeDb)
-                NativeBridge.setForceMono(forceMono)
-                applyDspSettingsToNative(
-                    resolveEffectiveDspSettings(
-                        coreName = session.decoderName,
-                        global = globalDspSettings,
-                        core = coreDspSettings,
-                        coreHasOverrides = coreDspHasOverrides,
-                        ignoreGlobalForCore = coreIgnoreGlobalDsp
+                applyEffectChainToNative(
+                    resolveEffectiveEffectChain(
+                        global = globalChain.withMasterMono(forceMono),
+                        core = coreChain?.withMasterMono(forceMono)
                     )
                 )
             }
             fun openAudioEffectsDialog() {
                 masterVolumeDb = prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f)
-                forceMono = prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false)
+                globalChain = readGlobalEffectChain(prefs)
+                coreChain = readCoreEffectChain(prefs, session.decoderName)
+                forceMono = (coreChain ?: globalChain).master.mono
                 val path = session.currentSourceId
                 songVolumeDb = path?.let { songVolumeStore.getSongVolume(it) } ?: 0f
                 ignoreCoreVolumeForSong = path?.let { songVolumeStore.getSongIgnoreCoreVolume(it) } ?: false
-                globalDspSettings = readGlobalDspSettings(prefs)
-                coreDspSettings = readCoreDspSettings(prefs, session.decoderName)
-                coreDspHasOverrides = hasCoreDspOverrides(prefs, session.decoderName)
-                coreIgnoreGlobalDsp = readCoreIgnoreGlobalDsp(prefs, session.decoderName)
+                coreIgnoreGlobalDsp = coreChain != null && coreChain?.nodes?.isEmpty() == true
                 tempMasterVolumeDb = masterVolumeDb
                 tempPluginVolumeDb = readPluginVolumeForDecoder(prefs, session.decoderName)
                 tempSongVolumeDb = songVolumeDb
                 tempIgnoreCoreVolumeForSong = ignoreCoreVolumeForSong
                 tempForceMono = forceMono
-                tempGlobalDspSettings = globalDspSettings
-                tempCoreDspSettings = coreDspSettings
+                tempGlobalDraft = LegacyDialogChainDraft.fromChain(globalChain)
+                tempCoreDraft = LegacyDialogChainDraft.fromChain(
+                    coreChain ?: EffectChain(master = NodeOptions(mono = forceMono))
+                )
+                tempCoreHasChain = coreChain != null
                 tempCoreIgnoreGlobalDsp = coreIgnoreGlobalDsp
                 tempDspNamespaceSelection = dspNamespaceSelection
                 if (session.decoderName == null && tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
@@ -1705,26 +1714,25 @@ fun main(args: Array<String>) = application {
                 songVolumeDb = tempSongVolumeDb
                 ignoreCoreVolumeForSong = tempIgnoreCoreVolumeForSong
                 dspNamespaceSelection = tempDspNamespaceSelection
-                globalDspSettings = tempGlobalDspSettings
-                coreDspSettings = tempCoreDspSettings
+                globalChain = tempGlobalDraft.chain.withMasterMono(tempForceMono)
                 coreIgnoreGlobalDsp = tempCoreIgnoreGlobalDsp
                 val coreName = session.decoderName
+                coreChain = if (coreName != null &&
+                    (tempCoreIgnoreGlobalDsp || tempCoreDraft.chain.nodes.isNotEmpty() || tempCoreHasChain)
+                ) {
+                    tempCoreDraft.chain.withMasterMono(tempForceMono)
+                } else {
+                    null
+                }
                 prefs.edit().apply {
                     putFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, tempMasterVolumeDb)
-                    putBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, tempForceMono)
                     putString(
                         AppPreferenceKeys.AUDIO_DSP_EDITOR_NAMESPACE,
                         if (dspNamespaceSelection == DspSettingsNamespace.CurrentCore) "core" else "global"
                     )
-                    writeGlobalDspSettings(this, tempGlobalDspSettings)
+                    writeGlobalEffectChain(this, globalChain)
                     if (coreName != null) {
-                        putBoolean(AppPreferenceKeys.audioDspCoreIgnoreGlobalKey(coreName), tempCoreIgnoreGlobalDsp)
-                        if (dspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                            writeCoreDspSettings(this, coreName, tempCoreDspSettings)
-                            coreDspHasOverrides = true
-                        } else {
-                            coreDspHasOverrides = hasCoreDspOverrides(prefs, coreName)
-                        }
+                        writeCoreEffectChain(this, coreName, coreChain)
                     }
                     apply()
                 }
@@ -1982,10 +1990,10 @@ fun main(args: Array<String>) = application {
             }
             LaunchedEffect(Unit) {
                 masterVolumeDb = prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f)
-                forceMono = prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false)
+                globalChain = readGlobalEffectChain(prefs)
+                forceMono = globalChain.master.mono
                 applyMasterGainToNative()
                 NativeBridge.setPluginGain(0f)
-                NativeBridge.setForceMono(forceMono)
                 NativeBridge.setOutputLimiterEnabled(
                     prefs.getBoolean(
                         AppPreferenceKeys.AUDIO_OUTPUT_LIMITER_ENABLED,
@@ -2011,7 +2019,7 @@ fun main(args: Array<String>) = application {
                 // Stored track-open options (unknown-duration + end-fade) for cold start.
                 pushStoredTrackOptionsToNative(prefs)
                 pushAudioPipelineConfigToNative(prefs)
-                applyDspSettingsToNative(readGlobalDspSettings(prefs))
+                applyEffectChainToNative(globalChain)
             }
             LaunchedEffect(session.currentSourceId, session.decoderName) {
                 val path = session.currentSourceId
@@ -2021,15 +2029,9 @@ fun main(args: Array<String>) = application {
                     if (ignoreCoreVolumeForSong) 0f else readPluginVolumeForDecoder(prefs, session.decoderName)
                 )
                 NativeBridge.setSongGain(songVolumeDb)
-                applyDspSettingsToNative(
-                    resolveEffectiveDspSettings(
-                        coreName = session.decoderName,
-                        global = readGlobalDspSettings(prefs),
-                        core = readCoreDspSettings(prefs, session.decoderName),
-                        coreHasOverrides = hasCoreDspOverrides(prefs, session.decoderName),
-                        ignoreGlobalForCore = readCoreIgnoreGlobalDsp(prefs, session.decoderName)
-                    )
-                )
+                val resolved = resolveEffectiveEffectChainForPrefs(prefs, session.decoderName)
+                forceMono = resolved.master.mono
+                applyEffectChainToNative(resolved)
             }
             LaunchedEffect(prefs) {
                 readRecentEntries(configDir, AppPreferenceKeys.RECENT_FOLDERS, recentFoldersLimit, prefs)
@@ -3673,9 +3675,9 @@ fun main(args: Array<String>) = application {
                         PlatformBackHandler(enabled = true) {
                             dismissAudioEffectsDialog()
                         }
-                        val tempEditedDspSettings =
-                            if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) tempCoreDspSettings
-                            else tempGlobalDspSettings
+                        val tempEditedDraft =
+                            if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) tempCoreDraft
+                            else tempGlobalDraft
                         AudioEffectsDialog(
                             masterVolumeDb = tempMasterVolumeDb,
                             pluginVolumeDb = tempPluginVolumeDb,
@@ -3704,7 +3706,9 @@ fun main(args: Array<String>) = application {
                             },
                             onForceMonoChange = {
                                 tempForceMono = it
-                                NativeBridge.setForceMono(it)
+                                tempGlobalDraft = tempGlobalDraft.withMasterMono(it)
+                                tempCoreDraft = tempCoreDraft.withMasterMono(it)
+                                applyCurrentTempChainToNative()
                             },
                             onDspNamespaceSelectionChange = { value ->
                                 tempDspNamespaceSelection =
@@ -3713,143 +3717,75 @@ fun main(args: Array<String>) = application {
                                     } else {
                                         DspSettingsNamespace.Global
                                     }
-                                applyCurrentTempDspSettingsToNative()
+                                applyCurrentTempChainToNative()
                             },
                             onDspIgnoreGlobalForCurrentCoreChange = {
                                 tempCoreIgnoreGlobalDsp = it
-                                applyCurrentTempDspSettingsToNative()
+                                if (it) {
+                                    tempCoreHasChain = true
+                                } else if (tempCoreDraft.chain.nodes.isEmpty()) {
+                                    tempCoreHasChain = false
+                                }
+                                applyCurrentTempChainToNative()
                             },
-                            dspBassEnabled = tempEditedDspSettings.bassEnabled,
-                            dspBassDepth = tempEditedDspSettings.bassDepth,
-                            dspBassRange = tempEditedDspSettings.bassRange,
-                            dspSurroundEnabled = tempEditedDspSettings.surroundEnabled,
-                            dspSurroundDepth = tempEditedDspSettings.surroundDepth,
-                            dspSurroundDelayMs = tempEditedDspSettings.surroundDelayMs,
-                            dspReverbEnabled = tempEditedDspSettings.reverbEnabled,
-                            dspReverbDepth = tempEditedDspSettings.reverbDepth,
-                            dspReverbPreset = tempEditedDspSettings.reverbPreset,
-                            dspBitCrushEnabled = tempEditedDspSettings.bitCrushEnabled,
-                            dspBitCrushBits = tempEditedDspSettings.bitCrushBits,
+                            dspBassEnabled = tempEditedDraft.bassEnabled,
+                            dspBassDepth = tempEditedDraft.bassDepth,
+                            dspBassRange = tempEditedDraft.bassRange,
+                            dspSurroundEnabled = tempEditedDraft.surroundEnabled,
+                            dspSurroundDepth = tempEditedDraft.surroundDepth,
+                            dspSurroundDelayMs = tempEditedDraft.surroundDelayMs,
+                            dspReverbEnabled = tempEditedDraft.reverbEnabled,
+                            dspReverbDepth = tempEditedDraft.reverbDepth,
+                            dspReverbPreset = tempEditedDraft.reverbPreset,
+                            dspBitCrushEnabled = tempEditedDraft.bitCrushEnabled,
+                            dspBitCrushBits = tempEditedDraft.bitCrushBits,
                             dspNamespaceSelection =
                                 if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) "core" else "global",
                             dspIgnoreGlobalForCurrentCore = tempCoreIgnoreGlobalDsp,
                             hasActiveCurrentCoreDspParameters =
-                                session.decoderName != null && (coreDspHasOverrides || coreIgnoreGlobalDsp),
-                            onDspBassEnabledChange = {
-                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                                    tempCoreDspSettings = tempCoreDspSettings.copy(bassEnabled = it)
-                                } else {
-                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(bassEnabled = it)
-                                }
-                                applyCurrentTempDspSettingsToNative()
-                            },
-                            onDspBassDepthChange = {
-                                val normalized = it.coerceIn(0, 4)
-                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                                    tempCoreDspSettings = tempCoreDspSettings.copy(bassDepth = normalized)
-                                } else {
-                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(bassDepth = normalized)
-                                }
-                                applyCurrentTempDspSettingsToNative()
-                            },
-                            onDspBassRangeChange = {
-                                val normalized = it.coerceIn(0, 4)
-                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                                    tempCoreDspSettings = tempCoreDspSettings.copy(bassRange = normalized)
-                                } else {
-                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(bassRange = normalized)
-                                }
-                                applyCurrentTempDspSettingsToNative()
-                            },
-                            onDspSurroundEnabledChange = {
-                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                                    tempCoreDspSettings = tempCoreDspSettings.copy(surroundEnabled = it)
-                                } else {
-                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(surroundEnabled = it)
-                                }
-                                applyCurrentTempDspSettingsToNative()
-                            },
-                            onDspSurroundDepthChange = {
-                                val normalized = it.coerceIn(1, 16)
-                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                                    tempCoreDspSettings = tempCoreDspSettings.copy(surroundDepth = normalized)
-                                } else {
-                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(surroundDepth = normalized)
-                                }
-                                applyCurrentTempDspSettingsToNative()
-                            },
-                            onDspSurroundDelayMsChange = {
-                                val normalized = normalizeSurroundDelayMsPref(it)
-                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                                    tempCoreDspSettings = tempCoreDspSettings.copy(surroundDelayMs = normalized)
-                                } else {
-                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(surroundDelayMs = normalized)
-                                }
-                                applyCurrentTempDspSettingsToNative()
-                            },
-                            onDspReverbEnabledChange = {
-                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                                    tempCoreDspSettings = tempCoreDspSettings.copy(reverbEnabled = it)
-                                } else {
-                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(reverbEnabled = it)
-                                }
-                                applyCurrentTempDspSettingsToNative()
-                            },
-                            onDspReverbDepthChange = {
-                                val normalized = it.coerceIn(1, 16)
-                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                                    tempCoreDspSettings = tempCoreDspSettings.copy(reverbDepth = normalized)
-                                } else {
-                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(reverbDepth = normalized)
-                                }
-                                applyCurrentTempDspSettingsToNative()
-                            },
-                            onDspReverbPresetChange = {
-                                val normalized = it.coerceIn(0, 28)
-                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                                    tempCoreDspSettings = tempCoreDspSettings.copy(reverbPreset = normalized)
-                                } else {
-                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(reverbPreset = normalized)
-                                }
-                                applyCurrentTempDspSettingsToNative()
-                            },
-                            onDspBitCrushEnabledChange = {
-                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                                    tempCoreDspSettings = tempCoreDspSettings.copy(bitCrushEnabled = it)
-                                } else {
-                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(bitCrushEnabled = it)
-                                }
-                                applyCurrentTempDspSettingsToNative()
-                            },
-                            onDspBitCrushBitsChange = {
-                                val normalized = it.coerceIn(1, 24)
-                                if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-                                    tempCoreDspSettings = tempCoreDspSettings.copy(bitCrushBits = normalized)
-                                } else {
-                                    tempGlobalDspSettings = tempGlobalDspSettings.copy(bitCrushBits = normalized)
-                                }
-                                applyCurrentTempDspSettingsToNative()
-                            },
+                                session.decoderName != null && coreChain != null,
+                            onDspBassEnabledChange = { mutateActiveDraft { d -> d.withBass(enabled = it) } },
+                            onDspBassDepthChange = { mutateActiveDraft { d -> d.withBass(depth = it) } },
+                            onDspBassRangeChange = { mutateActiveDraft { d -> d.withBass(range = it) } },
+                            onDspSurroundEnabledChange = { mutateActiveDraft { d -> d.withSurround(enabled = it) } },
+                            onDspSurroundDepthChange = { mutateActiveDraft { d -> d.withSurround(depth = it) } },
+                            onDspSurroundDelayMsChange = { mutateActiveDraft { d -> d.withSurround(delayMs = it) } },
+                            onDspReverbEnabledChange = { mutateActiveDraft { d -> d.withReverb(enabled = it) } },
+                            onDspReverbDepthChange = { mutateActiveDraft { d -> d.withReverb(depth = it) } },
+                            onDspReverbPresetChange = { mutateActiveDraft { d -> d.withReverb(preset = it) } },
+                            onDspBitCrushEnabledChange = { mutateActiveDraft { d -> d.withBitCrush(enabled = it) } },
+                            onDspBitCrushBitsChange = { mutateActiveDraft { d -> d.withBitCrush(bits = it) } },
                             onResetVolumeTab = {
                                 tempMasterVolumeDb = 0f
                                 tempPluginVolumeDb = 0f
                                 tempSongVolumeDb = 0f
                                 tempIgnoreCoreVolumeForSong = false
                                 tempForceMono = false
+                                tempGlobalDraft = tempGlobalDraft.withMasterMono(false)
+                                tempCoreDraft = tempCoreDraft.withMasterMono(false)
                                 NativeBridge.setMasterGain(0f)
                                 NativeBridge.setPluginGain(0f)
                                 NativeBridge.setSongGain(0f)
-                                NativeBridge.setForceMono(false)
+                                applyCurrentTempChainToNative()
                             },
                             onResetDspScope = { scope ->
-                                val defaults = defaultDspSettings()
                                 if (scope == "core" && session.decoderName != null) {
-                                    tempCoreDspSettings = defaults
+                                    tempCoreDraft = tempCoreDraft.resetDspNodes()
                                     tempCoreIgnoreGlobalDsp = false
+                                    tempCoreHasChain = false
                                 } else {
-                                    tempGlobalDspSettings = defaults
+                                    tempGlobalDraft = tempGlobalDraft.resetDspNodes()
                                 }
-                                applyCurrentTempDspSettingsToNative()
+                                applyEffectChainToNative(
+                                    resolveEffectiveEffectChain(
+                                        global = tempGlobalDraft.chain.withMasterMono(tempForceMono),
+                                        core = if (session.decoderName != null && (tempCoreHasChain || tempCoreIgnoreGlobalDsp)) {
+                                            tempCoreDraft.chain.withMasterMono(tempForceMono)
+                                        } else {
+                                            null
+                                        }
+                                    )
+                                )
                             },
                             onDismiss = { dismissAudioEffectsDialog() },
                             onConfirm = { confirmAudioEffectsDialog() }

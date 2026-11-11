@@ -89,8 +89,8 @@ import com.flopster101.siliconplayer.Vio2sfOptionKeys
 import com.flopster101.siliconplayer.XmpDefaults
 import com.flopster101.siliconplayer.XmpOptionKeys
 import com.flopster101.siliconplayer.applyDecoderPriorityOrder
-import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
-import com.flopster101.siliconplayer.audio.defaultDspSettings
+import com.flopster101.siliconplayer.audio.EffectChain
+import com.flopster101.siliconplayer.audio.applyEffectChainToNative
 import com.flopster101.siliconplayer.buildSettingsScreenState
 import com.flopster101.siliconplayer.clearAllAudioParameterPrefs
 import com.flopster101.siliconplayer.clearAllDecoderPluginVolumes
@@ -474,8 +474,7 @@ internal fun rememberDesktopSettings(
                     NativeBridge.setMasterGain(0f)
                     NativeBridge.setPluginGain(0f)
                     NativeBridge.setSongGain(0f)
-                    NativeBridge.setForceMono(false)
-                    applyDspSettingsToNative(defaultDspSettings())
+                    applyEffectChainToNative(EffectChain.Empty)
                 }
                 changeToken++
             },

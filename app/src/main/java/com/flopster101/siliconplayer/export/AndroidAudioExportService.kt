@@ -32,13 +32,9 @@ import com.flopster101.siliconplayer.UadeOptionKeys
 import com.flopster101.siliconplayer.VolumeDatabase
 import com.flopster101.siliconplayer.applyStoredPluginConfigurationsToNative
 import com.flopster101.siliconplayer.audio.SongVolumeStore
-import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
-import com.flopster101.siliconplayer.audio.defaultDspSettings
-import com.flopster101.siliconplayer.audio.hasCoreDspOverrides
-import com.flopster101.siliconplayer.audio.readCoreDspSettings
-import com.flopster101.siliconplayer.audio.readCoreIgnoreGlobalDsp
-import com.flopster101.siliconplayer.audio.readGlobalDspSettings
-import com.flopster101.siliconplayer.audio.resolveEffectiveDspSettings
+import com.flopster101.siliconplayer.audio.EffectChain
+import com.flopster101.siliconplayer.audio.applyEffectChainToNative
+import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
 import com.flopster101.siliconplayer.hasReliableDuration
 import com.flopster101.siliconplayer.platform.AndroidAppPreferences
 import com.flopster101.siliconplayer.pushStoredCoreOptionsToNative
@@ -583,17 +579,11 @@ private fun applyAndroidExportAudioSettings(
         }
     )
     NativeBridge.setSongGain(if (useActiveGain) volumeStore.getSongVolume(sourcePath) ?: 0f else 0f)
-    applyDspSettingsToNative(
+    applyEffectChainToNative(
         if (useActiveEffects) {
-            resolveEffectiveDspSettings(
-                coreName = decoderName,
-                global = readGlobalDspSettings(prefs),
-                core = readCoreDspSettings(prefs, decoderName),
-                coreHasOverrides = hasCoreDspOverrides(prefs, decoderName),
-                ignoreGlobalForCore = readCoreIgnoreGlobalDsp(prefs, decoderName)
-            )
+            resolveEffectiveEffectChainForPrefs(prefs, decoderName)
         } else {
-            defaultDspSettings()
+            EffectChain.Empty
         }
     )
 }

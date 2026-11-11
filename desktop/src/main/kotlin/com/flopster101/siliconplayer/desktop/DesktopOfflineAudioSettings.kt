@@ -5,9 +5,9 @@ import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.LookaheadClipperMode
 import com.flopster101.siliconplayer.MultiChannelOutputMode
 import com.flopster101.siliconplayer.NativeBridge
-import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
-import com.flopster101.siliconplayer.audio.defaultDspSettings
-import com.flopster101.siliconplayer.audio.readGlobalDspSettings
+import com.flopster101.siliconplayer.audio.EffectChain
+import com.flopster101.siliconplayer.audio.applyEffectChainToNative
+import com.flopster101.siliconplayer.audio.readGlobalEffectChain
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.readPluginVolumeForDecoder
 
@@ -19,7 +19,6 @@ internal fun applyOfflineAudioPreferencesToNative(
     NativeBridge.setMasterGain(
         if (useActiveGain) prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f) else 0f
     )
-    NativeBridge.setForceMono(prefs.getBoolean(AppPreferenceKeys.AUDIO_FORCE_MONO, false))
     NativeBridge.setOutputLimiterEnabled(
         prefs.getBoolean(
             AppPreferenceKeys.AUDIO_OUTPUT_LIMITER_ENABLED,
@@ -43,8 +42,8 @@ internal fun applyOfflineAudioPreferencesToNative(
         ).nativeValue
     )
     pushAudioPipelineConfigToNative(prefs)
-    applyDspSettingsToNative(
-        if (useActiveEffects) readGlobalDspSettings(prefs) else defaultDspSettings()
+    applyEffectChainToNative(
+        if (useActiveEffects) readGlobalEffectChain(prefs) else EffectChain.Empty
     )
 }
 

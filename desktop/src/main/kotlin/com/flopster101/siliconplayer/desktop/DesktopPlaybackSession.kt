@@ -26,13 +26,9 @@ import com.flopster101.siliconplayer.resolveActiveRepeatMode
 import com.flopster101.siliconplayer.resolveCachedRemoteSourceId
 import com.flopster101.siliconplayer.resolveManualSourceInput
 import com.flopster101.siliconplayer.supportsLiveRepeatMode
-import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
-import com.flopster101.siliconplayer.audio.defaultDspSettings
-import com.flopster101.siliconplayer.audio.hasCoreDspOverrides
-import com.flopster101.siliconplayer.audio.readCoreDspSettings
-import com.flopster101.siliconplayer.audio.readCoreIgnoreGlobalDsp
-import com.flopster101.siliconplayer.audio.readGlobalDspSettings
-import com.flopster101.siliconplayer.audio.resolveEffectiveDspSettings
+import com.flopster101.siliconplayer.audio.EffectChain
+import com.flopster101.siliconplayer.audio.applyEffectChainToNative
+import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.platform.AppPreferences
 import java.io.File
@@ -204,17 +200,11 @@ class DesktopPlaybackSession(
         // the Main LaunchedEffect only runs after start, so a deferred push
         // would switch the reverb on audibly mid-song.
         trackOptionsPrefs?.let { prefs ->
-            applyDspSettingsToNative(
+            applyEffectChainToNative(
                 if (audioExportOptions?.useActiveEffects == false) {
-                    defaultDspSettings()
+                    EffectChain.Empty
                 } else {
-                    resolveEffectiveDspSettings(
-                        coreName = decoderName,
-                        global = readGlobalDspSettings(prefs),
-                        core = readCoreDspSettings(prefs, decoderName),
-                        coreHasOverrides = hasCoreDspOverrides(prefs, decoderName),
-                        ignoreGlobalForCore = readCoreIgnoreGlobalDsp(prefs, decoderName)
-                    )
+                    resolveEffectiveEffectChainForPrefs(prefs, decoderName)
                 }
             )
         }
@@ -317,14 +307,12 @@ class DesktopPlaybackSession(
         refreshRepeatMode()
         // Same synchronous per-core DSP push as loadFileGuarded.
         trackOptionsPrefs?.let { prefs ->
-            applyDspSettingsToNative(
-                resolveEffectiveDspSettings(
-                    coreName = decoderName,
-                    global = readGlobalDspSettings(prefs),
-                    core = readCoreDspSettings(prefs, decoderName),
-                    coreHasOverrides = hasCoreDspOverrides(prefs, decoderName),
-                    ignoreGlobalForCore = readCoreIgnoreGlobalDsp(prefs, decoderName)
-                )
+            applyEffectChainToNative(
+                if (audioExportOptions?.useActiveEffects == false) {
+                    EffectChain.Empty
+                } else {
+                    resolveEffectiveEffectChainForPrefs(prefs, decoderName)
+                }
             )
         }
         artwork = null

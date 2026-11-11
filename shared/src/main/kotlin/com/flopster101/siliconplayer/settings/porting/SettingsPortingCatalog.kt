@@ -49,6 +49,8 @@ private fun audioBackendEntry(): PortingNode.EntryHolder = holder(
 )
 
 private fun generalAudioEffectsKeys(): List<TypedPrefValue> = listOf(
+    stringV(AppPreferenceKeys.AUDIO_EFFECT_CHAIN, "", onlyWhenSet = true),
+    boolV(AppPreferenceKeys.AUDIO_FORCE_MONO, false, onlyWhenSet = true),
     intV(AppPreferenceKeys.AUDIO_DSP_BASS_DEPTH, AppDefaults.AudioProcessing.Dsp.bassDepth),
     boolV(AppPreferenceKeys.AUDIO_DSP_BASS_ENABLED, AppDefaults.AudioProcessing.Dsp.bassEnabled),
     intV(AppPreferenceKeys.AUDIO_DSP_BASS_RANGE, AppDefaults.AudioProcessing.Dsp.bassRange),
@@ -315,6 +317,7 @@ internal fun buildSettingsPortingCatalog(prefs: AppPreferences): List<PortingSec
                 "audio.effects.global",
                 "Global state",
                 generalAudioEffectsKeys() +
+                    perCoreEffectChainPortingKeys(decoders, prefs) +
                     perCoreDspPortingEntries(prefs)
                         .filterIsInstance<PortingNode.EntryHolder>()
                         .flatMap { it.entry.keys } +

@@ -25,27 +25,7 @@ internal fun clearAllAudioParametersAction(
     onIgnoreCoreVolumeForSongChanged: (Boolean) -> Unit,
     onForceMonoChanged: (Boolean) -> Unit
 ) {
-    prefs.edit().apply {
-        remove(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB)
-        remove(AppPreferenceKeys.AUDIO_FORCE_MONO)
-        remove(AppPreferenceKeys.AUDIO_DSP_EDITOR_NAMESPACE)
-        remove(AppPreferenceKeys.AUDIO_DSP_BASS_ENABLED)
-        remove(AppPreferenceKeys.AUDIO_DSP_BASS_DEPTH)
-        remove(AppPreferenceKeys.AUDIO_DSP_BASS_RANGE)
-        remove(AppPreferenceKeys.AUDIO_DSP_SURROUND_ENABLED)
-        remove(AppPreferenceKeys.AUDIO_DSP_SURROUND_DEPTH)
-        remove(AppPreferenceKeys.AUDIO_DSP_SURROUND_DELAY_MS)
-        remove(AppPreferenceKeys.AUDIO_DSP_REVERB_ENABLED)
-        remove(AppPreferenceKeys.AUDIO_DSP_REVERB_DEPTH)
-        remove(AppPreferenceKeys.AUDIO_DSP_REVERB_PRESET)
-        remove(AppPreferenceKeys.AUDIO_DSP_BITCRUSH_ENABLED)
-        remove(AppPreferenceKeys.AUDIO_DSP_BITCRUSH_BITS)
-        prefs.all.keys
-            .filter { it.startsWith("audio_dsp_core_") }
-            .forEach { remove(it) }
-        apply()
-    }
-    clearAllDecoderPluginVolumes(prefs)
+    clearAllAudioParameterPrefs(com.flopster101.siliconplayer.platform.AndroidAppPreferences(prefs))
     volumeDatabase.resetAllSongVolumes()
     onMasterVolumeDbChanged(0f)
     onPluginVolumeDbChanged(0f)
@@ -55,18 +35,9 @@ internal fun clearAllAudioParametersAction(
     NativeBridge.setMasterGain(0f)
     NativeBridge.setPluginGain(0f)
     NativeBridge.setSongGain(0f)
-    NativeBridge.setForceMono(false)
-    NativeBridge.setDspBassEnabled(false)
-    NativeBridge.setDspBassDepth(AppDefaults.AudioProcessing.Dsp.bassDepth)
-    NativeBridge.setDspBassRange(AppDefaults.AudioProcessing.Dsp.bassRange)
-    NativeBridge.setDspSurroundEnabled(false)
-    NativeBridge.setDspSurroundDepth(AppDefaults.AudioProcessing.Dsp.surroundDepth)
-    NativeBridge.setDspSurroundDelayMs(AppDefaults.AudioProcessing.Dsp.surroundDelayMs)
-    NativeBridge.setDspReverbEnabled(false)
-    NativeBridge.setDspReverbDepth(AppDefaults.AudioProcessing.Dsp.reverbDepth)
-    NativeBridge.setDspReverbPreset(AppDefaults.AudioProcessing.Dsp.reverbPreset)
-    NativeBridge.setDspBitCrushEnabled(false)
-    NativeBridge.setDspBitCrushBits(AppDefaults.AudioProcessing.Dsp.bitCrushBits)
+    com.flopster101.siliconplayer.audio.applyEffectChainToNative(
+        com.flopster101.siliconplayer.audio.EffectChain.Empty
+    )
     Toast.makeText(context, "All audio parameters cleared", Toast.LENGTH_SHORT).show()
 }
 

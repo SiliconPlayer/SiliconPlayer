@@ -167,15 +167,5 @@ internal fun resolveEffectiveDspSettings(
 }
 
 internal fun applyDspSettingsToNative(settings: DspSettings) {
-    NativeBridge.setDspBassEnabled(settings.bassEnabled)
-    NativeBridge.setDspBassDepth(settings.bassDepth)
-    NativeBridge.setDspBassRange(settings.bassRange)
-    NativeBridge.setDspSurroundEnabled(settings.surroundEnabled)
-    NativeBridge.setDspSurroundDepth(settings.surroundDepth)
-    NativeBridge.setDspSurroundDelayMs(settings.surroundDelayMs)
-    NativeBridge.setDspReverbEnabled(settings.reverbEnabled)
-    NativeBridge.setDspReverbDepth(settings.reverbDepth)
-    NativeBridge.setDspReverbPreset(settings.reverbPreset)
-    NativeBridge.setDspBitCrushEnabled(settings.bitCrushEnabled)
-    NativeBridge.setDspBitCrushBits(settings.bitCrushBits)
+    applyEffectChainToNative(synthesizeEffectChainFromLegacy(settings))
 }

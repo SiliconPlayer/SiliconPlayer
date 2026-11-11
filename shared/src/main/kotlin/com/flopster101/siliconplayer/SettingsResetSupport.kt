@@ -333,6 +333,7 @@ internal fun clearAllAudioParameterPrefs(prefs: AppPreferences) {
     val editor = prefs.edit()
     editor.remove(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB)
     editor.remove(AppPreferenceKeys.AUDIO_FORCE_MONO)
+    editor.remove(AppPreferenceKeys.AUDIO_EFFECT_CHAIN)
     editor.remove(AppPreferenceKeys.AUDIO_DSP_EDITOR_NAMESPACE)
     editor.remove(AppPreferenceKeys.AUDIO_DSP_BASS_ENABLED)
     editor.remove(AppPreferenceKeys.AUDIO_DSP_BASS_DEPTH)
@@ -345,7 +346,15 @@ internal fun clearAllAudioParameterPrefs(prefs: AppPreferences) {
     editor.remove(AppPreferenceKeys.AUDIO_DSP_REVERB_PRESET)
     editor.remove(AppPreferenceKeys.AUDIO_DSP_BITCRUSH_ENABLED)
     editor.remove(AppPreferenceKeys.AUDIO_DSP_BITCRUSH_BITS)
-    runCatching { NativeBridge.getRegisteredDecoderNames() }.getOrDefault(emptyArray()).forEach { coreName ->
+    val allKnownCores = buildSet {
+        add(DecoderNames.FFMPEG)
+        add(DecoderNames.PLATFORM_DOLBY)
+        addAll(DecoderNames.trackedFileDecoders)
+        addAll(DecoderNames.gameFileDecoders)
+        addAll(runCatching { NativeBridge.getRegisteredDecoderNames().toList() }.getOrDefault(emptyList()))
+    }
+    allKnownCores.forEach { coreName ->
+        editor.remove(AppPreferenceKeys.audioEffectChainCoreKey(coreName))
         editor.remove(AppPreferenceKeys.audioDspCoreBassEnabledKey(coreName))
         editor.remove(AppPreferenceKeys.audioDspCoreBassDepthKey(coreName))
         editor.remove(AppPreferenceKeys.audioDspCoreBassRangeKey(coreName))
@@ -358,6 +367,13 @@ internal fun clearAllAudioParameterPrefs(prefs: AppPreferences) {
         editor.remove(AppPreferenceKeys.audioDspCoreBitCrushEnabledKey(coreName))
         editor.remove(AppPreferenceKeys.audioDspCoreBitCrushBitsKey(coreName))
         editor.remove(AppPreferenceKeys.audioDspCoreIgnoreGlobalKey(coreName))
+    }
+    prefs.allKeys().toList().forEach { key ->
+        if (key.startsWith(AppPreferenceKeys.AUDIO_EFFECT_CHAIN_CORE_PREFIX) ||
+            key.startsWith("audio_dsp_core_")
+        ) {
+            editor.remove(key)
+        }
     }
     editor.apply()
     clearAllDecoderPluginVolumes(prefs)

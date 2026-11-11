@@ -210,6 +210,8 @@ class DesktopCacheMaintenanceTest {
         val prefs = CacheTestPrefs()
         prefs.edit()
             .putFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, -6f)
+            .putString(AppPreferenceKeys.AUDIO_EFFECT_CHAIN, """{"version":1,"nodes":[]}""")
+            .putString(AppPreferenceKeys.audioEffectChainCoreKey("FFmpeg"), """{"version":1,"nodes":[]}""")
             .putBoolean(AppPreferenceKeys.AUDIO_DSP_BASS_ENABLED, true)
             .putBoolean(AppPreferenceKeys.audioDspCoreBassEnabledKey("FFmpeg"), true)
             .apply()
@@ -217,6 +219,8 @@ class DesktopCacheMaintenanceTest {
         clearAllAudioParameterPrefs(prefs)
 
         assertTrue(prefs.getFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, 0f) == 0f)
+        assertTrue(!prefs.contains(AppPreferenceKeys.AUDIO_EFFECT_CHAIN))
+        assertTrue(!prefs.contains(AppPreferenceKeys.audioEffectChainCoreKey("FFmpeg")))
         assertEquals(
             AppDefaults.AudioProcessing.Dsp.bassEnabled,
             prefs.getBoolean(AppPreferenceKeys.AUDIO_DSP_BASS_ENABLED, AppDefaults.AudioProcessing.Dsp.bassEnabled)

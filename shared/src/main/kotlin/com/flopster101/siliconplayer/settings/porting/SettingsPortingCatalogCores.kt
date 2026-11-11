@@ -2,6 +2,7 @@ package com.flopster101.siliconplayer.settings.porting
 
 import com.flopster101.siliconplayer.AdPlugDefaults
 import com.flopster101.siliconplayer.AppDefaults
+import com.flopster101.siliconplayer.AppPreferenceKeys
 import com.flopster101.siliconplayer.AyflyDefaults
 import com.flopster101.siliconplayer.CorePreferenceKeys
 import com.flopster101.siliconplayer.CrsidDefaults
@@ -98,6 +99,29 @@ internal fun coreSettingsPortingDecoders(prefs: AppPreferences): Map<String, Lis
         map.getOrPut(name) { dynamicKeysFor(name, prefs) }
     }
     return map
+}
+
+internal fun perCoreEffectChainPortingKeys(
+    decoders: List<String>,
+    prefs: AppPreferences
+): List<TypedPrefValue> {
+    val allCores = LinkedHashSet<String>()
+    allCores.add(DecoderNames.FFMPEG)
+    allCores.add(DecoderNames.PLATFORM_DOLBY)
+    allCores.addAll(DecoderNames.trackedFileDecoders)
+    allCores.addAll(DecoderNames.gameFileDecoders)
+    allCores.addAll(decoders)
+
+    val keys = LinkedHashSet<String>()
+    for (core in allCores) {
+        keys.add(AppPreferenceKeys.audioEffectChainCoreKey(core))
+    }
+    for (key in prefs.allKeys()) {
+        if (key.startsWith(AppPreferenceKeys.AUDIO_EFFECT_CHAIN_CORE_PREFIX)) {
+            keys.add(key)
+        }
+    }
+    return keys.map { stringV(it, "", onlyWhenSet = true) }
 }
 
 internal fun perCoreDspPortingEntries(prefs: AppPreferences): List<PortingNode> {
