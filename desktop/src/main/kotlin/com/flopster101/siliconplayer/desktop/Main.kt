@@ -153,6 +153,7 @@ import com.flopster101.siliconplayer.LookaheadClipperMode
 import com.flopster101.siliconplayer.MultiChannelOutputMode
 import com.flopster101.siliconplayer.audio.EffectChain
 import com.flopster101.siliconplayer.audio.EffectChainScopeTarget
+import com.flopster101.siliconplayer.audio.activeDialogPreviewChainProvider
 import com.flopster101.siliconplayer.audio.applyEffectChainToNative
 import com.flopster101.siliconplayer.audio.queryEffectDescriptors
 import com.flopster101.siliconplayer.audio.readBypassAllEffects
@@ -1632,16 +1633,23 @@ fun main(args: Array<String>) = application {
                 session.playlistLibraryStateProvider = { playlistLibraryState }
                 session.songVolumeStoreProvider = { songVolumeStore }
             }
-            fun applyCurrentTempChainToNative() {
-                applyEffectChainToNative(
-                    resolveEffectiveEffectChain(
-                        global = tempGlobalChain,
-                        core = if (session.decoderName != null) tempCoreChain else null,
-                        playlist = if (activePlaylist != null) tempPlaylistChain else null,
-                        song = if (session.currentSourceId != null) tempSongChain else null,
-                        bypassAll = tempBypassAllEffects
-                    )
+            fun resolveCurrentTempChain(): EffectChain =
+                resolveEffectiveEffectChain(
+                    global = tempGlobalChain,
+                    core = if (session.decoderName != null) tempCoreChain else null,
+                    playlist = if (activePlaylist != null) tempPlaylistChain else null,
+                    song = if (session.currentSourceId != null) tempSongChain else null,
+                    bypassAll = tempBypassAllEffects
                 )
+            fun applyCurrentTempChainToNative() {
+                applyEffectChainToNative(resolveCurrentTempChain())
+            }
+            SideEffect {
+                activeDialogPreviewChainProvider = if (showAudioEffectsDialog) {
+                    { resolveCurrentTempChain() }
+                } else {
+                    null
+                }
             }
             fun applyCommittedAudioParametersToNative() {
                 applyMasterGainToNative()
@@ -1692,6 +1700,7 @@ fun main(args: Array<String>) = application {
                 showAudioEffectsDialog = true
             }
             fun dismissAudioEffectsDialog() {
+                activeDialogPreviewChainProvider = null
                 applyCommittedAudioParametersToNative()
                 showAudioEffectsDialog = false
             }
@@ -1718,6 +1727,7 @@ fun main(args: Array<String>) = application {
                 }
             }
             fun confirmAudioEffectsDialog() {
+                activeDialogPreviewChainProvider = null
                 masterVolumeDb = tempMasterVolumeDb
                 songVolumeDb = tempSongVolumeDb
                 ignoreCoreVolumeForSong = tempIgnoreCoreVolumeForSong
@@ -2041,6 +2051,21 @@ fun main(args: Array<String>) = application {
                 pushStoredTrackOptionsToNative(prefs)
                 pushAudioPipelineConfigToNative(prefs)
                 applyEffectChainToNative(globalChain)
+            }
+            LaunchedEffect(
+                showAudioEffectsDialog,
+                tempGlobalChain,
+                tempCoreChain,
+                tempPlaylistChain,
+                tempSongChain,
+                tempBypassAllEffects,
+                session.currentSourceId,
+                session.decoderName,
+                activePlaylist?.id
+            ) {
+                if (showAudioEffectsDialog) {
+                    applyCurrentTempChainToNative()
+                }
             }
             LaunchedEffect(
                 session.currentSourceId,

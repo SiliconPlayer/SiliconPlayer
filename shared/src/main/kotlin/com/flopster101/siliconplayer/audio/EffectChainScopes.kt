@@ -247,6 +247,9 @@ internal fun writeSongEffectChain(
     songVolumeStore.setSongEffectChain(path, chain?.toJson())
 }
 
+@Volatile
+internal var activeDialogPreviewChainProvider: (() -> EffectChain)? = null
+
 internal fun resolveEffectiveEffectChainForPrefs(
     prefs: AppPreferences,
     coreName: String? = null,
@@ -256,6 +259,7 @@ internal fun resolveEffectiveEffectChainForPrefs(
     songVolumeStore: SongVolumeStore? = null,
     songPath: String? = null
 ): EffectChain {
+    activeDialogPreviewChainProvider?.invoke()?.let { return it }
     if (readBypassAllEffects(prefs)) return EffectChain.Empty
     val resolvedPlaylistChain = readPlaylistEffectChain(playlistState, playlistId)
         ?: readPlaylistEffectChain(playlist)

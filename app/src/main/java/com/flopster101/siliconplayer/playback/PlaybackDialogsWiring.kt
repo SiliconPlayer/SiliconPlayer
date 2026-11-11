@@ -17,6 +17,7 @@ import androidx.compose.runtime.key
 import java.io.File
 import com.flopster101.siliconplayer.audio.EffectChain
 import com.flopster101.siliconplayer.audio.EffectChainScopeTarget
+import com.flopster101.siliconplayer.audio.activeDialogPreviewChainProvider
 import com.flopster101.siliconplayer.audio.applyEffectChainToNative
 import com.flopster101.siliconplayer.audio.queryEffectDescriptors
 import com.flopster101.siliconplayer.audio.readBypassAllEffects
@@ -183,20 +184,30 @@ internal fun AppNavigationPlaybackDialogsSection(
     var tempBypassAllEffects by remember { mutableStateOf(bypassAllEffects) }
     var tempEffectPresets by remember { mutableStateOf(effectPresets) }
 
-    fun applyCurrentTempChainToNative() {
-        applyEffectChainToNative(
-            resolveEffectiveEffectChain(
-                global = tempGlobalChain,
-                core = if (lastUsedCoreName != null) tempCoreChain else null,
-                playlist = if (activePlaylist != null) tempPlaylistChain else null,
-                song = if (selectedFile != null) tempSongChain else null,
-                bypassAll = tempBypassAllEffects
-            )
+    fun resolveCurrentTempChain(): EffectChain =
+        resolveEffectiveEffectChain(
+            global = tempGlobalChain,
+            core = if (lastUsedCoreName != null) tempCoreChain else null,
+            playlist = if (activePlaylist != null) tempPlaylistChain else null,
+            song = if (selectedFile != null) tempSongChain else null,
+            bypassAll = tempBypassAllEffects
         )
+
+    fun applyCurrentTempChainToNative() {
+        applyEffectChainToNative(resolveCurrentTempChain())
     }
 
-    LaunchedEffect(showAudioEffectsDialog) {
-        if (!showAudioEffectsDialog) return@LaunchedEffect
+    SideEffect {
+        activeDialogPreviewChainProvider = if (showAudioEffectsDialog) {
+            { resolveCurrentTempChain() }
+        } else {
+            null
+        }
+    }
+
+    var wasShowingAudioEffectsDialog by remember { mutableStateOf(false) }
+    if (showAudioEffectsDialog && !wasShowingAudioEffectsDialog) {
+        wasShowingAudioEffectsDialog = true
         globalChain = readGlobalEffectChain(appPrefs)
         coreChain = readCoreEffectChain(appPrefs, lastUsedCoreName)
         bypassAllEffects = readBypassAllEffects(appPrefs)
@@ -218,6 +229,24 @@ internal fun AppNavigationPlaybackDialogsSection(
             playlistChain = playlistChain,
             songChain = songChain
         )
+    } else if (!showAudioEffectsDialog && wasShowingAudioEffectsDialog) {
+        wasShowingAudioEffectsDialog = false
+    }
+
+    LaunchedEffect(
+        showAudioEffectsDialog,
+        tempGlobalChain,
+        tempCoreChain,
+        tempPlaylistChain,
+        tempSongChain,
+        tempBypassAllEffects,
+        lastUsedCoreName,
+        selectedFile?.absolutePath,
+        activePlaylist?.id
+    ) {
+        if (showAudioEffectsDialog) {
+            applyCurrentTempChainToNative()
+        }
     }
 
     LaunchedEffect(
@@ -380,6 +409,7 @@ internal fun AppNavigationPlaybackDialogsSection(
             applyCurrentTempChainToNative()
         },
         onAudioEffectsDismiss = {
+            activeDialogPreviewChainProvider = null
             NativeBridge.setMasterGain(masterVolumeDb)
             NativeBridge.setPluginGain(
                 if (ignoreCoreVolumeForSong) 0f else readPluginVolumeForDecoder(prefs, lastUsedCoreName)
@@ -397,6 +427,7 @@ internal fun AppNavigationPlaybackDialogsSection(
             onShowAudioEffectsDialogChanged(false)
         },
         onAudioEffectsConfirm = {
+            activeDialogPreviewChainProvider = null
             onMasterVolumeDbChanged(tempMasterVolumeDb)
             onPluginVolumeDbChanged(tempPluginVolumeDb)
             onSongVolumeDbChanged(tempSongVolumeDb)

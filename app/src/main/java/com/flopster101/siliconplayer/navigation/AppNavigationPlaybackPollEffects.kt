@@ -124,6 +124,20 @@ internal fun AppNavigationPlaybackPollEffects(
 ) {
     val latestDurationOverrideSeconds = rememberUpdatedState(durationOverrideSeconds)
     val latestSeekRequestedAtMs = rememberUpdatedState(seekRequestedAtMs)
+    val latestIsPlayingProvider = rememberUpdatedState(isPlayingProvider)
+    val latestSelectedFileProvider = rememberUpdatedState(selectedFileProvider)
+    val latestIsAnimatingProvider = rememberUpdatedState(isAnimatingProvider)
+    val latestDeferredPlaybackSeekProvider = rememberUpdatedState(deferredPlaybackSeekProvider)
+    val latestSubtuneCountProvider = rememberUpdatedState(subtuneCountProvider)
+    val latestCurrentSubtuneIndexProvider = rememberUpdatedState(currentSubtuneIndexProvider)
+    val latestActiveRepeatModeProvider = rememberUpdatedState(activeRepeatModeProvider)
+    val latestNextTrackPathProvider = rememberUpdatedState(nextTrackPathProvider)
+    val latestCurrentPlaybackSourceIdProvider = rememberUpdatedState(currentPlaybackSourceIdProvider)
+    val latestMetadataTitleProvider = rememberUpdatedState(metadataTitleProvider)
+    val latestMetadataArtistProvider = rememberUpdatedState(metadataArtistProvider)
+    val latestMetadataAlbumProvider = rememberUpdatedState(metadataAlbumProvider)
+    val latestLastBrowserLocationId = rememberUpdatedState(lastBrowserLocationId)
+    val latestOnSubtuneCursorChanged = rememberUpdatedState(onSubtuneCursorChanged)
 
     LaunchedEffect(selectedFile) {
         var metadataPollElapsedMs = 0L
@@ -134,7 +148,7 @@ internal fun AppNavigationPlaybackPollEffects(
         var localDuration = duration
         var localPosition = 0.0
         var hasPublishedPosition = false
-        var localIsPlaying = isPlayingProvider()
+        var localIsPlaying = latestIsPlayingProvider.value()
         var localPlaybackWatchPath = playbackWatchPath
         var lastObservedExplicitSeekRequestMs = seekRequestedAtMs
         var suppressTrackEndEventsUntilMs = 0L
@@ -142,10 +156,10 @@ internal fun AppNavigationPlaybackPollEffects(
         var lastPersistedRecentMetadata: Triple<String, String, String>? = null
         var suppressedSyntheticEndSourceId: String? = null
 
-        while (selectedFileProvider() != null) {
-            val currentFile = selectedFileProvider()
-            val activeSourceId = currentPlaybackSourceIdProvider() ?: currentFile?.absolutePath
-            val deferredPlaybackSeek = deferredPlaybackSeekProvider()
+        while (latestSelectedFileProvider.value() != null) {
+            val currentFile = latestSelectedFileProvider.value()
+            val activeSourceId = latestCurrentPlaybackSourceIdProvider.value() ?: currentFile?.absolutePath
+            val deferredPlaybackSeek = latestDeferredPlaybackSeekProvider.value()
             val snapshot = readPlaybackPollSnapshot(
                 localDuration = localDuration,
                 durationRefreshCountdown = durationRefreshCountdown,
@@ -154,7 +168,7 @@ internal fun AppNavigationPlaybackPollEffects(
             )
             val nextSeekInProgress = snapshot.seekInProgress
             val nextIsPlaying = snapshot.isPlaying
-            val isAnimating = isAnimatingProvider()
+            val isAnimating = latestIsAnimatingProvider.value()
             val pollDelayMs = when {
                 isAnimating -> 500L
                 nextSeekInProgress -> 120L
@@ -250,27 +264,27 @@ internal fun AppNavigationPlaybackPollEffects(
                     }
                     // The cursor floors its count at 1 while state can report 0;
                     // with no subtunes the pair never matches, so skip the poll.
-                    if ((nativeSubtuneCursor.count > 1 || subtuneCountProvider() > 1) &&
+                    if ((nativeSubtuneCursor.count > 1 || latestSubtuneCountProvider.value() > 1) &&
                         hasNativeSubtuneCursorChanged(
                             nativeSubtuneCursor,
-                            subtuneCountProvider(),
-                            currentSubtuneIndexProvider()
+                            latestSubtuneCountProvider.value(),
+                            latestCurrentSubtuneIndexProvider.value()
                         )
                     ) {
-                        onSubtuneCursorChanged(currentFile)
-                        val recentSourceId = currentPlaybackSourceIdProvider() ?: currentFile?.absolutePath
+                        latestOnSubtuneCursorChanged.value(currentFile)
+                        val recentSourceId = latestCurrentPlaybackSourceIdProvider.value() ?: currentFile?.absolutePath
                         if (nextIsPlaying && recentSourceId != null) {
                             onAddRecentPlayedTrack(
                                 recentSourceId,
-                                if (isLocalPlayableFile(currentFile)) lastBrowserLocationId else null,
-                                metadataTitleProvider(),
-                                metadataArtistProvider()
+                                if (isLocalPlayableFile(currentFile)) latestLastBrowserLocationId.value else null,
+                                latestMetadataTitleProvider.value(),
+                                latestMetadataArtistProvider.value()
                             )
                         }
                     }
                 }
 
-                val currentPath = currentPlaybackSourceIdProvider() ?: currentFile?.absolutePath
+                val currentPath = latestCurrentPlaybackSourceIdProvider.value() ?: currentFile?.absolutePath
                 if (currentPath != localPlaybackWatchPath) {
                     suppressedSyntheticEndSourceId = null
                     localPlaybackWatchPath = currentPath
@@ -284,7 +298,7 @@ internal fun AppNavigationPlaybackPollEffects(
                         nextPosition + 0.02 >= durationOverrideThreshold
                     if (endedAtPlaylistDuration) {
                         suppressedSyntheticEndSourceId = currentPath
-                        val repeatMode = activeRepeatModeProvider()
+                        val repeatMode = latestActiveRepeatModeProvider.value()
                         when (repeatMode) {
                             RepeatMode.None -> {
                                 val moved = onPlayAdjacentTrack(1, false, false)
@@ -319,16 +333,16 @@ internal fun AppNavigationPlaybackPollEffects(
                     // that actually advance; restart/stop modes keep the
                     // regular natural-end handling.
                     if (!endedNaturally && nextIsPlaying && !nextSeekInProgress) {
-                        val repeatForHandoff = activeRepeatModeProvider()
+                        val repeatForHandoff = latestActiveRepeatModeProvider.value()
                         if (repeatForHandoff == RepeatMode.None || repeatForHandoff == RepeatMode.Playlist) {
                             val remaining = nextDuration - nextPosition
                             if (nextDuration > 0.0 && remaining in 0.0..5.0) {
-                                NativeBridge.preparePlatformHandoff(nextTrackPathProvider())
+                                NativeBridge.preparePlatformHandoff(latestNextTrackPathProvider.value())
                             }
                         }
                     }
                     if (endedNaturally) {
-                        val repeatMode = activeRepeatModeProvider()
+                        val repeatMode = latestActiveRepeatModeProvider.value()
                         val moved = when (repeatMode) {
                             RepeatMode.None -> onPlayAdjacentTrack(1, false, false)
                             RepeatMode.Playlist -> onPlayAdjacentTrack(1, true, false)
@@ -347,9 +361,9 @@ internal fun AppNavigationPlaybackPollEffects(
                     }
                 }
                 metadataPollElapsedMs += pollDelayMs
-                val currentMetadataTitle = metadataTitleProvider()
-                val currentMetadataArtist = metadataArtistProvider()
-                val currentMetadataAlbum = metadataAlbumProvider()
+                val currentMetadataTitle = latestMetadataTitleProvider.value()
+                val currentMetadataArtist = latestMetadataArtistProvider.value()
+                val currentMetadataAlbum = latestMetadataAlbumProvider.value()
                 if (shouldPollTrackMetadata(metadataPollElapsedMs, currentMetadataTitle, currentMetadataArtist)) {
                     metadataPollElapsedMs = 0L
                     val trackSnapshot = snapshot.trackSnapshot ?: continue
@@ -383,11 +397,11 @@ internal fun AppNavigationPlaybackPollEffects(
                     onRepeatModeCapabilitiesFlagsChanged(trackSnapshot.repeatModeCapabilitiesFlags)
                     onPlaybackCapabilitiesFlagsChanged(trackSnapshot.playbackCapabilitiesFlags)
 
-                    val recentSourceId = currentPlaybackSourceIdProvider() ?: currentFile?.absolutePath
+                    val recentSourceId = latestCurrentPlaybackSourceIdProvider.value() ?: currentFile?.absolutePath
                     if (nextIsPlaying && (nextTitle != currentMetadataTitle || nextArtist != currentMetadataArtist) && recentSourceId != null) {
                         onAddRecentPlayedTrack(
                             recentSourceId,
-                            if (isLocalPlayableFile(currentFile)) lastBrowserLocationId else null,
+                            if (isLocalPlayableFile(currentFile)) latestLastBrowserLocationId.value else null,
                             nextTitle,
                             nextArtist
                         )
@@ -401,7 +415,7 @@ internal fun AppNavigationPlaybackPollEffects(
                             if (metadataSignature != lastPersistedRecentMetadata) {
                                 onAddRecentPlayedTrack(
                                     recentSourceId,
-                                    if (isLocalPlayableFile(currentFile)) lastBrowserLocationId else null,
+                                    if (isLocalPlayableFile(currentFile)) latestLastBrowserLocationId.value else null,
                                     nextTitle,
                                     nextArtist
                                 )
