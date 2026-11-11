@@ -121,3 +121,9 @@
 	path = external/viogsf
 	url = https://github.com/SiliconPlayer/viogsf
 	ignore = dirty
+[submodule "external/libmysofa"]
+	path = external/libmysofa
+	url = https://github.com/hoene/libmysofa
+[submodule "external/libspatialaudio"]
+	path = external/libspatialaudio
+	url = https://github.com/videolan/libspatialaudio
