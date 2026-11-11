@@ -15,7 +15,7 @@
 #include <chrono>
 #include "ChannelScopeSharedState.h"
 #include "decoders/AudioDecoder.h"
-#include "effects/openmpt_dsp/OpenMptDspEffects.h"
+#include "effects/AudioEffectChain.h"
 #include "silicon/vis/IVisualizationAudioProvider.h"
 
 struct SwrContext;
@@ -352,23 +352,16 @@ public:
     void setMasterGain(float gainDb);
     void setPluginGain(float gainDb);
     void setSongGain(float gainDb);
-    void setForceMono(bool enabled);
     void reconfigureStream(bool resumePlayback = true);
     void syncUacStreamRate(int sampleRateHz, int channels);
     void setOutputLimiterEnabled(bool enabled);
     void setLookaheadClipperMode(int mode);
     void setMultiChannelOutputMode(int mode);
-    void setDspBassEnabled(bool enabled);
-    void setDspBassDepth(int depth);
-    void setDspBassRange(int range);
-    void setDspSurroundEnabled(bool enabled);
-    void setDspSurroundDepth(int depth);
-    void setDspSurroundDelayMs(int delayMs);
-    void setDspReverbEnabled(bool enabled);
-    void setDspReverbDepth(int depth);
-    void setDspReverbPreset(int preset);
-    void setDspBitCrushEnabled(bool enabled);
-    void setDspBitCrushBits(int bits);
+    void setEffectChainJson(std::string_view chainJson);
+    std::string getEffectChainJson();
+    void setEffectChainSpec(const siliconplayer::effects::EffectChainSpec& spec);
+    siliconplayer::effects::EffectChainSpec getEffectChainSpec();
+    double getEffectChainLatencyFrames() const { return effectChain.latencyFrames(); }
     void setMasterChannelMute(int channelIndex, bool enabled);
     void setMasterChannelSolo(int channelIndex, bool enabled);
     void setEndFadeApplyToAllTracks(bool enabled);
@@ -405,20 +398,8 @@ public:
     float getMasterGain() const;
     float getPluginGain() const;
     float getSongGain() const;
-    bool getForceMono() const;
     bool getMasterChannelMute(int channelIndex) const;
     bool getMasterChannelSolo(int channelIndex) const;
-    bool getDspBassEnabled() const;
-    int getDspBassDepth() const;
-    int getDspBassRange() const;
-    bool getDspSurroundEnabled() const;
-    int getDspSurroundDepth() const;
-    int getDspSurroundDelayMs() const;
-    bool getDspReverbEnabled() const;
-    int getDspReverbDepth() const;
-    int getDspReverbPreset() const;
-    bool getDspBitCrushEnabled() const;
-    int getDspBitCrushBits() const;
 
 private:
     ma_context miniaudioContext {};
@@ -559,7 +540,6 @@ private:
     std::atomic<float> masterGainDb { 0.0f };
     std::atomic<float> pluginGainDb { 0.0f };
     std::atomic<float> songGainDb { 0.0f };
-    std::atomic<bool> forceMono { false };
     std::atomic<bool> masterMuteLeft { false };
     std::atomic<bool> masterMuteRight { false };
     std::atomic<bool> masterSoloLeft { false };
@@ -567,18 +547,7 @@ private:
     std::atomic<bool> outputLimiterEnabled { false };
     std::atomic<int> lookaheadClipperMode { 1 };
     std::atomic<int> multiChannelOutputMode { 0 }; // 0 ffmpeg only, 1 all decoders, 2 disabled
-    std::atomic<bool> dspBassEnabled { false };
-    std::atomic<int> dspBassDepth { 2 };
-    std::atomic<int> dspBassRange { 2 };
-    std::atomic<bool> dspSurroundEnabled { false };
-    std::atomic<int> dspSurroundDepth { 8 };
-    std::atomic<int> dspSurroundDelayMs { 20 };
-    std::atomic<bool> dspReverbEnabled { false };
-    std::atomic<int> dspReverbDepth { 8 };
-    std::atomic<int> dspReverbPreset { 0 };
-    std::atomic<bool> dspBitCrushEnabled { false };
-    std::atomic<int> dspBitCrushBits { 16 };
-    siliconplayer::effects::OpenMptDspEffects openMptDspEffects;
+    siliconplayer::effects::AudioEffectChain effectChain;
     float outputLimiterGain = 1.0f;
     std::vector<float> lookaheadClipperDelayLine;
     size_t lookaheadClipperWriteIndex = 0;
@@ -706,8 +675,7 @@ private:
     float nextPauseResumeFadeGainLocked();
     void applyGain(float* buffer, int numFrames, int channels, float extraGain = 1.0f);
     void applyMasterChannelRouting(float* buffer, int numFrames, int channels);
-    void applyMonoDownmix(float* buffer, int numFrames, int channels);
-    void applyOpenMptDspEffects(float* buffer, int numFrames, int channels, int sampleRate);
+    void applyEffectChain(float* buffer, int numFrames, int channels, int sampleRate);
     void applyOutputLimiter(float* buffer, int numFrames, int channels);
     void applyLookaheadClipper(float* buffer, int numFrames, int channels, int sampleRate);
     void resetLookaheadClipperStateLocked();

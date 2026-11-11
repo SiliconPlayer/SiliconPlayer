@@ -89,6 +89,9 @@ void AudioEngine::resetResamplerStateLocked(bool preserveBuffer) {
         resampleInputPosition = 0.0;
     }
     timelineSmootherInitialized = false;
+    if (!preserveBuffer) {
+        effectChain.reset();
+    }
     resetLookaheadClipperStateLocked();
     pendingBackwardTimelineTargetSeconds = -1.0;
     pendingBackwardTimelineConfirmations = 0;
@@ -550,8 +553,7 @@ int AudioEngine::renderOfflineAudioFrames(float* outputStereo, int numFrames, in
     const float endFadeGain = computeEndFadeGainLocked(positionSeconds.load(std::memory_order_relaxed));
     applyGain(outputStereo, renderedFrames, 2, endFadeGain);
     applyMasterChannelRouting(outputStereo, renderedFrames, 2);
-    applyOpenMptDspEffects(outputStereo, renderedFrames, 2, sampleRateHz);
-    applyMonoDownmix(outputStereo, renderedFrames, 2);
+    applyEffectChain(outputStereo, renderedFrames, 2, sampleRateHz);
     applyOutputLimiter(outputStereo, renderedFrames, 2);
     applyLookaheadClipper(outputStereo, renderedFrames, 2, sampleRateHz);
     for (int i = 0; i < renderedFrames * 2; ++i) {
@@ -1086,8 +1088,7 @@ void AudioEngine::renderWorkerLoop() {
             const float endFadeGain = computeEndFadeGainLocked(gainTimelinePosition);
             applyGain(localBuffer.data(), chunkFrames, channels, endFadeGain);
             applyMasterChannelRouting(localBuffer.data(), chunkFrames, channels);
-            applyOpenMptDspEffects(localBuffer.data(), chunkFrames, channels, outputSampleRate);
-            applyMonoDownmix(localBuffer.data(), chunkFrames, channels);
+            applyEffectChain(localBuffer.data(), chunkFrames, channels, outputSampleRate);
             applyOutputLimiter(localBuffer.data(), chunkFrames, channels);
             applyLookaheadClipper(localBuffer.data(), chunkFrames, channels, outputSampleRate);
 

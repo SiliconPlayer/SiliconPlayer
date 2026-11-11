@@ -201,10 +201,6 @@ void AudioEngine::setSongGain(float gainDb) {
     songGainDb.store(gainDb);
 }
 
-void AudioEngine::setForceMono(bool enabled) {
-    forceMono.store(enabled);
-}
-
 void AudioEngine::setOutputLimiterEnabled(bool enabled) {
     outputLimiterEnabled.store(enabled);
 }
@@ -235,50 +231,24 @@ void AudioEngine::setMultiChannelOutputMode(int mode) {
     }
 }
 
-void AudioEngine::setDspBassEnabled(bool enabled) {
-    dspBassEnabled.store(enabled);
+void AudioEngine::setEffectChainJson(std::string_view chainJson) {
+    setEffectChainSpec(siliconplayer::effects::parseEffectChainJson(chainJson));
 }
 
-void AudioEngine::setDspBassDepth(int depth) {
-    dspBassDepth.store(std::clamp(depth, 0, 4));
+std::string AudioEngine::getEffectChainJson() {
+    return siliconplayer::effects::serializeEffectChainJson(getEffectChainSpec());
 }
 
-void AudioEngine::setDspBassRange(int range) {
-    dspBassRange.store(std::clamp(range, 0, 4));
+void AudioEngine::setEffectChainSpec(const siliconplayer::effects::EffectChainSpec& spec) {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    if (!effectChain.updateIfStructurallyEqual(spec)) {
+        effectChain.setSpec(spec, streamSampleRate, streamChannelCount > 0 ? streamChannelCount : 2);
+    }
 }
 
-void AudioEngine::setDspSurroundEnabled(bool enabled) {
-    dspSurroundEnabled.store(enabled);
-}
-
-void AudioEngine::setDspSurroundDepth(int depth) {
-    dspSurroundDepth.store(std::clamp(depth, 1, 16));
-}
-
-void AudioEngine::setDspSurroundDelayMs(int delayMs) {
-    const int clamped = std::clamp(delayMs, 5, 45);
-    const int step = ((clamped - 5) + 2) / 5;
-    dspSurroundDelayMs.store(5 + (step * 5));
-}
-
-void AudioEngine::setDspReverbEnabled(bool enabled) {
-    dspReverbEnabled.store(enabled);
-}
-
-void AudioEngine::setDspReverbDepth(int depth) {
-    dspReverbDepth.store(std::clamp(depth, 1, 16));
-}
-
-void AudioEngine::setDspReverbPreset(int preset) {
-    dspReverbPreset.store(std::clamp(preset, 0, 28));
-}
-
-void AudioEngine::setDspBitCrushEnabled(bool enabled) {
-    dspBitCrushEnabled.store(enabled);
-}
-
-void AudioEngine::setDspBitCrushBits(int bits) {
-    dspBitCrushBits.store(std::clamp(bits, 1, 24));
+siliconplayer::effects::EffectChainSpec AudioEngine::getEffectChainSpec() {
+    std::lock_guard<std::mutex> lock(decoderMutex);
+    return effectChain.spec();
 }
 
 void AudioEngine::setMasterChannelMute(int channelIndex, bool enabled) {
@@ -323,10 +293,6 @@ float AudioEngine::getSongGain() const {
     return songGainDb.load();
 }
 
-bool AudioEngine::getForceMono() const {
-    return forceMono.load();
-}
-
 bool AudioEngine::getMasterChannelMute(int channelIndex) const {
     if (channelIndex == 0) return masterMuteLeft.load();
     if (channelIndex == 1) return masterMuteRight.load();
@@ -337,50 +303,6 @@ bool AudioEngine::getMasterChannelSolo(int channelIndex) const {
     if (channelIndex == 0) return masterSoloLeft.load();
     if (channelIndex == 1) return masterSoloRight.load();
     return false;
-}
-
-bool AudioEngine::getDspBassEnabled() const {
-    return dspBassEnabled.load();
-}
-
-int AudioEngine::getDspBassDepth() const {
-    return dspBassDepth.load();
-}
-
-int AudioEngine::getDspBassRange() const {
-    return dspBassRange.load();
-}
-
-bool AudioEngine::getDspSurroundEnabled() const {
-    return dspSurroundEnabled.load();
-}
-
-int AudioEngine::getDspSurroundDepth() const {
-    return dspSurroundDepth.load();
-}
-
-int AudioEngine::getDspSurroundDelayMs() const {
-    return dspSurroundDelayMs.load();
-}
-
-bool AudioEngine::getDspReverbEnabled() const {
-    return dspReverbEnabled.load();
-}
-
-int AudioEngine::getDspReverbDepth() const {
-    return dspReverbDepth.load();
-}
-
-int AudioEngine::getDspReverbPreset() const {
-    return dspReverbPreset.load();
-}
-
-bool AudioEngine::getDspBitCrushEnabled() const {
-    return dspBitCrushEnabled.load();
-}
-
-int AudioEngine::getDspBitCrushBits() const {
-    return dspBitCrushBits.load();
 }
 
 // Convert dB to linear gain
@@ -548,62 +470,8 @@ void AudioEngine::applyMasterChannelRouting(float* buffer, int numFrames, int ch
     }
 }
 
-// Downmix stereo to mono
-void AudioEngine::applyMonoDownmix(float* buffer, int numFrames, int channels) {
-    if (!forceMono.load() || channels != 2) {
-        return;
-    }
-
-    // Average left and right channels
-    for (int i = 0; i < numFrames; i++) {
-        const float mono = (buffer[i * 2] + buffer[i * 2 + 1]) * 0.5f;
-        buffer[i * 2] = mono;
-        buffer[i * 2 + 1] = mono;
-    }
-}
-
-void AudioEngine::applyOpenMptDspEffects(float* buffer, int numFrames, int channels, int sampleRate) {
-    siliconplayer::effects::OpenMptDspParams params;
-    params.bassEnabled = dspBassEnabled.load(std::memory_order_relaxed);
-    params.bassDepth = dspBassDepth.load(std::memory_order_relaxed);
-    params.bassRange = dspBassRange.load(std::memory_order_relaxed);
-    params.surroundEnabled = dspSurroundEnabled.load(std::memory_order_relaxed);
-    params.surroundDepth = dspSurroundDepth.load(std::memory_order_relaxed);
-    params.surroundDelayMs = dspSurroundDelayMs.load(std::memory_order_relaxed);
-    params.reverbEnabled = dspReverbEnabled.load(std::memory_order_relaxed);
-    params.reverbDepth = dspReverbDepth.load(std::memory_order_relaxed);
-    params.reverbPreset = dspReverbPreset.load(std::memory_order_relaxed);
-    params.bitCrushEnabled = dspBitCrushEnabled.load(std::memory_order_relaxed);
-    params.bitCrushBits = dspBitCrushBits.load(std::memory_order_relaxed);
-
-    const bool anyDspEnabled =
-            params.bassEnabled || params.surroundEnabled || params.reverbEnabled || params.bitCrushEnabled;
-    if (!anyDspEnabled || !buffer || numFrames <= 0 || channels <= 0) {
-        return;
-    }
-
-    constexpr float kDspBusPreGain = 0.5623413f; // -5.0 dB
-    constexpr float kDspBusMakeupGain = 1.5848932f; // +4.0 dB (net: -1.0 dB)
-    const int totalSamples = numFrames * channels;
-
-    constexpr float kSoftClipThreshold = 0.90f;
-    constexpr float kneeWidth = 1.0f - kSoftClipThreshold;
-
-    for (int i = 0; i < totalSamples; ++i) {
-        float sample = buffer[i] * kDspBusPreGain;
-        const float absSample = std::abs(sample);
-        if (absSample > kSoftClipThreshold) {
-            const float sign = sample < 0.0f ? -1.0f : 1.0f;
-            const float over = (absSample - kSoftClipThreshold) / kneeWidth;
-            sample = sign * (kSoftClipThreshold + (kneeWidth * (1.0f - std::exp(-over))));
-        }
-        buffer[i] = std::clamp(sample, -1.0f, 1.0f);
-    }
-
-    openMptDspEffects.process(buffer, numFrames, channels, sampleRate, params);
-    for (int i = 0; i < totalSamples; ++i) {
-        buffer[i] *= kDspBusMakeupGain;
-    }
+void AudioEngine::applyEffectChain(float* buffer, int numFrames, int channels, int sampleRate) {
+    effectChain.process(buffer, numFrames, channels, sampleRate);
 }
 
 void AudioEngine::applyOutputLimiter(float* buffer, int numFrames, int channels) {

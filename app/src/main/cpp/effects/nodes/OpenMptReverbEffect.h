@@ -1,65 +1,25 @@
-/*
- * OpenMptDspEffects.h
- * -------------------
- * Purpose: Global DSP processing blocks inspired by OpenMPT desktop effects.
- *
- * Attribution:
- * Parts of the behavior and parameter model are adapted from the OpenMPT project
- * (https://openmpt.org), particularly sounddsp components (MegaBass, Reverb,
- * Surround, BitCrush).
- *
- * Licensing:
- * OpenMPT source code is BSD-3-Clause licensed. See LICENSE.OpenMPT in this
- * directory and upstream LICENSE for full terms.
- */
+#ifndef SILICONPLAYER_EFFECTS_NODES_OPENMPT_REVERB_EFFECT_H
+#define SILICONPLAYER_EFFECTS_NODES_OPENMPT_REVERB_EFFECT_H
 
-#ifndef SILICONPLAYER_OPENMPT_DSP_EFFECTS_H
-#define SILICONPLAYER_OPENMPT_DSP_EFFECTS_H
+#include "../AudioEffect.h"
 
-#include <cstdint>
 #include <array>
+#include <atomic>
+#include <cstdint>
 #include <vector>
 
 namespace siliconplayer::effects {
 
-struct OpenMptDspParams {
-    bool bassEnabled = false;
-    int bassDepth = 2;    // OpenMPT desktop slider step: 0..4
-    int bassRange = 2;    // OpenMPT desktop slider step: 0..4
-
-    bool surroundEnabled = false;
-    int surroundDepth = 8;    // 1..16
-    int surroundDelayMs = 20; // 5..45
-
-    bool reverbEnabled = false;
-    int reverbDepth = 8;  // 1..16
-    int reverbPreset = 0; // 0..28
-
-    bool bitCrushEnabled = false;
-    int bitCrushBits = 16; // 1..24
-};
-
-class OpenMptDspEffects {
+class OpenMptReverbEffect final : public IAudioEffect {
 public:
-    void reset();
-    void process(float* interleavedBuffer, int frames, int channels, int sampleRate, const OpenMptDspParams& params);
+    static const EffectDescriptor& descriptor();
+
+    void prepare(int sampleRate, int channels) override;
+    void reset() override;
+    void process(float* interleaved, int frames, int channels) override;
+    void setParam(int index, float value) override;
 
 private:
-    static void shelfEq(
-            int32_t scale,
-            int32_t& outA1,
-            int32_t& outB0,
-            int32_t& outB1,
-            int32_t fc,
-            int32_t fs,
-            float gainDC,
-            float gainFT,
-            float gainPI);
-    void resetForSampleRate(int sampleRate);
-    void applyBass(float* buffer, int frames, int channels, int sampleRate, const OpenMptDspParams& params);
-    void applySurround(float* buffer, int frames, int channels, int sampleRate, const OpenMptDspParams& params);
-    void applyReverb(float* buffer, int frames, int channels, int sampleRate, const OpenMptDspParams& params);
-    void applyBitCrush(float* buffer, int frames, int channels, const OpenMptDspParams& params);
     void configureReverb(int sampleRate, int preset);
     void processReverbPreDelay(const int32_t* in, int32_t frames);
     void processReverbReflections(int32_t* out, int32_t frames);
@@ -67,28 +27,10 @@ private:
     void processReverbPost(const int32_t* wet, int32_t* dry, int32_t frames);
     void applyReverbDryMix(int32_t* dry, const int32_t* wet, int32_t dryVol, int32_t frames);
 
+    std::atomic<int> depthParam { 8 };
+    std::atomic<int> presetParam { 0 };
+    int currentSampleRate = 0;
     int configuredSampleRate = 0;
-    int32_t bassX1 = 0;
-    int32_t bassY1 = 0;
-    int32_t bassDcrY1L = 0;
-    int32_t bassDcrX1L = 0;
-    int32_t bassDcrY1R = 0;
-    int32_t bassDcrX1R = 0;
-
-    std::vector<int32_t> surroundDelay;
-    int surroundWritePos = 0;
-    int surroundConfiguredDelayMs = 20;
-    int32_t surroundHpA1 = 0;
-    int32_t surroundHpB0 = 0;
-    int32_t surroundHpB1 = 0;
-    int32_t surroundLpA1 = 0;
-    int32_t surroundLpB0 = 0;
-    int32_t surroundLpB1 = 0;
-    int32_t surroundHpX1 = 0;
-    int32_t surroundHpY1 = 0;
-    int32_t surroundLpY1 = 0;
-    int surroundConfiguredDepth = 8;
-
     int reverbConfiguredPreset = -1;
     int reverbConfiguredDepth = -1;
     int32_t reverbInputY1L = 0;
@@ -153,4 +95,4 @@ private:
 
 } // namespace siliconplayer::effects
 
-#endif // SILICONPLAYER_OPENMPT_DSP_EFFECTS_H
+#endif // SILICONPLAYER_EFFECTS_NODES_OPENMPT_REVERB_EFFECT_H

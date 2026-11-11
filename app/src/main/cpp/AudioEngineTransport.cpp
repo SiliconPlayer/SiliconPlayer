@@ -440,7 +440,7 @@ void AudioEngine::releaseCurrentDecoder() {
     refreshMetadataCacheLocked();
     cachedDurationSeconds.store(0.0);
     resetResamplerStateLocked();
-    openMptDspEffects.reset();
+    effectChain.reset();
     outputLimiterGain = 1.0f;
     decoderRenderSampleRate = streamSampleRate;
     positionSeconds.store(0.0);
@@ -516,7 +516,7 @@ void AudioEngine::setUrl(const char* url, const char* forcedDecoder) {
         refreshMetadataCacheLocked();
         cachedDurationSeconds.store(0.0);
         resetResamplerStateLocked();
-        openMptDspEffects.reset();
+        effectChain.reset();
         outputLimiterGain = 1.0f;
         decoderRenderSampleRate = streamSampleRate;
         positionSeconds.store(0.0);

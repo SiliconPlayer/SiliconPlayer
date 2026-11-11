@@ -1,29 +1,18 @@
 /*
- * OpenMptDspEffects.cpp
- * ---------------------
- * Purpose: Global DSP processing blocks inspired by OpenMPT desktop effects.
- *
- * Attribution:
- * Parts of the behavior and parameter model are adapted from the OpenMPT project
- * (https://openmpt.org), particularly sounddsp components (MegaBass, Reverb,
- * Surround, BitCrush).
- *
- * Licensing:
- * OpenMPT source code is BSD-3-Clause licensed. See LICENSE.OpenMPT in this
- * directory and upstream LICENSE for full terms.
+ * Adapted from the OpenMPT project (https://openmpt.org), BSD-3-Clause.
+ * See effects/openmpt_dsp/LICENSE.OpenMPT for full terms.
  */
 
-#include "OpenMptDspEffects.h"
+#include "OpenMptReverbEffect.h"
+#include "../OpenMptDspShared.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 
 namespace {
 
-constexpr float kPi = 3.14159265358979323846f;
 constexpr int kNumReverbPresets = 29;
 constexpr int kReflectionsCount = 8;
 constexpr int kSndmixReflectionsDelayMask = 0x1fff;
@@ -42,26 +31,10 @@ constexpr int kRvbMinRefDelay = 96;
 constexpr int kRvbMaxRefDelay = 7500;
 constexpr int kRvbMinRvbDelay = 128;
 constexpr int kRvbMaxRvbDelay = 3800;
-constexpr int kTankLengthAvg = (kRvbDif1LLen + kRvbDif1RLen + kRvbDif2LLen + kRvbDif2RLen + kRvbDly1LLen + kRvbDly1RLen + kRvbDly2LLen + kRvbDly2RLen) / 2;
-constexpr int kDcrAmount = 9;
-constexpr float kMixScale = static_cast<float>(1 << 24);
+constexpr int kTankLengthAvg =
+        (kRvbDif1LLen + kRvbDif1RLen + kRvbDif2LLen + kRvbDif2RLen +
+         kRvbDly1LLen + kRvbDly1RLen + kRvbDly2LLen + kRvbDly2RLen) / 2;
 constexpr float kGlobalReverbSendGain = 1.0f;
-
-float clampSample(float sample) {
-    return std::clamp(sample, -1.0f, 1.0f);
-}
-
-template <typename T>
-T saturateRound(double value) {
-    const double minV = static_cast<double>(std::numeric_limits<T>::lowest());
-    const double maxV = static_cast<double>(std::numeric_limits<T>::max());
-    const double clamped = std::clamp(value, minV, maxV);
-    return static_cast<T>(std::llround(clamped));
-}
-
-float sgn(float x) {
-    return (x >= 0.0f) ? 1.0f : -1.0f;
-}
 
 struct ReverbPresetProperties {
     int32_t room;
@@ -199,8 +172,7 @@ void i3dl2ToGeneric(const ReverbPresetProperties& preset, EnvironmentReverb& rvb
 
     for (int i = 0; i < kReflectionsCount; ++i) {
         rvb.reflections[static_cast<size_t>(i)].delay = static_cast<uint32_t>(
-                reflectionsDelaySamples + ((kReflectionPresets[static_cast<size_t>(i)].delayFactor * reverbDelay + 50) / 100)
-        );
+                reflectionsDelaySamples + ((kReflectionPresets[static_cast<size_t>(i)].delayFactor * reverbDelay + 50) / 100));
         rvb.reflections[static_cast<size_t>(i)].gainLL = kReflectionPresets[static_cast<size_t>(i)].gainLL;
         rvb.reflections[static_cast<size_t>(i)].gainRL = kReflectionPresets[static_cast<size_t>(i)].gainRL;
         rvb.reflections[static_cast<size_t>(i)].gainLR = kReflectionPresets[static_cast<size_t>(i)].gainLR;
@@ -208,26 +180,16 @@ void i3dl2ToGeneric(const ReverbPresetProperties& preset, EnvironmentReverb& rvb
     }
 
     if (kTankLengthAvg < 10) return;
-    const float delayFactor = (reverbDecayTime <= kTankLengthAvg) ? 1.0f : (static_cast<float>(kTankLengthAvg) / static_cast<float>(reverbDecayTime));
+    const float delayFactor = (reverbDecayTime <= kTankLengthAvg)
+            ? 1.0f
+            : (static_cast<float>(kTankLengthAvg) / static_cast<float>(reverbDecayTime));
     rvb.reverbDecay = static_cast<uint32_t>(std::pow(0.001f, delayFactor) * 32768.0f);
 
     const float decayTimeHF = static_cast<float>(reverbDecayTime) * preset.decayHFRatio;
     const float delayFactorHF = (decayTimeHF <= static_cast<float>(kTankLengthAvg))
-                                ? 1.0f
-                                : (static_cast<float>(kTankLengthAvg) / decayTimeHF);
+            ? 1.0f
+            : (static_cast<float>(kTankLengthAvg) / decayTimeHF);
     rvb.reverbDamping = std::pow(0.001f, delayFactorHF);
-}
-
-int32_t onePoleLowPassCoef(int32_t scale, double g, double fc, double fs) {
-    if (g > 0.999999) return 0;
-    g *= g;
-    const double scaleOver1Mg = scale / (1.0 - g);
-    const double cosw = std::cos((2.0 * kPi) * fc / fs);
-    return saturateRound<int32_t>((1.0 - (std::sqrt((g + g) * (1.0 - cosw) - g * g * (1.0 - cosw * cosw)) + g * cosw)) * scaleOver1Mg);
-}
-
-int16_t clamp16(int32_t x) {
-    return static_cast<int16_t>(std::clamp(x, static_cast<int32_t>(std::numeric_limits<int16_t>::min()), static_cast<int32_t>(std::numeric_limits<int16_t>::max())));
 }
 
 int16_t readStereo(const std::vector<int16_t>& buffer, int pos, bool right) {
@@ -244,56 +206,66 @@ void writeStereo(std::vector<int16_t>& buffer, int pos, int16_t l, int16_t r) {
 
 namespace siliconplayer::effects {
 
-void OpenMptDspEffects::shelfEq(
-        int32_t scale,
-        int32_t& outA1,
-        int32_t& outB0,
-        int32_t& outB1,
-        int32_t fc,
-        int32_t fs,
-        float gainDC,
-        float gainFT,
-        float gainPI) {
-    float a1;
-    float b0;
-    float b1;
-    const float wT = kPi * static_cast<float>(fc) / static_cast<float>(fs);
-    const float gainPI2 = gainPI * gainPI;
-    const float gainFT2 = gainFT * gainFT;
-    const float gainDC2 = gainDC * gainDC;
-    float quad = gainPI2 + gainDC2 - (gainFT2 * 2.0f);
+namespace {
+constexpr ParamDescriptor kReverbParams[] = {
+        { "depth", "Depth", ParamType::Int, 1.0f, 16.0f, 8.0f, 1.0f, 0 },
+        { "preset", "Preset", ParamType::Enum, 0.0f, 28.0f, 0.0f, 1.0f, kNumReverbPresets },
+};
 
-    float alpha = 0.0f;
-    if (quad != 0.0f) {
-        const float lambda = (gainPI2 - gainDC2) / quad;
-        // Double-wide libm: the float sqrt resolves past Debian-stable glibc.
-        alpha = lambda - (sgn(lambda) * std::sqrt(static_cast<double>(std::max((lambda * lambda) - 1.0f, 0.0f))));
-    }
+IAudioEffect* createReverbEffect() {
+    return new OpenMptReverbEffect();
+}
+} // namespace
 
-    const float beta0 = 0.5f * ((gainDC + gainPI) + (gainDC - gainPI) * alpha);
-    const float beta1 = 0.5f * ((gainDC - gainPI) + (gainDC + gainPI) * alpha);
-    const float rho = std::sin((wT * 0.5f) - (kPi / 4.0f)) / std::sin((wT * 0.5f) + (kPi / 4.0f));
-
-    quad = 1.0f / (1.0f + rho * alpha);
-    b0 = ((beta0 + rho * beta1) * quad);
-    b1 = ((beta1 + rho * beta0) * quad);
-    a1 = -((rho + alpha) * quad);
-
-    outA1 = saturateRound<int32_t>(a1 * static_cast<float>(scale));
-    outB0 = saturateRound<int32_t>(b0 * static_cast<float>(scale));
-    outB1 = saturateRound<int32_t>(b1 * static_cast<float>(scale));
+const EffectDescriptor& OpenMptReverbEffect::descriptor() {
+    static const EffectDescriptor desc {
+            "openmpt.reverb",
+            "Reverb",
+            1,
+            kReverbParams,
+            static_cast<int>(sizeof(kReverbParams) / sizeof(kReverbParams[0])),
+            false,
+            &createReverbEffect,
+    };
+    return desc;
 }
 
-void OpenMptDspEffects::reset() {
+void OpenMptReverbEffect::prepare(int sampleRate, int /*channels*/) {
+    currentSampleRate = sampleRate;
+    const int safeRate = std::max(8000, sampleRate);
+    if (safeRate == configuredSampleRate) {
+        return;
+    }
+    configuredSampleRate = safeRate;
+    reverbConfiguredPreset = -1;
+    reverbConfiguredDepth = -1;
+    reverbInputY1L = 0;
+    reverbInputY1R = 0;
+    reverbDcrX1L = 0;
+    reverbDcrX1R = 0;
+    reverbDcrY1L = 0;
+    reverbDcrY1R = 0;
+    reverbPreDifPos = 0;
+    reverbDelayPos = 0;
+    reverbRefOutPos = 0;
+    reverbLateDelayPos = 0;
+    reverbRoomHistoryL = 0;
+    reverbRoomHistoryR = 0;
+    reverbLpHist0L = 0;
+    reverbLpHist0R = 0;
+    reverbLpHist1L = 0;
+    reverbLpHist1R = 0;
+    reverbRefDelayBuffer.assign(static_cast<size_t>(kSndmixReflectionsDelayMask + 1) * 2, 0);
+    reverbPreDifBuffer.assign(static_cast<size_t>(kSndmixPrediffusionDelayMask + 1) * 2, 0);
+    reverbRefOutBuffer.assign(static_cast<size_t>(kSndmixReverbDelayMask + 1) * 2, 0);
+    reverbDiffusion1.assign(static_cast<size_t>(kRvbDlyMask + 1) * 2, 0);
+    reverbDiffusion2.assign(static_cast<size_t>(kRvbDlyMask + 1) * 2, 0);
+    reverbDelay1.assign(static_cast<size_t>(kRvbDlyMask + 1) * 2, 0);
+    reverbDelay2.assign(static_cast<size_t>(kRvbDlyMask + 1) * 2, 0);
+}
+
+void OpenMptReverbEffect::reset() {
     configuredSampleRate = 0;
-    bassX1 = 0;
-    bassY1 = 0;
-    bassDcrY1L = 0;
-    bassDcrX1L = 0;
-    bassDcrY1R = 0;
-    bassDcrX1R = 0;
-    surroundDelay.clear();
-    surroundWritePos = 0;
     reverbConfiguredPreset = -1;
     reverbConfiguredDepth = -1;
     reverbInputY1L = 0;
@@ -344,245 +316,32 @@ void OpenMptDspEffects::reset() {
     reverbDryWork.clear();
 }
 
-void OpenMptDspEffects::resetForSampleRate(int sampleRate) {
-    const int safeRate = std::max(8000, sampleRate);
-    if (safeRate == configuredSampleRate) {
-        return;
-    }
-
-    configuredSampleRate = safeRate;
-    bassX1 = 0;
-    bassY1 = 0;
-    bassDcrY1L = 0;
-    bassDcrX1L = 0;
-    bassDcrY1R = 0;
-    bassDcrX1R = 0;
-
-    const int maxSurroundDelayFrames = std::max(16, (safeRate * 45) / 1000);
-    surroundDelay.assign(static_cast<size_t>(maxSurroundDelayFrames), 0);
-    surroundWritePos = 0;
-    surroundConfiguredDelayMs = 20;
-    surroundConfiguredDepth = 8;
-    surroundHpX1 = 0;
-    surroundHpY1 = 0;
-    surroundLpY1 = 0;
-    shelfEq(1024, surroundHpA1, surroundHpB0, surroundHpB1, 200, safeRate, 0.0f, 0.5f, 1.0f);
-    shelfEq(1024, surroundLpA1, surroundLpB0, surroundLpB1, 7000, safeRate, 1.0f, 0.75f, 0.0f);
-    surroundHpB0 = (surroundHpB0 * surroundConfiguredDepth) >> 5;
-    surroundHpB1 = (surroundHpB1 * surroundConfiguredDepth) >> 5;
-    surroundLpB0 *= 2;
-    surroundLpB1 *= 2;
-    reverbConfiguredPreset = -1;
-    reverbConfiguredDepth = -1;
-    reverbInputY1L = 0;
-    reverbInputY1R = 0;
-    reverbDcrX1L = 0;
-    reverbDcrX1R = 0;
-    reverbDcrY1L = 0;
-    reverbDcrY1R = 0;
-    reverbPreDifPos = 0;
-    reverbDelayPos = 0;
-    reverbRefOutPos = 0;
-    reverbLateDelayPos = 0;
-    reverbRoomHistoryL = 0;
-    reverbRoomHistoryR = 0;
-    reverbLpHist0L = 0;
-    reverbLpHist0R = 0;
-    reverbLpHist1L = 0;
-    reverbLpHist1R = 0;
-    reverbRefDelayBuffer.assign(static_cast<size_t>(kSndmixReflectionsDelayMask + 1) * 2, 0);
-    reverbPreDifBuffer.assign(static_cast<size_t>(kSndmixPrediffusionDelayMask + 1) * 2, 0);
-    reverbRefOutBuffer.assign(static_cast<size_t>(kSndmixReverbDelayMask + 1) * 2, 0);
-    reverbDiffusion1.assign(static_cast<size_t>(kRvbDlyMask + 1) * 2, 0);
-    reverbDiffusion2.assign(static_cast<size_t>(kRvbDlyMask + 1) * 2, 0);
-    reverbDelay1.assign(static_cast<size_t>(kRvbDlyMask + 1) * 2, 0);
-    reverbDelay2.assign(static_cast<size_t>(kRvbDlyMask + 1) * 2, 0);
-}
-
-void OpenMptDspEffects::process(
-        float* interleavedBuffer,
-        int frames,
-        int channels,
-        int sampleRate,
-        const OpenMptDspParams& params) {
-    if (!interleavedBuffer || frames <= 0 || channels <= 0) {
-        return;
-    }
-
-    resetForSampleRate(sampleRate);
-
-    if (params.bassEnabled) {
-        applyBass(interleavedBuffer, frames, channels, sampleRate, params);
-    }
-    if (params.surroundEnabled) {
-        applySurround(interleavedBuffer, frames, channels, sampleRate, params);
-    }
-    if (params.reverbEnabled) {
-        applyReverb(interleavedBuffer, frames, channels, sampleRate, params);
-    }
-    if (params.bitCrushEnabled) {
-        applyBitCrush(interleavedBuffer, frames, channels, params);
+void OpenMptReverbEffect::setParam(int index, float value) {
+    if (!std::isfinite(value)) return;
+    const int iv = static_cast<int>(std::lrint(value));
+    if (index == 0) {
+        depthParam.store(std::clamp(iv, 1, 16), std::memory_order_relaxed);
+    } else if (index == 1) {
+        presetParam.store(std::clamp(iv, 0, kNumReverbPresets - 1), std::memory_order_relaxed);
     }
 }
 
-void OpenMptDspEffects::applyBass(
-        float* buffer,
-        int frames,
-        int channels,
-        int sampleRate,
-        const OpenMptDspParams& params) {
-    const int depthStep = std::clamp(params.bassDepth, 0, 4);
-    const int rangeStep = std::clamp(params.bassRange, 0, 4);
-    const int nXBassRange = std::clamp((4 - rangeStep) * 5 + 1, 5, 21);
-    const int nXBassCutOff = std::clamp(50 + (nXBassRange + 2) * 20, 60, 600);
-    int nXBassGain = std::clamp(8 - depthStep, 4, 8);
-    int32_t a1 = 0;
-    int32_t b0 = 1024;
-    int32_t b1 = 0;
-    shelfEq(
-            1024,
-            a1,
-            b0,
-            b1,
-            nXBassCutOff,
-            std::max(sampleRate, 1),
-            1.0f + (1.0f / 16.0f) * static_cast<float>(0x300 >> nXBassGain),
-            1.0f,
-            0.0000001f
-    );
-    if (nXBassGain > 5) {
-        b0 >>= (nXBassGain - 5);
-        b1 >>= (nXBassGain - 5);
+void OpenMptReverbEffect::process(float* buffer, int frames, int channels) {
+    if (!buffer || frames <= 0 || channels <= 0) {
+        return;
     }
-
-    if (channels >= 2) {
-        int32_t y1l = bassDcrY1L;
-        int32_t x1l = bassDcrX1L;
-        int32_t y1r = bassDcrY1R;
-        int32_t x1r = bassDcrX1R;
-        for (int frame = 0; frame < frames; ++frame) {
-            const int idx = frame * channels;
-            int32_t inL = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx], -1.0f, 1.0f) * 32767.0f));
-            int32_t inR = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx + 1], -1.0f, 1.0f) * 32767.0f));
-            const int32_t diffL = x1l - inL;
-            const int32_t diffR = x1r - inR;
-            x1l = inL;
-            x1r = inR;
-            inL = diffL / (1 << (kDcrAmount + 1)) - diffL + y1l;
-            inR = diffR / (1 << (kDcrAmount + 1)) - diffR + y1r;
-            y1l = inL - inL / (1 << kDcrAmount);
-            y1r = inR - inR / (1 << kDcrAmount);
-
-            const int32_t x_m = (inL + inR + 0x100) >> 9;
-            bassY1 = (b0 * x_m + b1 * bassX1 + a1 * bassY1) >> 2;
-            bassX1 = x_m;
-            inL += bassY1;
-            inR += bassY1;
-            bassY1 = (bassY1 + 0x80) >> 8;
-            buffer[idx] = clampSample(static_cast<float>(inL) / 32767.0f);
-            buffer[idx + 1] = clampSample(static_cast<float>(inR) / 32767.0f);
-        }
-        bassDcrY1L = y1l;
-        bassDcrX1L = x1l;
-        bassDcrY1R = y1r;
-        bassDcrX1R = x1r;
-    } else {
-        int32_t y1 = bassDcrY1L;
-        int32_t x1 = bassDcrX1L;
-        for (int frame = 0; frame < frames; ++frame) {
-            int32_t inM = static_cast<int32_t>(std::lrint(std::clamp(buffer[frame], -1.0f, 1.0f) * 32767.0f));
-            const int32_t diff = x1 - inM;
-            x1 = inM;
-            inM = diff / (1 << (kDcrAmount + 1)) - diff + y1;
-            y1 = inM - inM / (1 << kDcrAmount);
-
-            const int32_t x_m = (inM + 0x80) >> 8;
-            bassY1 = (b0 * x_m + b1 * bassX1 + a1 * bassY1) >> 2;
-            bassX1 = x_m;
-            inM += bassY1;
-            bassY1 = (bassY1 + 0x40) >> 8;
-            buffer[frame] = clampSample(static_cast<float>(inM) / 32767.0f);
-        }
-        bassDcrY1L = y1;
-        bassDcrX1L = x1;
+    if (configuredSampleRate == 0) {
+        prepare(currentSampleRate > 0 ? currentSampleRate : 48000, channels);
     }
-}
-
-void OpenMptDspEffects::applySurround(
-        float* buffer,
-        int frames,
-        int channels,
-        int sampleRate,
-        const OpenMptDspParams& params) {
-    if (channels < 2 || surroundDelay.empty()) {
+    if (channels < 2 || reverbRefDelayBuffer.empty() || reverbDelay2.empty()) {
         return;
     }
 
-    const int delayClamped = std::clamp(params.surroundDelayMs, 5, 45);
-    const int delayMs = 5 + ((((delayClamped - 5) + 2) / 5) * 5);
-    const int depth = std::clamp(params.surroundDepth, 1, 16);
-    if (delayMs != surroundConfiguredDelayMs || depth != surroundConfiguredDepth) {
-        const int safeRate = std::max(sampleRate, 8000);
-        std::fill(surroundDelay.begin(), surroundDelay.end(), 0);
-        surroundWritePos = 0;
-        surroundConfiguredDelayMs = delayMs;
-        surroundConfiguredDepth = depth;
-        surroundHpX1 = 0;
-        surroundHpY1 = 0;
-        surroundLpY1 = 0;
-        shelfEq(1024, surroundHpA1, surroundHpB0, surroundHpB1, 200, safeRate, 0.0f, 0.5f, 1.0f);
-        shelfEq(1024, surroundLpA1, surroundLpB0, surroundLpB1, 7000, safeRate, 1.0f, 0.75f, 0.0f);
-        surroundHpB0 = (surroundHpB0 * depth) >> 5;
-        surroundHpB1 = (surroundHpB1 * depth) >> 5;
-        surroundLpB0 *= 2;
-        surroundLpB1 *= 2;
-    }
+    using openmpt_detail::kMixScale;
 
-    for (int frame = 0; frame < frames; ++frame) {
-        const int idx = frame * channels;
-        const int32_t inL = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx], -1.0f, 1.0f) * kMixScale));
-        const int32_t inR = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx + 1], -1.0f, 1.0f) * kMixScale));
+    configureReverb(currentSampleRate, presetParam.load(std::memory_order_relaxed));
 
-        const int32_t secho = surroundDelay[static_cast<size_t>(surroundWritePos)];
-        surroundDelay[static_cast<size_t>(surroundWritePos)] = (inL + inR + 256) >> 9;
-
-        const int64_t hpAcc = static_cast<int64_t>(surroundHpB0) * secho
-                              + static_cast<int64_t>(surroundHpB1) * surroundHpX1
-                              + static_cast<int64_t>(surroundHpA1) * surroundHpY1;
-        int32_t v0 = static_cast<int32_t>(hpAcc >> 10);
-        surroundHpX1 = secho;
-        const int64_t lpAcc = static_cast<int64_t>(surroundLpB0) * v0
-                              + static_cast<int64_t>(surroundLpB1) * surroundHpY1
-                              + static_cast<int64_t>(surroundLpA1) * surroundLpY1;
-        int32_t v = static_cast<int32_t>(lpAcc >> 2);
-        surroundHpY1 = v0;
-        surroundLpY1 = v >> 8;
-
-        const int32_t outL = inL + v;
-        const int32_t outR = inR - v;
-        buffer[idx] = clampSample(static_cast<float>(outL) / kMixScale);
-        buffer[idx + 1] = clampSample(static_cast<float>(outR) / kMixScale);
-
-        surroundWritePos++;
-        if (surroundWritePos >= std::clamp((sampleRate * delayMs) / 1000, 1, static_cast<int>(surroundDelay.size()) - 1)) {
-            surroundWritePos = 0;
-        }
-    }
-}
-
-void OpenMptDspEffects::applyReverb(
-        float* buffer,
-        int frames,
-        int channels,
-        int sampleRate,
-        const OpenMptDspParams& params) {
-    if (channels < 2 || reverbRefDelayBuffer.empty() || reverbDelay2.empty() || frames <= 0) {
-        return;
-    }
-
-    configureReverb(sampleRate, params.reverbPreset);
-
-    const int depth = std::clamp(params.reverbDepth, 1, 16);
+    const int depth = std::clamp(depthParam.load(std::memory_order_relaxed), 1, 16);
     if (depth != reverbConfiguredDepth) {
         int32_t masterGain = (reverbRefMasterGain * depth) >> 4;
         if (masterGain > 0x7fff) masterGain = 0x7fff;
@@ -616,9 +375,8 @@ void OpenMptDspEffects::applyReverb(
 
         for (int frame = 0; frame < chunk; ++frame) {
             const int idx = (frameOffset + frame) * channels;
-            const int32_t inL = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx], -1.0f, 1.0f) * kMixScale));
-            const int32_t inR = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx + 1], -1.0f, 1.0f) * kMixScale));
-            // Route signal through a dedicated reverb send and rebuild dry mix from send.
+            const int32_t inL = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx] * 0.5f, -1.0f, 1.0f) * kMixScale));
+            const int32_t inR = static_cast<int32_t>(std::lrint(std::clamp(buffer[idx + 1] * 0.5f, -1.0f, 1.0f) * kMixScale));
             reverbWetWork[static_cast<size_t>(frame) * 2] = static_cast<int32_t>(std::lrint(static_cast<float>(inL) * kGlobalReverbSendGain));
             reverbWetWork[static_cast<size_t>(frame) * 2 + 1] = static_cast<int32_t>(std::lrint(static_cast<float>(inR) * kGlobalReverbSendGain));
             reverbDryWork[static_cast<size_t>(frame) * 2] = 0;
@@ -644,10 +402,8 @@ void OpenMptDspEffects::applyReverb(
 
         for (int frame = 0; frame < chunk; ++frame) {
             const int idx = (frameOffset + frame) * channels;
-            const float outL = static_cast<float>(reverbDryWork[static_cast<size_t>(frame) * 2] / kMixScale);
-            const float outR = static_cast<float>(reverbDryWork[static_cast<size_t>(frame) * 2 + 1] / kMixScale);
-            buffer[idx] = clampSample(outL);
-            buffer[idx + 1] = clampSample(outR);
+            buffer[idx] = static_cast<float>(reverbDryWork[static_cast<size_t>(frame) * 2] / kMixScale) * 2.0f;
+            buffer[idx + 1] = static_cast<float>(reverbDryWork[static_cast<size_t>(frame) * 2 + 1] / kMixScale) * 2.0f;
         }
 
         frameOffset += chunk;
@@ -655,11 +411,15 @@ void OpenMptDspEffects::applyReverb(
     }
 }
 
-void OpenMptDspEffects::configureReverb(int sampleRate, int preset) {
+void OpenMptReverbEffect::configureReverb(int sampleRate, int preset) {
     const int clampedPreset = std::clamp(preset, 0, kNumReverbPresets - 1);
     if (reverbConfiguredPreset == clampedPreset) {
         return;
     }
+
+    using openmpt_detail::clamp16;
+    using openmpt_detail::onePoleLowPassCoef;
+    using openmpt_detail::saturateRound;
 
     EnvironmentReverb rvb {};
     i3dl2ToGeneric(kReverbPresets[static_cast<size_t>(clampedPreset)], rvb, static_cast<float>(std::max(8000, sampleRate)));
@@ -702,7 +462,9 @@ void OpenMptDspEffects::configureReverb(int sampleRate, int preset) {
     reverbConfiguredDepth = -1;
 }
 
-void OpenMptDspEffects::processReverbPreDelay(const int32_t* in, int32_t frames) {
+void OpenMptReverbEffect::processReverbPreDelay(const int32_t* in, int32_t frames) {
+    using openmpt_detail::clamp16;
+
     uint32_t preDifPos = reverbPreDifPos;
     uint32_t delayPos = reverbDelayPos - 1;
     int16_t historyL = reverbRoomHistoryL;
@@ -736,7 +498,9 @@ void OpenMptDspEffects::processReverbPreDelay(const int32_t* in, int32_t frames)
     reverbRoomHistoryR = historyR;
 }
 
-void OpenMptDspEffects::processReverbReflections(int32_t* out, int32_t frames) {
+void OpenMptReverbEffect::processReverbReflections(int32_t* out, int32_t frames) {
+    using openmpt_detail::clamp16;
+
     int pos[7];
     for (int i = 0; i < 7; ++i) {
         pos[i] = static_cast<int>(reverbDelayPos) - static_cast<int>(reverbReflections[static_cast<size_t>(i)].delay) - 1;
@@ -781,7 +545,9 @@ void OpenMptDspEffects::processReverbReflections(int32_t* out, int32_t frames) {
     reverbDelayPos = (reverbDelayPos + static_cast<uint32_t>(frames)) & kSndmixReflectionsDelayMask;
 }
 
-void OpenMptDspEffects::processReverbLate(int32_t* out, int32_t frames) {
+void OpenMptReverbEffect::processReverbLate(int32_t* out, int32_t frames) {
+    using openmpt_detail::clamp16;
+
     int delayPos = static_cast<int>(reverbLateDelayPos) & kRvbDlyMask;
     const uint32_t refStart = (reverbRefOutPos - static_cast<uint32_t>(frames)) & kSndmixReverbDelayMask;
     const uint32_t refReadStart = (refStart - reverbLateDelay) & kSndmixReverbDelayMask;
@@ -858,7 +624,9 @@ void OpenMptDspEffects::processReverbLate(int32_t* out, int32_t frames) {
     reverbLateDelayPos = static_cast<uint32_t>(delayPos);
 }
 
-void OpenMptDspEffects::processReverbPost(const int32_t* wet, int32_t* dry, int32_t frames) {
+void OpenMptReverbEffect::processReverbPost(const int32_t* wet, int32_t* dry, int32_t frames) {
+    using openmpt_detail::kDcrAmount;
+
     int32_t x1L = reverbDcrX1L;
     int32_t x1R = reverbDcrX1R;
     int32_t y1L = reverbDcrY1L;
@@ -893,23 +661,10 @@ void OpenMptDspEffects::processReverbPost(const int32_t* wet, int32_t* dry, int3
     reverbDcrY1R = y1R;
 }
 
-void OpenMptDspEffects::applyReverbDryMix(int32_t* dry, const int32_t* wet, int32_t dryVol, int32_t frames) {
+void OpenMptReverbEffect::applyReverbDryMix(int32_t* dry, const int32_t* wet, int32_t dryVol, int32_t frames) {
     for (int32_t i = 0; i < frames; ++i) {
         dry[static_cast<size_t>(i) * 2] += (wet[static_cast<size_t>(i) * 2] >> 4) * dryVol;
         dry[static_cast<size_t>(i) * 2 + 1] += (wet[static_cast<size_t>(i) * 2 + 1] >> 4) * dryVol;
-    }
-}
-
-void OpenMptDspEffects::applyBitCrush(float* buffer, int frames, int channels, const OpenMptDspParams& params) {
-    const int bits = std::clamp(params.bitCrushBits, 1, 24);
-    const int precisionBits = 24;
-    const uint32_t mask = ~((uint32_t{1} << (precisionBits - bits)) - 1u);
-    const int samples = frames * channels;
-    for (int i = 0; i < samples; ++i) {
-        const float sample = std::clamp(buffer[i], -1.0f, 1.0f);
-        const int32_t fixed = static_cast<int32_t>(std::lrint(sample * static_cast<float>((1 << precisionBits) - 1)));
-        const int32_t crushed = static_cast<int32_t>(static_cast<uint32_t>(fixed) & mask);
-        buffer[i] = clampSample(static_cast<float>(crushed) / static_cast<float>((1 << precisionBits) - 1));
     }
 }
 

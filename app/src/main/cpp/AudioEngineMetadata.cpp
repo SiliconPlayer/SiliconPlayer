@@ -347,6 +347,7 @@ bool AudioEngine::selectSubtune(int index) {
     }
     const bool applied = decoder->selectSubtune(index);
     if (applied) {
+        effectChain.reset();
         clearTransportStallState();
         refreshMetadataCacheLocked();
     }
@@ -920,6 +921,7 @@ double AudioEngine::scopePresentationDelayDecoderFrames(
         // scope matches what leaves the sink, not what entered it.
         presentationDelayOutputFrames += static_cast<double>(sinkBacklogFrames);
     }
+    presentationDelayOutputFrames += effectChain.latencyFrames();
     if (lookaheadClipperMode.load(std::memory_order_relaxed) > 0) {
         const int lookaheadFrames = std::clamp((outputSampleRate * 5) / 1000, 32, 512);
         presentationDelayOutputFrames += static_cast<double>(lookaheadFrames);

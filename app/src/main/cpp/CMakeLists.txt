@@ -30,7 +30,13 @@ add_library(
         AudioEngineTransport.cpp
         AudioEnginePipeline.cpp
         AudioEngineEffects.cpp
-        effects/openmpt_dsp/OpenMptDspEffects.cpp
+        effects/EffectRegistry.cpp
+        effects/AudioEffectChain.cpp
+        effects/nodes/OpenMptBassEffect.cpp
+        effects/nodes/OpenMptSurroundEffect.cpp
+        effects/nodes/OpenMptReverbEffect.cpp
+        effects/nodes/OpenMptBitCrushEffect.cpp
+        effects/nodes/GainEffect.cpp
         decoders/DecoderPluginLoader.cpp
         decoders/DecoderRegistry.cpp
         decoders/SdlCompat.c

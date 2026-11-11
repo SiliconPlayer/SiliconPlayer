@@ -676,6 +676,9 @@ object NativeBridge {
     external fun setOutputLimiterEnabled(enabled: Boolean)
     external fun setLookaheadClipperMode(mode: Int)
     external fun setMultiChannelOutputMode(mode: Int)
+    external fun setEffectChain(chainJson: String)
+    external fun getEffectChain(): String
+    external fun getEffectDescriptorsJson(): String
     external fun setDspBassEnabled(enabled: Boolean)
     external fun setDspBassDepth(depth: Int)
     external fun setDspBassRange(range: Int)

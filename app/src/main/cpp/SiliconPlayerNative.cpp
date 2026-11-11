@@ -11,6 +11,7 @@
 #include "AudioEngine.h"
 #include "ChannelScopeTrigger.h"
 #include "decoders/DecoderRegistry.h"
+#include "effects/EffectRegistry.h"
 #include "silicon/vis/vis_api.h"
 #include <algorithm>
 #include <vector>
@@ -3145,11 +3146,152 @@ Java_com_flopster101_siliconplayer_NativeBridge_setSongGain(
     audioEngine->setSongGain(static_cast<float>(gainDb));
 }
 
+namespace {
+
+struct LegacyDspShimState {
+    bool forceMono = false;
+    int bassDepth = 2;
+    int bassRange = 2;
+    int surroundDepth = 8;
+    int surroundDelayMs = 20;
+    int reverbDepth = 8;
+    int reverbPreset = 0;
+    int bitCrushBits = 16;
+};
+
+std::mutex gLegacyDspShimMutex;
+LegacyDspShimState gLegacyDspShim;
+
+int legacyOpenMptOrderRank(std::string_view id) {
+    if (id == "openmpt.bass") return 0;
+    if (id == "openmpt.surround") return 1;
+    if (id == "openmpt.reverb") return 2;
+    if (id == "openmpt.bitcrush") return 3;
+    return 100;
+}
+
+const siliconplayer::effects::EffectNodeSpec* findActiveNode(
+        const siliconplayer::effects::EffectChainSpec& spec,
+        std::string_view id) {
+    for (const auto& node : spec.nodes) {
+        if (node.id == id && node.enabled) {
+            return &node;
+        }
+    }
+    return nullptr;
+}
+
+void syncShimDefaultsFromSpecLocked(const siliconplayer::effects::EffectChainSpec& spec) {
+    gLegacyDspShim.forceMono = spec.masterOptions.mono;
+    for (const auto& node : spec.nodes) {
+        if (node.id == "openmpt.bass" && node.params.size() >= 2) {
+            gLegacyDspShim.bassDepth = static_cast<int>(std::lrint(node.params[0]));
+            gLegacyDspShim.bassRange = static_cast<int>(std::lrint(node.params[1]));
+        } else if (node.id == "openmpt.surround" && node.params.size() >= 2) {
+            gLegacyDspShim.surroundDepth = static_cast<int>(std::lrint(node.params[0]));
+            gLegacyDspShim.surroundDelayMs = static_cast<int>(std::lrint(node.params[1]));
+        } else if (node.id == "openmpt.reverb" && node.params.size() >= 2) {
+            gLegacyDspShim.reverbDepth = static_cast<int>(std::lrint(node.params[0]));
+            gLegacyDspShim.reverbPreset = static_cast<int>(std::lrint(node.params[1]));
+        } else if (node.id == "openmpt.bitcrush" && !node.params.empty()) {
+            gLegacyDspShim.bitCrushBits = static_cast<int>(std::lrint(node.params[0]));
+        }
+    }
+}
+
+void upsertOrRemoveLegacyNodeLocked(
+        siliconplayer::effects::EffectChainSpec& spec,
+        std::string_view id,
+        bool enabled,
+        std::vector<float> params) {
+    for (auto it = spec.nodes.begin(); it != spec.nodes.end(); ++it) {
+        if (it->id == id) {
+            if (!enabled) {
+                spec.nodes.erase(it);
+            } else {
+                it->enabled = true;
+                it->params = std::move(params);
+            }
+            return;
+        }
+    }
+    if (!enabled) {
+        return;
+    }
+    const int targetRank = legacyOpenMptOrderRank(id);
+    auto insertPos = spec.nodes.end();
+    for (auto it = spec.nodes.begin(); it != spec.nodes.end(); ++it) {
+        const int rank = legacyOpenMptOrderRank(it->id);
+        if (rank < 100 && rank > targetRank) {
+            insertPos = it;
+            break;
+        }
+    }
+    siliconplayer::effects::EffectNodeSpec created;
+    created.id = std::string(id);
+    created.enabled = true;
+    created.params = std::move(params);
+    spec.nodes.insert(insertPos, std::move(created));
+}
+
+void updateLegacyNodeParamsIfPresentLocked(
+        siliconplayer::effects::EffectChainSpec& spec,
+        std::string_view id,
+        const std::vector<float>& params) {
+    for (auto& node : spec.nodes) {
+        if (node.id == id) {
+            node.params = params;
+            return;
+        }
+    }
+}
+
+} // namespace
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_setEffectChain(
+        JNIEnv* env, jobject, jstring chainJson) {
+    ensureEngine();
+    std::string jsonStr;
+    if (chainJson != nullptr) {
+        const char* utf = env->GetStringUTFChars(chainJson, nullptr);
+        if (utf != nullptr) {
+            jsonStr = utf;
+            env->ReleaseStringUTFChars(chainJson, utf);
+        }
+    }
+    const auto spec = siliconplayer::effects::parseEffectChainJson(jsonStr);
+    {
+        std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+        syncShimDefaultsFromSpecLocked(spec);
+    }
+    audioEngine->setEffectChainSpec(spec);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getEffectChain(
+        JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) {
+        return toJString(env, siliconplayer::effects::serializeEffectChainJson({}));
+    }
+    return toJString(env, audioEngine->getEffectChainJson());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getEffectDescriptorsJson(
+        JNIEnv* env, jobject) {
+    return toJString(env, siliconplayer::effects::EffectRegistry::getInstance().getEffectDescriptorsJson());
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setForceMono(
-        JNIEnv* env, jobject thiz, jboolean enabled) {
+        JNIEnv*, jobject, jboolean enabled) {
     ensureEngine();
-    audioEngine->setForceMono(enabled == JNI_TRUE);
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    gLegacyDspShim.forceMono = (enabled == JNI_TRUE);
+    auto spec = audioEngine->getEffectChainSpec();
+    spec.masterOptions.mono = gLegacyDspShim.forceMono;
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -3177,82 +3319,160 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspBassEnabled(
         JNIEnv*, jobject, jboolean enabled) {
     ensureEngine();
-    audioEngine->setDspBassEnabled(enabled == JNI_TRUE);
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    auto spec = audioEngine->getEffectChainSpec();
+    upsertOrRemoveLegacyNodeLocked(
+            spec,
+            "openmpt.bass",
+            enabled == JNI_TRUE,
+            { static_cast<float>(gLegacyDspShim.bassDepth), static_cast<float>(gLegacyDspShim.bassRange) });
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspBassDepth(
         JNIEnv*, jobject, jint depth) {
     ensureEngine();
-    audioEngine->setDspBassDepth(static_cast<int>(depth));
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    gLegacyDspShim.bassDepth = std::clamp(static_cast<int>(depth), 0, 4);
+    auto spec = audioEngine->getEffectChainSpec();
+    updateLegacyNodeParamsIfPresentLocked(
+            spec,
+            "openmpt.bass",
+            { static_cast<float>(gLegacyDspShim.bassDepth), static_cast<float>(gLegacyDspShim.bassRange) });
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspBassRange(
         JNIEnv*, jobject, jint range) {
     ensureEngine();
-    audioEngine->setDspBassRange(static_cast<int>(range));
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    gLegacyDspShim.bassRange = std::clamp(static_cast<int>(range), 0, 4);
+    auto spec = audioEngine->getEffectChainSpec();
+    updateLegacyNodeParamsIfPresentLocked(
+            spec,
+            "openmpt.bass",
+            { static_cast<float>(gLegacyDspShim.bassDepth), static_cast<float>(gLegacyDspShim.bassRange) });
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspSurroundEnabled(
         JNIEnv*, jobject, jboolean enabled) {
     ensureEngine();
-    audioEngine->setDspSurroundEnabled(enabled == JNI_TRUE);
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    auto spec = audioEngine->getEffectChainSpec();
+    upsertOrRemoveLegacyNodeLocked(
+            spec,
+            "openmpt.surround",
+            enabled == JNI_TRUE,
+            { static_cast<float>(gLegacyDspShim.surroundDepth), static_cast<float>(gLegacyDspShim.surroundDelayMs) });
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspSurroundDepth(
         JNIEnv*, jobject, jint depth) {
     ensureEngine();
-    audioEngine->setDspSurroundDepth(static_cast<int>(depth));
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    gLegacyDspShim.surroundDepth = std::clamp(static_cast<int>(depth), 1, 16);
+    auto spec = audioEngine->getEffectChainSpec();
+    updateLegacyNodeParamsIfPresentLocked(
+            spec,
+            "openmpt.surround",
+            { static_cast<float>(gLegacyDspShim.surroundDepth), static_cast<float>(gLegacyDspShim.surroundDelayMs) });
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspSurroundDelayMs(
         JNIEnv*, jobject, jint delayMs) {
     ensureEngine();
-    audioEngine->setDspSurroundDelayMs(static_cast<int>(delayMs));
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    const int clamped = std::clamp(static_cast<int>(delayMs), 5, 45);
+    gLegacyDspShim.surroundDelayMs = 5 + (((clamped - 5) + 2) / 5) * 5;
+    auto spec = audioEngine->getEffectChainSpec();
+    updateLegacyNodeParamsIfPresentLocked(
+            spec,
+            "openmpt.surround",
+            { static_cast<float>(gLegacyDspShim.surroundDepth), static_cast<float>(gLegacyDspShim.surroundDelayMs) });
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspReverbEnabled(
         JNIEnv*, jobject, jboolean enabled) {
     ensureEngine();
-    audioEngine->setDspReverbEnabled(enabled == JNI_TRUE);
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    auto spec = audioEngine->getEffectChainSpec();
+    upsertOrRemoveLegacyNodeLocked(
+            spec,
+            "openmpt.reverb",
+            enabled == JNI_TRUE,
+            { static_cast<float>(gLegacyDspShim.reverbDepth), static_cast<float>(gLegacyDspShim.reverbPreset) });
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspReverbDepth(
         JNIEnv*, jobject, jint depth) {
     ensureEngine();
-    audioEngine->setDspReverbDepth(static_cast<int>(depth));
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    gLegacyDspShim.reverbDepth = std::clamp(static_cast<int>(depth), 1, 16);
+    auto spec = audioEngine->getEffectChainSpec();
+    updateLegacyNodeParamsIfPresentLocked(
+            spec,
+            "openmpt.reverb",
+            { static_cast<float>(gLegacyDspShim.reverbDepth), static_cast<float>(gLegacyDspShim.reverbPreset) });
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspReverbPreset(
         JNIEnv*, jobject, jint preset) {
     ensureEngine();
-    audioEngine->setDspReverbPreset(static_cast<int>(preset));
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    gLegacyDspShim.reverbPreset = std::clamp(static_cast<int>(preset), 0, 28);
+    auto spec = audioEngine->getEffectChainSpec();
+    updateLegacyNodeParamsIfPresentLocked(
+            spec,
+            "openmpt.reverb",
+            { static_cast<float>(gLegacyDspShim.reverbDepth), static_cast<float>(gLegacyDspShim.reverbPreset) });
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspBitCrushEnabled(
         JNIEnv*, jobject, jboolean enabled) {
     ensureEngine();
-    audioEngine->setDspBitCrushEnabled(enabled == JNI_TRUE);
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    auto spec = audioEngine->getEffectChainSpec();
+    upsertOrRemoveLegacyNodeLocked(
+            spec,
+            "openmpt.bitcrush",
+            enabled == JNI_TRUE,
+            { static_cast<float>(gLegacyDspShim.bitCrushBits) });
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_setDspBitCrushBits(
         JNIEnv*, jobject, jint bits) {
     ensureEngine();
-    audioEngine->setDspBitCrushBits(static_cast<int>(bits));
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    gLegacyDspShim.bitCrushBits = std::clamp(static_cast<int>(bits), 1, 24);
+    auto spec = audioEngine->getEffectChainSpec();
+    updateLegacyNodeParamsIfPresentLocked(
+            spec,
+            "openmpt.bitcrush",
+            { static_cast<float>(gLegacyDspShim.bitCrushBits) });
+    audioEngine->setEffectChainSpec(spec);
 }
 
 extern "C" JNIEXPORT jfloat JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getMasterGain(
-        JNIEnv* env, jobject thiz) {
+        JNIEnv*, jobject) {
     if (audioEngine == nullptr) {
         return 0.0f;
     }
@@ -3261,7 +3481,7 @@ Java_com_flopster101_siliconplayer_NativeBridge_getMasterGain(
 
 extern "C" JNIEXPORT jfloat JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getPluginGain(
-        JNIEnv* env, jobject thiz) {
+        JNIEnv*, jobject) {
     if (audioEngine == nullptr) {
         return 0.0f;
     }
@@ -3270,7 +3490,7 @@ Java_com_flopster101_siliconplayer_NativeBridge_getPluginGain(
 
 extern "C" JNIEXPORT jfloat JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getSongGain(
-        JNIEnv* env, jobject thiz) {
+        JNIEnv*, jobject) {
     if (audioEngine == nullptr) {
         return 0.0f;
     }
@@ -3279,88 +3499,135 @@ Java_com_flopster101_siliconplayer_NativeBridge_getSongGain(
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getForceMono(
-        JNIEnv* env, jobject thiz) {
+        JNIEnv*, jobject) {
     if (audioEngine == nullptr) {
-        return JNI_FALSE;
+        std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+        return gLegacyDspShim.forceMono ? JNI_TRUE : JNI_FALSE;
     }
-    return audioEngine->getForceMono() ? JNI_TRUE : JNI_FALSE;
+    return audioEngine->getEffectChainSpec().masterOptions.mono ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getDspBassEnabled(
         JNIEnv*, jobject) {
     if (audioEngine == nullptr) return JNI_FALSE;
-    return audioEngine->getDspBassEnabled() ? JNI_TRUE : JNI_FALSE;
+    const auto spec = audioEngine->getEffectChainSpec();
+    return findActiveNode(spec, "openmpt.bass") != nullptr ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getDspBassDepth(
         JNIEnv*, jobject) {
-    if (audioEngine == nullptr) return 6;
-    return static_cast<jint>(audioEngine->getDspBassDepth());
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    if (audioEngine != nullptr) {
+        const auto spec = audioEngine->getEffectChainSpec();
+        if (const auto* node = findActiveNode(spec, "openmpt.bass"); node && node->params.size() >= 1) {
+            return static_cast<jint>(std::lrint(node->params[0]));
+        }
+    }
+    return static_cast<jint>(gLegacyDspShim.bassDepth);
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getDspBassRange(
         JNIEnv*, jobject) {
-    if (audioEngine == nullptr) return 14;
-    return static_cast<jint>(audioEngine->getDspBassRange());
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    if (audioEngine != nullptr) {
+        const auto spec = audioEngine->getEffectChainSpec();
+        if (const auto* node = findActiveNode(spec, "openmpt.bass"); node && node->params.size() >= 2) {
+            return static_cast<jint>(std::lrint(node->params[1]));
+        }
+    }
+    return static_cast<jint>(gLegacyDspShim.bassRange);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getDspSurroundEnabled(
         JNIEnv*, jobject) {
     if (audioEngine == nullptr) return JNI_FALSE;
-    return audioEngine->getDspSurroundEnabled() ? JNI_TRUE : JNI_FALSE;
+    const auto spec = audioEngine->getEffectChainSpec();
+    return findActiveNode(spec, "openmpt.surround") != nullptr ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getDspSurroundDepth(
         JNIEnv*, jobject) {
-    if (audioEngine == nullptr) return 8;
-    return static_cast<jint>(audioEngine->getDspSurroundDepth());
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    if (audioEngine != nullptr) {
+        const auto spec = audioEngine->getEffectChainSpec();
+        if (const auto* node = findActiveNode(spec, "openmpt.surround"); node && node->params.size() >= 1) {
+            return static_cast<jint>(std::lrint(node->params[0]));
+        }
+    }
+    return static_cast<jint>(gLegacyDspShim.surroundDepth);
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getDspSurroundDelayMs(
         JNIEnv*, jobject) {
-    if (audioEngine == nullptr) return 20;
-    return static_cast<jint>(audioEngine->getDspSurroundDelayMs());
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    if (audioEngine != nullptr) {
+        const auto spec = audioEngine->getEffectChainSpec();
+        if (const auto* node = findActiveNode(spec, "openmpt.surround"); node && node->params.size() >= 2) {
+            return static_cast<jint>(std::lrint(node->params[1]));
+        }
+    }
+    return static_cast<jint>(gLegacyDspShim.surroundDelayMs);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getDspReverbEnabled(
         JNIEnv*, jobject) {
     if (audioEngine == nullptr) return JNI_FALSE;
-    return audioEngine->getDspReverbEnabled() ? JNI_TRUE : JNI_FALSE;
+    const auto spec = audioEngine->getEffectChainSpec();
+    return findActiveNode(spec, "openmpt.reverb") != nullptr ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getDspReverbDepth(
         JNIEnv*, jobject) {
-    if (audioEngine == nullptr) return 8;
-    return static_cast<jint>(audioEngine->getDspReverbDepth());
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    if (audioEngine != nullptr) {
+        const auto spec = audioEngine->getEffectChainSpec();
+        if (const auto* node = findActiveNode(spec, "openmpt.reverb"); node && node->params.size() >= 1) {
+            return static_cast<jint>(std::lrint(node->params[0]));
+        }
+    }
+    return static_cast<jint>(gLegacyDspShim.reverbDepth);
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getDspReverbPreset(
         JNIEnv*, jobject) {
-    if (audioEngine == nullptr) return 0;
-    return static_cast<jint>(audioEngine->getDspReverbPreset());
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    if (audioEngine != nullptr) {
+        const auto spec = audioEngine->getEffectChainSpec();
+        if (const auto* node = findActiveNode(spec, "openmpt.reverb"); node && node->params.size() >= 2) {
+            return static_cast<jint>(std::lrint(node->params[1]));
+        }
+    }
+    return static_cast<jint>(gLegacyDspShim.reverbPreset);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getDspBitCrushEnabled(
         JNIEnv*, jobject) {
     if (audioEngine == nullptr) return JNI_FALSE;
-    return audioEngine->getDspBitCrushEnabled() ? JNI_TRUE : JNI_FALSE;
+    const auto spec = audioEngine->getEffectChainSpec();
+    return findActiveNode(spec, "openmpt.bitcrush") != nullptr ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_flopster101_siliconplayer_NativeBridge_getDspBitCrushBits(
         JNIEnv*, jobject) {
-    if (audioEngine == nullptr) return 16;
-    return static_cast<jint>(audioEngine->getDspBitCrushBits());
+    std::lock_guard<std::mutex> lock(gLegacyDspShimMutex);
+    if (audioEngine != nullptr) {
+        const auto spec = audioEngine->getEffectChainSpec();
+        if (const auto* node = findActiveNode(spec, "openmpt.bitcrush"); node && !node->params.empty()) {
+            return static_cast<jint>(std::lrint(node->params[0]));
+        }
+    }
+    return static_cast<jint>(gLegacyDspShim.bitCrushBits);
 }
 
 extern "C" JNIEXPORT void JNICALL
