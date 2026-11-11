@@ -4,6 +4,7 @@ import com.flopster101.siliconplayer.AppDefaults
 import com.flopster101.siliconplayer.NativeBridge
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToInt
 
 internal object EffectNodeIds {
@@ -21,16 +22,287 @@ internal object EffectNodeIds {
     )
 }
 
+internal enum class EffectParamType {
+    Bool,
+    Int,
+    Float,
+    Enum;
+
+    companion object {
+        fun fromJsonKey(raw: String?): EffectParamType = when (raw?.trim()?.lowercase()) {
+            "bool" -> Bool
+            "int" -> Int
+            "enum" -> Enum
+            else -> Float
+        }
+    }
+}
+
+internal data class EffectParamDescriptor(
+    val id: String,
+    val label: String,
+    val type: EffectParamType,
+    val minValue: Float,
+    val maxValue: Float,
+    val defaultValue: Float,
+    val step: Float = 0f,
+    val enumCount: Int = 0
+) {
+    val isInteger: Boolean
+        get() = type == EffectParamType.Int || type == EffectParamType.Enum || type == EffectParamType.Bool
+}
+
+internal data class EffectDescriptor(
+    val id: String,
+    val displayName: String,
+    val schemaVersion: Int = 1,
+    val supportsDryWet: Boolean = false,
+    val params: List<EffectParamDescriptor> = emptyList()
+)
+
+internal val DefaultEffectDescriptors: List<EffectDescriptor> = listOf(
+    EffectDescriptor(
+        id = EffectNodeIds.OPENMPT_BASS,
+        displayName = "OpenMPT Bass Expansion",
+        schemaVersion = 1,
+        supportsDryWet = false,
+        params = listOf(
+            EffectParamDescriptor(
+                id = "depth",
+                label = "Depth",
+                type = EffectParamType.Int,
+                minValue = 0f,
+                maxValue = 4f,
+                defaultValue = AppDefaults.AudioProcessing.Dsp.bassDepth.toFloat(),
+                step = 1f
+            ),
+            EffectParamDescriptor(
+                id = "range",
+                label = "Range",
+                type = EffectParamType.Int,
+                minValue = 0f,
+                maxValue = 4f,
+                defaultValue = AppDefaults.AudioProcessing.Dsp.bassRange.toFloat(),
+                step = 1f
+            )
+        )
+    ),
+    EffectDescriptor(
+        id = EffectNodeIds.OPENMPT_SURROUND,
+        displayName = "OpenMPT Surround",
+        schemaVersion = 1,
+        supportsDryWet = false,
+        params = listOf(
+            EffectParamDescriptor(
+                id = "depth",
+                label = "Depth",
+                type = EffectParamType.Int,
+                minValue = 1f,
+                maxValue = 16f,
+                defaultValue = AppDefaults.AudioProcessing.Dsp.surroundDepth.toFloat(),
+                step = 1f
+            ),
+            EffectParamDescriptor(
+                id = "delayMs",
+                label = "Delay (ms)",
+                type = EffectParamType.Int,
+                minValue = 5f,
+                maxValue = 45f,
+                defaultValue = AppDefaults.AudioProcessing.Dsp.surroundDelayMs.toFloat(),
+                step = 5f
+            )
+        )
+    ),
+    EffectDescriptor(
+        id = EffectNodeIds.OPENMPT_REVERB,
+        displayName = "OpenMPT Reverb",
+        schemaVersion = 1,
+        supportsDryWet = false,
+        params = listOf(
+            EffectParamDescriptor(
+                id = "depth",
+                label = "Depth",
+                type = EffectParamType.Int,
+                minValue = 1f,
+                maxValue = 16f,
+                defaultValue = AppDefaults.AudioProcessing.Dsp.reverbDepth.toFloat(),
+                step = 1f
+            ),
+            EffectParamDescriptor(
+                id = "preset",
+                label = "Preset",
+                type = EffectParamType.Enum,
+                minValue = 0f,
+                maxValue = 28f,
+                defaultValue = AppDefaults.AudioProcessing.Dsp.reverbPreset.toFloat(),
+                step = 1f,
+                enumCount = 29
+            )
+        )
+    ),
+    EffectDescriptor(
+        id = EffectNodeIds.OPENMPT_BITCRUSH,
+        displayName = "OpenMPT Bit Crush",
+        schemaVersion = 1,
+        supportsDryWet = false,
+        params = listOf(
+            EffectParamDescriptor(
+                id = "bits",
+                label = "Bit Depth",
+                type = EffectParamType.Int,
+                minValue = 1f,
+                maxValue = 24f,
+                defaultValue = AppDefaults.AudioProcessing.Dsp.bitCrushBits.toFloat(),
+                step = 1f
+            )
+        )
+    ),
+    EffectDescriptor(
+        id = EffectNodeIds.GAIN,
+        displayName = "Gain",
+        schemaVersion = 1,
+        supportsDryWet = false,
+        params = listOf(
+            EffectParamDescriptor(
+                id = "gainDb",
+                label = "Gain (dB)",
+                type = EffectParamType.Float,
+                minValue = -24f,
+                maxValue = 24f,
+                defaultValue = 0f,
+                step = 0f
+            )
+        )
+    )
+)
+
+private val KnownEffectSchemas: Map<String, EffectDescriptor> =
+    DefaultEffectDescriptors.associateBy { it.id }
+
+internal fun parseEffectDescriptorsJson(json: String?): List<EffectDescriptor> {
+    if (json.isNullOrBlank()) return emptyList()
+    val array = try {
+        JSONArray(json)
+    } catch (_: Exception) {
+        return emptyList()
+    }
+    val out = ArrayList<EffectDescriptor>(array.length())
+    for (i in 0 until array.length()) {
+        val obj = array.optJSONObject(i) ?: continue
+        val id = obj.optString("id", "").trim().takeIf { it.isNotEmpty() } ?: continue
+        val displayName = obj.optString("displayName", id).trim().ifEmpty { id }
+        val schemaVersion = obj.optInt("schemaVersion", 1).coerceAtLeast(1)
+        val supportsDryWet = obj.optBoolean("supportsDryWet", false)
+        val paramsArray = obj.optJSONArray("params")
+        val params = ArrayList<EffectParamDescriptor>()
+        if (paramsArray != null) {
+            for (p in 0 until paramsArray.length()) {
+                val pObj = paramsArray.optJSONObject(p) ?: continue
+                val pId = pObj.optString("id", "").trim().takeIf { it.isNotEmpty() } ?: continue
+                val pLabel = pObj.optString("label", pId).trim().ifEmpty { pId }
+                val pType = EffectParamType.fromJsonKey(pObj.optString("type", "float"))
+                val minVal = pObj.optDouble("min", 0.0).toFloat().takeIf { it.isFinite() } ?: 0f
+                val maxVal = pObj.optDouble("max", 1.0).toFloat().takeIf { it.isFinite() } ?: 1f
+                val defVal = pObj.optDouble("default", minVal.toDouble()).toFloat().takeIf { it.isFinite() } ?: minVal
+                val stepVal = pObj.optDouble("step", 0.0).toFloat().takeIf { it.isFinite() && it >= 0f } ?: 0f
+                val enumCount = pObj.optInt("enumCount", 0).coerceAtLeast(0)
+                params.add(
+                    EffectParamDescriptor(
+                        id = pId,
+                        label = pLabel,
+                        type = pType,
+                        minValue = minVal,
+                        maxValue = maxVal,
+                        defaultValue = defVal,
+                        step = stepVal,
+                        enumCount = enumCount
+                    )
+                )
+            }
+        }
+        out.add(
+            EffectDescriptor(
+                id = id,
+                displayName = displayName,
+                schemaVersion = schemaVersion,
+                supportsDryWet = supportsDryWet,
+                params = params
+            )
+        )
+    }
+    return out
+}
+
+internal fun queryEffectDescriptors(): List<EffectDescriptor> {
+    val raw = try {
+        NativeBridge.getEffectDescriptorsJson()
+    } catch (_: Throwable) {
+        null
+    }
+    val parsed = parseEffectDescriptorsJson(raw)
+    return parsed.ifEmpty { DefaultEffectDescriptors }
+}
+
+internal fun findEffectDescriptor(
+    id: String,
+    descriptors: List<EffectDescriptor> = DefaultEffectDescriptors
+): EffectDescriptor? =
+    descriptors.firstOrNull { it.id == id } ?: KnownEffectSchemas[id]
+
+internal fun defaultParamsForDescriptor(descriptor: EffectDescriptor): Map<String, Float> {
+    val map = LinkedHashMap<String, Float>(descriptor.params.size)
+    for (p in descriptor.params) {
+        map[p.id] = p.defaultValue
+    }
+    return normalizeParamsForSchema(descriptor, map)
+}
+
+internal fun createDefaultEffectNode(
+    id: String,
+    descriptors: List<EffectDescriptor> = DefaultEffectDescriptors
+): EffectNode? {
+    val descriptor = findEffectDescriptor(id, descriptors) ?: return null
+    return EffectNode(
+        id = descriptor.id,
+        enabled = true,
+        options = NodeOptions(),
+        params = defaultParamsForDescriptor(descriptor)
+    )
+}
+
+private val effectNodeUidCounter = AtomicLong(1L)
+
+internal fun nextEffectNodeUid(): Long = effectNodeUidCounter.getAndIncrement()
+
 internal data class NodeOptions(
-    val mono: Boolean = false
+    val mono: Boolean = false,
+    val gainDb: Float = 0f
 )
 
 internal data class EffectNode(
     val id: String,
     val enabled: Boolean = true,
     val options: NodeOptions = NodeOptions(),
-    val params: Map<String, Float> = emptyMap()
-)
+    val params: Map<String, Float> = emptyMap(),
+    val uid: Long = nextEffectNodeUid()
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is EffectNode) return false
+        return id == other.id &&
+            enabled == other.enabled &&
+            options == other.options &&
+            params == other.params
+    }
+
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = 31 * result + enabled.hashCode()
+        result = 31 * result + options.hashCode()
+        result = 31 * result + params.hashCode()
+        return result
+    }
+}
 
 internal data class EffectChain(
     val input: NodeOptions = NodeOptions(),
@@ -39,11 +311,82 @@ internal data class EffectChain(
 ) {
     fun withMasterMono(mono: Boolean): EffectChain = copy(master = master.copy(mono = mono))
 
+    fun withMasterGainDb(gainDb: Float): EffectChain =
+        copy(master = master.copy(gainDb = gainDb.coerceIn(-24f, 24f)))
+
     fun withInputMono(mono: Boolean): EffectChain = copy(input = input.copy(mono = mono))
+
+    fun withInputGainDb(gainDb: Float): EffectChain =
+        copy(input = input.copy(gainDb = gainDb.coerceIn(-24f, 24f)))
 
     fun findNode(id: String): EffectNode? = nodes.firstOrNull { it.id == id }
 
     fun isNodeActive(id: String): Boolean = nodes.any { it.id == id && it.enabled }
+
+    fun addNode(
+        id: String,
+        descriptors: List<EffectDescriptor> = DefaultEffectDescriptors
+    ): EffectChain {
+        val node = createDefaultEffectNode(id, descriptors) ?: return this
+        return copy(nodes = nodes + node)
+    }
+
+    fun removeNodeAt(index: Int): EffectChain {
+        if (index !in nodes.indices) return this
+        val updated = nodes.toMutableList()
+        updated.removeAt(index)
+        return copy(nodes = updated)
+    }
+
+    fun moveNode(fromIndex: Int, toIndex: Int): EffectChain {
+        if (fromIndex !in nodes.indices || toIndex !in nodes.indices || fromIndex == toIndex) {
+            return this
+        }
+        val updated = nodes.toMutableList()
+        val item = updated.removeAt(fromIndex)
+        updated.add(toIndex, item)
+        return copy(nodes = updated)
+    }
+
+    fun setNodeEnabledAt(index: Int, enabled: Boolean): EffectChain {
+        if (index !in nodes.indices) return this
+        val current = nodes[index]
+        if (current.enabled == enabled) return this
+        val updated = nodes.toMutableList()
+        updated[index] = current.copy(enabled = enabled)
+        return copy(nodes = updated)
+    }
+
+    fun setNodeMonoAt(index: Int, mono: Boolean): EffectChain {
+        if (index !in nodes.indices) return this
+        val current = nodes[index]
+        if (current.options.mono == mono) return this
+        val updated = nodes.toMutableList()
+        updated[index] = current.copy(options = current.options.copy(mono = mono))
+        return copy(nodes = updated)
+    }
+
+    fun setNodeParamAt(
+        index: Int,
+        paramId: String,
+        value: Float,
+        descriptors: List<EffectDescriptor> = DefaultEffectDescriptors
+    ): EffectChain {
+        if (index !in nodes.indices) return this
+        val current = nodes[index]
+        val descriptor = findEffectDescriptor(current.id, descriptors) ?: return this
+        val mergedParams = LinkedHashMap(current.params)
+        mergedParams[paramId] = value
+        val normalized = normalizeParamsForSchema(descriptor, mergedParams)
+        if (current.params == normalized) return this
+        val updated = nodes.toMutableList()
+        updated[index] = current.copy(params = normalized)
+        return copy(nodes = updated)
+    }
+
+    fun withFreshNodeUids(): EffectChain = copy(
+        nodes = nodes.map { it.copy(uid = nextEffectNodeUid()) }
+    )
 
     fun withLegacyNodeState(
         id: String,
@@ -88,8 +431,8 @@ internal data class EffectChain(
     fun toJson(): String {
         val root = JSONObject()
         root.put("version", SCHEMA_VERSION)
-        root.put("input", JSONObject().put("mono", input.mono))
-        root.put("master", JSONObject().put("mono", master.mono))
+        root.put("input", serializeNodeOptions(input))
+        root.put("master", serializeNodeOptions(master))
         val nodesArray = JSONArray()
         for (node in nodes) {
             val schema = KnownEffectSchemas[node.id] ?: continue
@@ -183,55 +526,13 @@ internal data class EffectChain(
     }
 }
 
-private data class ParamSchema(
-    val id: String,
-    val minValue: Float,
-    val maxValue: Float,
-    val defaultValue: Float,
-    val step: Float = 0f,
-    val isInteger: Boolean = false
-)
-
-private data class EffectSchema(
-    val id: String,
-    val params: List<ParamSchema>
-)
-
-private val KnownEffectSchemas: Map<String, EffectSchema> = listOf(
-    EffectSchema(
-        id = EffectNodeIds.OPENMPT_BASS,
-        params = listOf(
-            ParamSchema("depth", 0f, 4f, AppDefaults.AudioProcessing.Dsp.bassDepth.toFloat(), 1f, isInteger = true),
-            ParamSchema("range", 0f, 4f, AppDefaults.AudioProcessing.Dsp.bassRange.toFloat(), 1f, isInteger = true)
-        )
-    ),
-    EffectSchema(
-        id = EffectNodeIds.OPENMPT_SURROUND,
-        params = listOf(
-            ParamSchema("depth", 1f, 16f, AppDefaults.AudioProcessing.Dsp.surroundDepth.toFloat(), 1f, isInteger = true),
-            ParamSchema("delayMs", 5f, 45f, AppDefaults.AudioProcessing.Dsp.surroundDelayMs.toFloat(), 5f, isInteger = true)
-        )
-    ),
-    EffectSchema(
-        id = EffectNodeIds.OPENMPT_REVERB,
-        params = listOf(
-            ParamSchema("depth", 1f, 16f, AppDefaults.AudioProcessing.Dsp.reverbDepth.toFloat(), 1f, isInteger = true),
-            ParamSchema("preset", 0f, 28f, AppDefaults.AudioProcessing.Dsp.reverbPreset.toFloat(), 1f, isInteger = true)
-        )
-    ),
-    EffectSchema(
-        id = EffectNodeIds.OPENMPT_BITCRUSH,
-        params = listOf(
-            ParamSchema("bits", 1f, 24f, AppDefaults.AudioProcessing.Dsp.bitCrushBits.toFloat(), 1f, isInteger = true)
-        )
-    ),
-    EffectSchema(
-        id = EffectNodeIds.GAIN,
-        params = listOf(
-            ParamSchema("gainDb", -24f, 24f, 0f, 0f, isInteger = false)
-        )
-    )
-).associateBy { it.id }
+private fun serializeNodeOptions(options: NodeOptions): JSONObject {
+    val obj = JSONObject().put("mono", options.mono)
+    if (options.gainDb.isFinite() && kotlin.math.abs(options.gainDb) >= 1e-4f) {
+        obj.put("gainDb", options.gainDb.coerceIn(-24f, 24f).toDouble())
+    }
+    return obj
+}
 
 private fun parseNodeOptions(obj: JSONObject?): NodeOptions {
     if (obj == null) return NodeOptions()
@@ -240,16 +541,24 @@ private fun parseNodeOptions(obj: JSONObject?): NodeOptions {
     } else {
         false
     }
-    return NodeOptions(mono = mono)
+    val gainDb = when (val rawGain = obj.opt("gainDb")) {
+        is Number -> rawGain.toFloat().takeIf { it.isFinite() }?.coerceIn(-24f, 24f) ?: 0f
+        else -> 0f
+    }
+    return NodeOptions(mono = mono, gainDb = gainDb)
 }
 
 private fun normalizeParamsForSchema(
-    schema: EffectSchema,
+    schema: EffectDescriptor,
     raw: Map<String, Float>
 ): Map<String, Float> {
     val result = LinkedHashMap<String, Float>(schema.params.size)
     for (p in schema.params) {
         val candidate = raw[p.id]?.takeIf { it.isFinite() } ?: p.defaultValue
+        if (p.type == EffectParamType.Bool) {
+            result[p.id] = if (candidate >= 0.5f) 1f else 0f
+            continue
+        }
         var clamped = candidate.coerceIn(p.minValue, p.maxValue)
         if (p.isInteger) {
             if (p.step > 1f) {

@@ -12,6 +12,18 @@ namespace siliconplayer::effects {
 
 namespace {
 
+void applyGainDbIfNonZero(float* buffer, int frames, int channels, float gainDb) {
+    if (!buffer || frames <= 0 || channels <= 0 || !std::isfinite(gainDb) || std::abs(gainDb) < 1e-4f) {
+        return;
+    }
+    const float clampedDb = std::clamp(gainDb, -24.0f, 24.0f);
+    const float linear = std::pow(10.0f, clampedDb / 20.0f);
+    const int totalSamples = frames * channels;
+    for (int i = 0; i < totalSamples; ++i) {
+        buffer[i] *= linear;
+    }
+}
+
 void applyMonoIfEnabled(float* buffer, int frames, int channels, bool enabled) {
     if (!enabled || channels != 2 || !buffer || frames <= 0) {
         return;
@@ -285,6 +297,13 @@ bool parseNodeOptionsObject(JsonCursor& cur, NodeOptions& out) {
             } else if (!cur.skipValue()) {
                 return false;
             }
+        } else if (key == "gainDb") {
+            double gain = 0.0;
+            if (cur.parseNumber(gain)) {
+                out.gainDb = std::clamp(static_cast<float>(gain), -24.0f, 24.0f);
+            } else if (!cur.skipValue()) {
+                return false;
+            }
         } else {
             if (!cur.skipValue()) return false;
         }
@@ -513,10 +532,19 @@ EffectChainSpec parseEffectChainJson(std::string_view json) {
 
 std::string serializeEffectChainJson(const EffectChainSpec& spec) {
     auto& registry = EffectRegistry::getInstance();
+    constexpr ParamDescriptor kGainOptDesc { "gainDb", "Gain", ParamType::Float, -24.0f, 24.0f, 0.0f, 0.5f, 0 };
     std::string out = "{\"version\":1,\"input\":{\"mono\":";
     out += spec.inputOptions.mono ? "true" : "false";
+    if (std::isfinite(spec.inputOptions.gainDb) && std::abs(spec.inputOptions.gainDb) >= 1e-4f) {
+        out += ",\"gainDb\":";
+        appendJsonParamValue(out, kGainOptDesc, spec.inputOptions.gainDb);
+    }
     out += "},\"master\":{\"mono\":";
     out += spec.masterOptions.mono ? "true" : "false";
+    if (std::isfinite(spec.masterOptions.gainDb) && std::abs(spec.masterOptions.gainDb) >= 1e-4f) {
+        out += ",\"gainDb\":";
+        appendJsonParamValue(out, kGainOptDesc, spec.masterOptions.gainDb);
+    }
     out += "},\"nodes\":[";
 
     bool firstNode = true;
@@ -616,7 +644,9 @@ void AudioEffectChain::setSpec(const EffectChainSpec& spec, int sampleRate, int 
     liveNodes = std::move(builtNodes);
     currentSpec = std::move(filteredSpec);
     inputMono.store(currentSpec.inputOptions.mono, std::memory_order_relaxed);
+    inputGainDb.store(currentSpec.inputOptions.gainDb, std::memory_order_relaxed);
     masterMono.store(currentSpec.masterOptions.mono, std::memory_order_relaxed);
+    masterGainDb.store(currentSpec.masterOptions.gainDb, std::memory_order_relaxed);
     if (sampleRate > 0 && channels > 0) {
         preparedSampleRate = sampleRate;
         preparedChannels = channels;
@@ -649,7 +679,9 @@ bool AudioEffectChain::updateIfStructurallyEqual(const EffectChainSpec& spec) {
     }
 
     inputMono.store(spec.inputOptions.mono, std::memory_order_relaxed);
+    inputGainDb.store(spec.inputOptions.gainDb, std::memory_order_relaxed);
     masterMono.store(spec.masterOptions.mono, std::memory_order_relaxed);
+    masterGainDb.store(spec.masterOptions.gainDb, std::memory_order_relaxed);
     currentSpec.inputOptions = spec.inputOptions;
     currentSpec.masterOptions = spec.masterOptions;
 
@@ -689,6 +721,7 @@ void AudioEffectChain::process(float* buffer, int frames, int channels) {
         return;
     }
 
+    applyGainDbIfNonZero(buffer, frames, channels, inputGainDb.load(std::memory_order_relaxed));
     applyMonoIfEnabled(buffer, frames, channels, inputMono.load(std::memory_order_relaxed));
 
     for (auto& node : liveNodes) {
@@ -699,6 +732,7 @@ void AudioEffectChain::process(float* buffer, int frames, int channels) {
         applyMonoIfEnabled(buffer, frames, channels, node.mono.load(std::memory_order_relaxed));
     }
 
+    applyGainDbIfNonZero(buffer, frames, channels, masterGainDb.load(std::memory_order_relaxed));
     applyMonoIfEnabled(buffer, frames, channels, masterMono.load(std::memory_order_relaxed));
 }
 

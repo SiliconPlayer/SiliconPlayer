@@ -13,6 +13,7 @@ namespace siliconplayer::effects {
 
 struct NodeOptions {
     bool mono = false;
+    float gainDb = 0.0f;
 };
 
 struct EffectNodeSpec {
@@ -76,7 +77,9 @@ private:
     int preparedSampleRate = 0;
     int preparedChannels = 0;
     std::atomic<bool> inputMono { false };
+    std::atomic<float> inputGainDb { 0.0f };
     std::atomic<bool> masterMono { false };
+    std::atomic<float> masterGainDb { 0.0f };
     std::atomic<double> cachedLatencyFrames { 0.0 };
 };
 

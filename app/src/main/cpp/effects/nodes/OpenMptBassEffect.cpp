@@ -25,7 +25,7 @@ IAudioEffect* createBassEffect() {
 const EffectDescriptor& OpenMptBassEffect::descriptor() {
     static const EffectDescriptor desc {
             "openmpt.bass",
-            "Bass Expansion",
+            "OpenMPT Bass Expansion",
             1,
             kBassParams,
             static_cast<int>(sizeof(kBassParams) / sizeof(kBassParams[0])),

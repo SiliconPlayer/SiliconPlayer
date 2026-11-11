@@ -220,7 +220,7 @@ IAudioEffect* createReverbEffect() {
 const EffectDescriptor& OpenMptReverbEffect::descriptor() {
     static const EffectDescriptor desc {
             "openmpt.reverb",
-            "Reverb",
+            "OpenMPT Reverb",
             1,
             kReverbParams,
             static_cast<int>(sizeof(kReverbParams) / sizeof(kReverbParams[0])),

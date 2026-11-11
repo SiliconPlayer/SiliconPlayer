@@ -100,6 +100,7 @@ internal fun FloatingActionDialog(
     confirmIsDestructive: Boolean = false,
     onConfirm: (() -> Unit)? = null,
     dismissText: String? = if (confirmText != null && confirmText != "Done") "Cancel" else null,
+    headerAction: (@Composable () -> Unit)? = null,
     bodyMaxHeight: Dp = 460.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -122,7 +123,7 @@ internal fun FloatingActionDialog(
     val dragToFraction = rememberScrollStateScrollbarDragHandler(scrollState)
     Dialog(onDismissRequest = onDismiss, properties = adaptiveDialogProperties()) {
         Surface(
-            modifier = adaptiveDialogModifier(),
+            modifier = adaptiveDialogModifier().padding(vertical = 20.dp),
             shape = Radius.Sheet,
             color = MaterialTheme.colorScheme.surfaceContainer
         ) {
@@ -131,18 +132,22 @@ internal fun FloatingActionDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
+                    headerAction?.invoke()
                 }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .weight(1f, fill = false)
                         .heightIn(max = bodyMaxHeight)
                         .onSizeChangedDeferred { viewportHeightPx = it.height.toFloat() }
                 ) {

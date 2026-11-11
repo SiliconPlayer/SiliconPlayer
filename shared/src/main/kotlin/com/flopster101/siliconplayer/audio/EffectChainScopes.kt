@@ -5,6 +5,8 @@ import com.flopster101.siliconplayer.PlaylistLibraryState
 import com.flopster101.siliconplayer.StoredPlaylist
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.updateStoredPlaylistEffectChain
+import org.json.JSONArray
+import org.json.JSONObject
 
 internal sealed interface ScopeKey {
     data object Global : ScopeKey
@@ -13,12 +15,77 @@ internal sealed interface ScopeKey {
     data class Song(val path: String) : ScopeKey
 }
 
+internal data class EffectPreset(
+    val id: String,
+    val name: String,
+    val chain: EffectChain
+)
+
+internal fun parseEffectPresetsJson(json: String?): List<EffectPreset> {
+    if (json.isNullOrBlank()) return emptyList()
+    val array = try {
+        JSONArray(json)
+    } catch (_: Exception) {
+        return emptyList()
+    }
+    val out = ArrayList<EffectPreset>(array.length())
+    for (i in 0 until array.length()) {
+        val obj = array.optJSONObject(i) ?: continue
+        val id = obj.optString("id", "").trim().takeIf { it.isNotEmpty() } ?: continue
+        val name = obj.optString("name", "").trim().takeIf { it.isNotEmpty() } ?: continue
+        val chainObj = obj.optJSONObject("chain")
+        val chainJson = chainObj?.toString() ?: obj.optString("chain", "")
+        out.add(
+            EffectPreset(
+                id = id,
+                name = name,
+                chain = EffectChain.fromJson(chainJson)
+            )
+        )
+    }
+    return out
+}
+
+internal fun serializeEffectPresetsJson(presets: List<EffectPreset>): String {
+    val array = JSONArray()
+    for (preset in presets) {
+        val obj = JSONObject()
+            .put("id", preset.id)
+            .put("name", preset.name)
+            .put("chain", JSONObject(preset.chain.toJson()))
+        array.put(obj)
+    }
+    return array.toString()
+}
+
+internal fun readEffectPresets(prefs: AppPreferences): List<EffectPreset> =
+    parseEffectPresetsJson(prefs.getString(AppPreferenceKeys.AUDIO_EFFECT_PRESETS, null))
+
+internal fun writeEffectPresets(editor: AppPreferences.Editor, presets: List<EffectPreset>) {
+    if (presets.isEmpty()) {
+        editor.remove(AppPreferenceKeys.AUDIO_EFFECT_PRESETS)
+    } else {
+        editor.putString(AppPreferenceKeys.AUDIO_EFFECT_PRESETS, serializeEffectPresetsJson(presets))
+    }
+}
+
+internal fun readBypassAllEffects(prefs: AppPreferences): Boolean =
+    prefs.getBoolean(AppPreferenceKeys.AUDIO_EFFECTS_BYPASS_ALL, false)
+
+internal fun writeBypassAllEffects(editor: AppPreferences.Editor, bypassAll: Boolean) {
+    editor.putBoolean(AppPreferenceKeys.AUDIO_EFFECTS_BYPASS_ALL, bypassAll)
+}
+
 internal fun resolveEffectiveEffectChain(
     global: EffectChain,
     core: EffectChain? = null,
     playlist: EffectChain? = null,
-    song: EffectChain? = null
-): EffectChain = song ?: playlist ?: core ?: global
+    song: EffectChain? = null,
+    bypassAll: Boolean = false
+): EffectChain {
+    if (bypassAll) return EffectChain.Empty
+    return song ?: playlist ?: core ?: global
+}
 
 internal fun synthesizeEffectChainFromLegacy(
     settings: DspSettings,
@@ -189,6 +256,7 @@ internal fun resolveEffectiveEffectChainForPrefs(
     songVolumeStore: SongVolumeStore? = null,
     songPath: String? = null
 ): EffectChain {
+    if (readBypassAllEffects(prefs)) return EffectChain.Empty
     val resolvedPlaylistChain = readPlaylistEffectChain(playlistState, playlistId)
         ?: readPlaylistEffectChain(playlist)
     val resolvedSongChain = readSongEffectChain(songVolumeStore, songPath)
@@ -196,7 +264,8 @@ internal fun resolveEffectiveEffectChainForPrefs(
         global = readGlobalEffectChain(prefs),
         core = readCoreEffectChain(prefs, coreName),
         playlist = resolvedPlaylistChain,
-        song = resolvedSongChain
+        song = resolvedSongChain,
+        bypassAll = false
     )
 }
 
@@ -220,4 +289,88 @@ internal fun applyEffectiveEffectChainFromPrefsToNative(
             songPath = songPath
         )
     )
+}
+
+internal enum class EffectChainScopeTarget(val storageKey: String, val label: String) {
+    Global("global", "Global"),
+    Core("core", "Current core"),
+    Playlist("playlist", "Playlist"),
+    Song("song", "Song");
+
+    companion object {
+        fun fromStorageKey(value: String?): EffectChainScopeTarget =
+            entries.firstOrNull { it.storageKey == value } ?: Global
+    }
+}
+
+internal fun isDialogScopeAvailable(
+    target: EffectChainScopeTarget,
+    hasActiveCore: Boolean,
+    hasActivePlaylist: Boolean,
+    hasActiveSong: Boolean
+): Boolean = when (target) {
+    EffectChainScopeTarget.Global -> true
+    EffectChainScopeTarget.Core -> hasActiveCore
+    EffectChainScopeTarget.Playlist -> hasActivePlaylist
+    EffectChainScopeTarget.Song -> hasActiveSong
+}
+
+internal fun resolveInitialDialogScope(
+    savedScope: EffectChainScopeTarget,
+    hasActiveCore: Boolean,
+    hasActivePlaylist: Boolean,
+    hasActiveSong: Boolean,
+    coreChain: EffectChain?,
+    playlistChain: EffectChain?,
+    songChain: EffectChain?
+): EffectChainScopeTarget {
+    if (hasActiveSong && songChain != null) return EffectChainScopeTarget.Song
+    if (hasActivePlaylist && playlistChain != null) return EffectChainScopeTarget.Playlist
+    if (hasActiveCore && coreChain != null) return EffectChainScopeTarget.Core
+    if (isDialogScopeAvailable(savedScope, hasActiveCore, hasActivePlaylist, hasActiveSong)) {
+        return savedScope
+    }
+    return EffectChainScopeTarget.Global
+}
+
+internal fun resolveActiveScopeTarget(
+    core: EffectChain? = null,
+    playlist: EffectChain? = null,
+    song: EffectChain? = null
+): EffectChainScopeTarget = when {
+    song != null -> EffectChainScopeTarget.Song
+    playlist != null -> EffectChainScopeTarget.Playlist
+    core != null -> EffectChainScopeTarget.Core
+    else -> EffectChainScopeTarget.Global
+}
+
+internal fun resolveInheritedChainForScope(
+    target: EffectChainScopeTarget,
+    global: EffectChain,
+    core: EffectChain? = null,
+    playlist: EffectChain? = null
+): Pair<EffectChainScopeTarget, EffectChain> = when (target) {
+    EffectChainScopeTarget.Global -> EffectChainScopeTarget.Global to global
+    EffectChainScopeTarget.Core -> EffectChainScopeTarget.Global to global
+    EffectChainScopeTarget.Playlist -> {
+        if (core != null) EffectChainScopeTarget.Core to core
+        else EffectChainScopeTarget.Global to global
+    }
+    EffectChainScopeTarget.Song -> {
+        when {
+            playlist != null -> EffectChainScopeTarget.Playlist to playlist
+            core != null -> EffectChainScopeTarget.Core to core
+            else -> EffectChainScopeTarget.Global to global
+        }
+    }
+}
+
+internal fun higherPriorityOverrideScope(
+    viewingScope: EffectChainScopeTarget,
+    core: EffectChain? = null,
+    playlist: EffectChain? = null,
+    song: EffectChain? = null
+): EffectChainScopeTarget? {
+    val active = resolveActiveScopeTarget(core = core, playlist = playlist, song = song)
+    return if (active.ordinal > viewingScope.ordinal) active else null
 }

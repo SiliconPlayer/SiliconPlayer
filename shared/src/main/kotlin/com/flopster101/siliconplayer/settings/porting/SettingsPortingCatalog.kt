@@ -50,6 +50,8 @@ private fun audioBackendEntry(): PortingNode.EntryHolder = holder(
 
 private fun generalAudioEffectsKeys(): List<TypedPrefValue> = listOf(
     stringV(AppPreferenceKeys.AUDIO_EFFECT_CHAIN, "", onlyWhenSet = true),
+    boolV(AppPreferenceKeys.AUDIO_EFFECTS_BYPASS_ALL, false, onlyWhenSet = true),
+    stringV(AppPreferenceKeys.AUDIO_EFFECT_PRESETS, "", onlyWhenSet = true),
     boolV(AppPreferenceKeys.AUDIO_FORCE_MONO, false, onlyWhenSet = true),
     intV(AppPreferenceKeys.AUDIO_DSP_BASS_DEPTH, AppDefaults.AudioProcessing.Dsp.bassDepth),
     boolV(AppPreferenceKeys.AUDIO_DSP_BASS_ENABLED, AppDefaults.AudioProcessing.Dsp.bassEnabled),

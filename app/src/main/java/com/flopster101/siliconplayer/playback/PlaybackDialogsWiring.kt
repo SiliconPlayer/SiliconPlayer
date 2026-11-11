@@ -15,19 +15,25 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import java.io.File
-import com.flopster101.siliconplayer.audio.DspSettingsNamespace
 import com.flopster101.siliconplayer.audio.EffectChain
-import com.flopster101.siliconplayer.audio.LegacyDialogChainDraft
-import com.flopster101.siliconplayer.audio.NodeOptions
+import com.flopster101.siliconplayer.audio.EffectChainScopeTarget
 import com.flopster101.siliconplayer.audio.applyEffectChainToNative
+import com.flopster101.siliconplayer.audio.queryEffectDescriptors
+import com.flopster101.siliconplayer.audio.readBypassAllEffects
 import com.flopster101.siliconplayer.audio.readCoreEffectChain
+import com.flopster101.siliconplayer.audio.readEffectPresets
 import com.flopster101.siliconplayer.audio.readGlobalEffectChain
 import com.flopster101.siliconplayer.audio.readPlaylistEffectChain
 import com.flopster101.siliconplayer.audio.readSongEffectChain
 import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChain
 import com.flopster101.siliconplayer.audio.resolveEffectiveEffectChainForPrefs
+import com.flopster101.siliconplayer.audio.resolveInitialDialogScope
+import com.flopster101.siliconplayer.audio.writeBypassAllEffects
 import com.flopster101.siliconplayer.audio.writeCoreEffectChain
+import com.flopster101.siliconplayer.audio.writeEffectPresets
 import com.flopster101.siliconplayer.audio.writeGlobalEffectChain
+import com.flopster101.siliconplayer.audio.writePlaylistEffectChain
+import com.flopster101.siliconplayer.audio.writeSongEffectChain
 import com.flopster101.siliconplayer.platform.AndroidAppPreferences
 import com.flopster101.siliconplayer.ui.dialogs.AddToPlaylistChooserDialog
 import com.flopster101.siliconplayer.ui.dialogs.BrowserPlaylistPrompt
@@ -69,6 +75,7 @@ internal fun AppNavigationPlaybackDialogsSection(
     playlistLibraryState: PlaylistLibraryState,
     onPlaylistLibraryStateChanged: (PlaylistLibraryState) -> Unit,
     activePlaylist: StoredPlaylist?,
+    onActivePlaylistChanged: (StoredPlaylist?) -> Unit = {},
     browserPlaylistPrompt: BrowserPlaylistPrompt,
     showAudioEffectsDialog: Boolean,
     tempMasterVolumeDb: Float,
@@ -148,30 +155,18 @@ internal fun AppNavigationPlaybackDialogsSection(
     }
 
     val appPrefs = remember(prefs) { AndroidAppPreferences(prefs) }
+    val availableEffects = remember { queryEffectDescriptors() }
     var globalChain by remember { mutableStateOf(readGlobalEffectChain(appPrefs)) }
     var coreChain by remember(lastUsedCoreName) { mutableStateOf(readCoreEffectChain(appPrefs, lastUsedCoreName)) }
-    var coreIgnoreGlobalDsp by remember(lastUsedCoreName) {
-        mutableStateOf(coreChain != null && coreChain?.nodes?.isEmpty() == true)
-    }
-    var dspNamespaceSelection by remember {
+    var bypassAllEffects by remember { mutableStateOf(readBypassAllEffects(appPrefs)) }
+    var effectPresets by remember { mutableStateOf(readEffectPresets(appPrefs)) }
+    var selectedScope by remember {
         mutableStateOf(
-            when (prefs.getString(AppPreferenceKeys.AUDIO_DSP_EDITOR_NAMESPACE, "global")) {
-                "core" -> DspSettingsNamespace.CurrentCore
-                else -> DspSettingsNamespace.Global
-            }
+            EffectChainScopeTarget.fromStorageKey(
+                prefs.getString(AppPreferenceKeys.AUDIO_DSP_EDITOR_NAMESPACE, "global")
+            )
         )
     }
-    if (lastUsedCoreName == null && dspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-        dspNamespaceSelection = DspSettingsNamespace.Global
-    }
-
-    var tempGlobalDraft by remember { mutableStateOf(LegacyDialogChainDraft.fromChain(globalChain)) }
-    var tempCoreDraft by remember {
-        mutableStateOf(LegacyDialogChainDraft.fromChain(coreChain ?: EffectChain(master = globalChain.master)))
-    }
-    var tempCoreHasChain by remember { mutableStateOf(coreChain != null) }
-    var tempCoreIgnoreGlobalDsp by remember { mutableStateOf(coreIgnoreGlobalDsp) }
-    var tempDspNamespaceSelection by remember { mutableStateOf(dspNamespaceSelection) }
 
     fun currentPlaylistEffectChain(): EffectChain? =
         readPlaylistEffectChain(playlistLibraryState, activePlaylist?.id)
@@ -180,50 +175,49 @@ internal fun AppNavigationPlaybackDialogsSection(
     fun currentSongEffectChain(): EffectChain? =
         readSongEffectChain(volumeDatabase, selectedFile?.absolutePath)
 
-    fun resolveTempCoreChain(): EffectChain? {
-        if (lastUsedCoreName == null) return null
-        val active = tempCoreHasChain ||
-            tempCoreIgnoreGlobalDsp ||
-            tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore
-        return if (active) tempCoreDraft.chain.withMasterMono(tempForceMono) else null
-    }
+    var tempSelectedScope by remember { mutableStateOf(selectedScope) }
+    var tempGlobalChain by remember { mutableStateOf(globalChain) }
+    var tempCoreChain by remember { mutableStateOf(coreChain) }
+    var tempPlaylistChain by remember { mutableStateOf(currentPlaylistEffectChain()) }
+    var tempSongChain by remember { mutableStateOf(currentSongEffectChain()) }
+    var tempBypassAllEffects by remember { mutableStateOf(bypassAllEffects) }
+    var tempEffectPresets by remember { mutableStateOf(effectPresets) }
 
     fun applyCurrentTempChainToNative() {
         applyEffectChainToNative(
             resolveEffectiveEffectChain(
-                global = tempGlobalDraft.chain.withMasterMono(tempForceMono),
-                core = resolveTempCoreChain(),
-                playlist = currentPlaylistEffectChain()?.withMasterMono(tempForceMono),
-                song = currentSongEffectChain()?.withMasterMono(tempForceMono)
+                global = tempGlobalChain,
+                core = if (lastUsedCoreName != null) tempCoreChain else null,
+                playlist = if (activePlaylist != null) tempPlaylistChain else null,
+                song = if (selectedFile != null) tempSongChain else null,
+                bypassAll = tempBypassAllEffects
             )
         )
-    }
-
-    fun mutateActiveDraft(transform: (LegacyDialogChainDraft) -> LegacyDialogChainDraft) {
-        if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore && lastUsedCoreName != null) {
-            tempCoreDraft = transform(tempCoreDraft)
-            tempCoreHasChain = true
-        } else {
-            tempGlobalDraft = transform(tempGlobalDraft)
-        }
-        applyCurrentTempChainToNative()
     }
 
     LaunchedEffect(showAudioEffectsDialog) {
         if (!showAudioEffectsDialog) return@LaunchedEffect
         globalChain = readGlobalEffectChain(appPrefs)
         coreChain = readCoreEffectChain(appPrefs, lastUsedCoreName)
-        coreIgnoreGlobalDsp = coreChain != null && coreChain?.nodes?.isEmpty() == true
-        tempGlobalDraft = LegacyDialogChainDraft.fromChain(globalChain)
-        tempCoreDraft = LegacyDialogChainDraft.fromChain(
-            coreChain ?: EffectChain(master = NodeOptions(mono = tempForceMono))
+        bypassAllEffects = readBypassAllEffects(appPrefs)
+        effectPresets = readEffectPresets(appPrefs)
+        val playlistChain = currentPlaylistEffectChain()
+        val songChain = currentSongEffectChain()
+        tempGlobalChain = globalChain
+        tempCoreChain = coreChain
+        tempPlaylistChain = playlistChain
+        tempSongChain = songChain
+        tempBypassAllEffects = bypassAllEffects
+        tempEffectPresets = effectPresets
+        tempSelectedScope = resolveInitialDialogScope(
+            savedScope = selectedScope,
+            hasActiveCore = lastUsedCoreName != null,
+            hasActivePlaylist = activePlaylist != null,
+            hasActiveSong = selectedFile != null,
+            coreChain = coreChain,
+            playlistChain = playlistChain,
+            songChain = songChain
         )
-        tempCoreHasChain = coreChain != null
-        tempCoreIgnoreGlobalDsp = coreIgnoreGlobalDsp
-        tempDspNamespaceSelection = dspNamespaceSelection
-        if (lastUsedCoreName == null && tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) {
-            tempDspNamespaceSelection = DspSettingsNamespace.Global
-        }
     }
 
     LaunchedEffect(
@@ -237,7 +231,6 @@ internal fun AppNavigationPlaybackDialogsSection(
         if (showAudioEffectsDialog) return@LaunchedEffect
         globalChain = readGlobalEffectChain(appPrefs)
         coreChain = readCoreEffectChain(appPrefs, lastUsedCoreName)
-        coreIgnoreGlobalDsp = coreChain != null && coreChain?.nodes?.isEmpty() == true
         applyEffectChainToNative(
             resolveEffectiveEffectChainForPrefs(
                 prefs = appPrefs,
@@ -249,9 +242,6 @@ internal fun AppNavigationPlaybackDialogsSection(
             )
         )
     }
-
-    val tempEditedDraft =
-        if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) tempCoreDraft else tempGlobalDraft
 
     PlaybackDialogsHost(
         showUrlOrPathDialog = showUrlOrPathDialog,
@@ -315,24 +305,20 @@ internal fun AppNavigationPlaybackDialogsSection(
         tempPluginVolumeDb = tempPluginVolumeDb,
         tempSongVolumeDb = tempSongVolumeDb,
         tempIgnoreCoreVolumeForSong = tempIgnoreCoreVolumeForSong,
-        tempForceMono = tempForceMono,
-        tempDspBassEnabled = tempEditedDraft.bassEnabled,
-        tempDspBassDepth = tempEditedDraft.bassDepth,
-        tempDspBassRange = tempEditedDraft.bassRange,
-        tempDspSurroundEnabled = tempEditedDraft.surroundEnabled,
-        tempDspSurroundDepth = tempEditedDraft.surroundDepth,
-        tempDspSurroundDelayMs = tempEditedDraft.surroundDelayMs,
-        tempDspReverbEnabled = tempEditedDraft.reverbEnabled,
-        tempDspReverbDepth = tempEditedDraft.reverbDepth,
-        tempDspReverbPreset = tempEditedDraft.reverbPreset,
-        tempDspBitCrushEnabled = tempEditedDraft.bitCrushEnabled,
-        tempDspBitCrushBits = tempEditedDraft.bitCrushBits,
-        tempDspNamespaceSelection = if (tempDspNamespaceSelection == DspSettingsNamespace.CurrentCore) "core" else "global",
-        tempDspIgnoreGlobalForCore = tempCoreIgnoreGlobalDsp,
-        hasActiveCurrentCoreDspParameters = lastUsedCoreName != null && coreChain != null,
         hasActiveCore = lastUsedCoreName != null,
+        hasActivePlaylist = activePlaylist != null,
         hasActiveSong = selectedFile != null,
         currentCoreName = lastUsedCoreName,
+        currentPlaylistName = activePlaylist?.title,
+        currentSongName = selectedFile?.name,
+        selectedScope = tempSelectedScope,
+        tempGlobalChain = tempGlobalChain,
+        tempCoreChain = tempCoreChain,
+        tempPlaylistChain = tempPlaylistChain,
+        tempSongChain = tempSongChain,
+        availableEffects = availableEffects,
+        tempBypassAllEffects = tempBypassAllEffects,
+        tempPresets = tempEffectPresets,
         onMasterVolumeChange = {
             onTempMasterVolumeDbChanged(it)
             NativeBridge.setMasterGain(it)
@@ -349,73 +335,49 @@ internal fun AppNavigationPlaybackDialogsSection(
             onTempIgnoreCoreVolumeForSongChanged(it)
             NativeBridge.setPluginGain(if (it) 0f else tempPluginVolumeDb)
         },
-        onForceMonoChange = {
-            onTempForceMonoChanged(it)
-            tempGlobalDraft = tempGlobalDraft.withMasterMono(it)
-            tempCoreDraft = tempCoreDraft.withMasterMono(it)
+        onSelectedScopeChange = { scope ->
+            tempSelectedScope = scope
+        },
+        onGlobalChainChange = { next ->
+            tempGlobalChain = next
             applyCurrentTempChainToNative()
         },
-        onDspNamespaceSelectionChange = { value ->
-            tempDspNamespaceSelection = if (value == "core" && lastUsedCoreName != null) {
-                DspSettingsNamespace.CurrentCore
-            } else {
-                DspSettingsNamespace.Global
-            }
+        onCoreChainChange = { next ->
+            tempCoreChain = next
             applyCurrentTempChainToNative()
         },
-        onDspIgnoreGlobalForCoreChange = {
-            tempCoreIgnoreGlobalDsp = it
-            if (it) {
-                tempCoreHasChain = true
-            } else if (tempCoreDraft.chain.nodes.isEmpty()) {
-                tempCoreHasChain = false
-            }
+        onPlaylistChainChange = { next ->
+            tempPlaylistChain = next
             applyCurrentTempChainToNative()
         },
-        onDspBassEnabledChange = { mutateActiveDraft { d -> d.withBass(enabled = it) } },
-        onDspBassDepthChange = { mutateActiveDraft { d -> d.withBass(depth = it) } },
-        onDspBassRangeChange = { mutateActiveDraft { d -> d.withBass(range = it) } },
-        onDspSurroundEnabledChange = { mutateActiveDraft { d -> d.withSurround(enabled = it) } },
-        onDspSurroundDepthChange = { mutateActiveDraft { d -> d.withSurround(depth = it) } },
-        onDspSurroundDelayMsChange = { mutateActiveDraft { d -> d.withSurround(delayMs = it) } },
-        onDspReverbEnabledChange = { mutateActiveDraft { d -> d.withReverb(enabled = it) } },
-        onDspReverbDepthChange = { mutateActiveDraft { d -> d.withReverb(depth = it) } },
-        onDspReverbPresetChange = { mutateActiveDraft { d -> d.withReverb(preset = it) } },
-        onDspBitCrushEnabledChange = { mutateActiveDraft { d -> d.withBitCrush(enabled = it) } },
-        onDspBitCrushBitsChange = { mutateActiveDraft { d -> d.withBitCrush(bits = it) } },
+        onSongChainChange = { next ->
+            tempSongChain = next
+            applyCurrentTempChainToNative()
+        },
+        onBypassAllEffectsChange = { next ->
+            tempBypassAllEffects = next
+            applyCurrentTempChainToNative()
+        },
+        onPresetsChange = { next ->
+            tempEffectPresets = next
+        },
         onAudioEffectsResetVolumeTab = {
             onTempMasterVolumeDbChanged(0f)
             onTempPluginVolumeDbChanged(0f)
             onTempSongVolumeDbChanged(0f)
             onTempIgnoreCoreVolumeForSongChanged(false)
-            onTempForceMonoChanged(false)
-            tempGlobalDraft = tempGlobalDraft.withMasterMono(false)
-            tempCoreDraft = tempCoreDraft.withMasterMono(false)
             NativeBridge.setMasterGain(0f)
             NativeBridge.setPluginGain(0f)
             NativeBridge.setSongGain(0f)
-            applyCurrentTempChainToNative()
         },
-        onAudioEffectsResetDspScope = { scope ->
-            if (scope == "core" && lastUsedCoreName != null) {
-                tempCoreDraft = tempCoreDraft.resetDspNodes()
-                tempCoreIgnoreGlobalDsp = false
-                tempCoreHasChain = false
-            } else {
-                tempGlobalDraft = tempGlobalDraft.resetDspNodes()
+        onAudioEffectsResetScopeChain = { scope ->
+            when (scope) {
+                EffectChainScopeTarget.Global -> tempGlobalChain = EffectChain.Empty
+                EffectChainScopeTarget.Core -> tempCoreChain = null
+                EffectChainScopeTarget.Playlist -> tempPlaylistChain = null
+                EffectChainScopeTarget.Song -> tempSongChain = null
             }
-            applyEffectChainToNative(
-                resolveEffectiveEffectChain(
-                    global = tempGlobalDraft.chain.withMasterMono(tempForceMono),
-                    core = if (lastUsedCoreName != null && (tempCoreHasChain || tempCoreIgnoreGlobalDsp)) {
-                        tempCoreDraft.chain.withMasterMono(tempForceMono)
-                    } else {
-                        null
-                    },
-                    playlist = currentPlaylistEffectChain()?.withMasterMono(tempForceMono),
-                    song = currentSongEffectChain()?.withMasterMono(tempForceMono)
-                )
-            )
+            applyCurrentTempChainToNative()
         },
         onAudioEffectsDismiss = {
             NativeBridge.setMasterGain(masterVolumeDb)
@@ -425,10 +387,11 @@ internal fun AppNavigationPlaybackDialogsSection(
             NativeBridge.setSongGain(songVolumeDb)
             applyEffectChainToNative(
                 resolveEffectiveEffectChain(
-                    global = globalChain.withMasterMono(forceMono),
-                    core = coreChain?.withMasterMono(forceMono),
+                    global = globalChain,
+                    core = coreChain,
                     playlist = currentPlaylistEffectChain(),
-                    song = currentSongEffectChain()
+                    song = currentSongEffectChain(),
+                    bypassAll = bypassAllEffects
                 )
             )
             onShowAudioEffectsDialogChanged(false)
@@ -438,29 +401,22 @@ internal fun AppNavigationPlaybackDialogsSection(
             onPluginVolumeDbChanged(tempPluginVolumeDb)
             onSongVolumeDbChanged(tempSongVolumeDb)
             onIgnoreCoreVolumeForSongChanged(tempIgnoreCoreVolumeForSong)
-            onForceMonoChanged(tempForceMono)
+            onForceMonoChanged(tempGlobalChain.master.mono)
 
-            dspNamespaceSelection = tempDspNamespaceSelection
-            globalChain = tempGlobalDraft.chain.withMasterMono(tempForceMono)
-            coreIgnoreGlobalDsp = tempCoreIgnoreGlobalDsp
-            val committedCore = if (lastUsedCoreName != null &&
-                (tempCoreIgnoreGlobalDsp || tempCoreDraft.chain.nodes.isNotEmpty() ||
-                    (dspNamespaceSelection == DspSettingsNamespace.CurrentCore && tempCoreHasChain))
-            ) {
-                tempCoreDraft.chain.withMasterMono(tempForceMono)
-            } else if (lastUsedCoreName != null && tempCoreHasChain) {
-                tempCoreDraft.chain.withMasterMono(tempForceMono)
-            } else {
-                null
-            }
-            coreChain = committedCore
+            selectedScope = tempSelectedScope
+            globalChain = tempGlobalChain
+            coreChain = if (lastUsedCoreName != null) tempCoreChain else null
+            bypassAllEffects = tempBypassAllEffects
+            effectPresets = tempEffectPresets
 
             appPrefs.edit().apply {
                 putFloat(AppPreferenceKeys.AUDIO_MASTER_VOLUME_DB, tempMasterVolumeDb)
                 putString(
                     AppPreferenceKeys.AUDIO_DSP_EDITOR_NAMESPACE,
-                    if (dspNamespaceSelection == DspSettingsNamespace.CurrentCore) "core" else "global"
+                    selectedScope.storageKey
                 )
+                writeBypassAllEffects(this, bypassAllEffects)
+                writeEffectPresets(this, effectPresets)
                 writeGlobalEffectChain(this, globalChain)
                 if (lastUsedCoreName != null) {
                     writeCoreEffectChain(this, lastUsedCoreName, coreChain)
@@ -472,17 +428,33 @@ internal fun AppNavigationPlaybackDialogsSection(
                 decoderName = lastUsedCoreName,
                 valueDb = tempPluginVolumeDb
             )
+            activePlaylist?.let { playlist ->
+                val updatedPlaylistState = writePlaylistEffectChain(
+                    state = playlistLibraryState,
+                    playlistId = playlist.id,
+                    chain = tempPlaylistChain
+                )
+                if (updatedPlaylistState != playlistLibraryState) {
+                    onPlaylistLibraryStateChanged(updatedPlaylistState)
+                }
+                val normalizedJson = tempPlaylistChain?.toJson()
+                if (playlist.effectChain != normalizedJson) {
+                    onActivePlaylistChanged(playlist.copy(effectChain = normalizedJson))
+                }
+            }
             selectedFile?.absolutePath?.let { path ->
                 volumeDatabase.setSongVolume(path, tempSongVolumeDb)
                 volumeDatabase.setSongIgnoreCoreVolume(path, tempIgnoreCoreVolumeForSong)
+                writeSongEffectChain(volumeDatabase, path, tempSongChain)
             }
             NativeBridge.setPluginGain(if (tempIgnoreCoreVolumeForSong) 0f else tempPluginVolumeDb)
             applyEffectChainToNative(
                 resolveEffectiveEffectChain(
                     global = globalChain,
                     core = coreChain,
-                    playlist = currentPlaylistEffectChain(),
-                    song = currentSongEffectChain()
+                    playlist = if (activePlaylist != null) tempPlaylistChain else null,
+                    song = if (selectedFile != null) tempSongChain else null,
+                    bypassAll = bypassAllEffects
                 )
             )
             onShowAudioEffectsDialogChanged(false)

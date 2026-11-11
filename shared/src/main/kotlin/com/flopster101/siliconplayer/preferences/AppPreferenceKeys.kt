@@ -90,6 +90,8 @@ internal object AppPreferenceKeys {
     const val AUDIO_MULTI_CHANNEL_OUTPUT_MODE = "audio_multi_channel_output_mode"
     const val AUDIO_EFFECT_CHAIN = "audio_effect_chain"
     const val AUDIO_EFFECT_CHAIN_CORE_PREFIX = "audio_effect_chain_core_"
+    const val AUDIO_EFFECTS_BYPASS_ALL = "audio_effects_bypass_all"
+    const val AUDIO_EFFECT_PRESETS = "audio_effect_presets"
     const val AUDIO_DSP_BASS_ENABLED = "audio_dsp_bass_enabled"
     const val AUDIO_DSP_BASS_DEPTH = "audio_dsp_bass_depth"
     const val AUDIO_DSP_BASS_RANGE = "audio_dsp_bass_range"

@@ -25,7 +25,7 @@ IAudioEffect* createSurroundEffect() {
 const EffectDescriptor& OpenMptSurroundEffect::descriptor() {
     static const EffectDescriptor desc {
             "openmpt.surround",
-            "Surround",
+            "OpenMPT Surround",
             1,
             kSurroundParams,
             static_cast<int>(sizeof(kSurroundParams) / sizeof(kSurroundParams[0])),

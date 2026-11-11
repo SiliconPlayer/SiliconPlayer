@@ -1,9 +1,19 @@
 package com.flopster101.siliconplayer
 
 import com.flopster101.siliconplayer.audio.EffectChain
+import com.flopster101.siliconplayer.audio.EffectChainScopeTarget
 import com.flopster101.siliconplayer.audio.EffectNode
 import com.flopster101.siliconplayer.audio.EffectNodeIds
+import com.flopster101.siliconplayer.audio.EffectPreset
 import com.flopster101.siliconplayer.audio.NodeOptions
+import com.flopster101.siliconplayer.audio.higherPriorityOverrideScope
+import com.flopster101.siliconplayer.audio.queryEffectDescriptors
+import com.flopster101.siliconplayer.audio.readBypassAllEffects
+import com.flopster101.siliconplayer.audio.readEffectPresets
+import com.flopster101.siliconplayer.audio.resolveInheritedChainForScope
+import com.flopster101.siliconplayer.audio.resolveInitialDialogScope
+import com.flopster101.siliconplayer.audio.writeBypassAllEffects
+import com.flopster101.siliconplayer.audio.writeEffectPresets
 import com.flopster101.siliconplayer.audio.applyDspSettingsToNative
 import com.flopster101.siliconplayer.audio.applyEffectChainToNative
 import com.flopster101.siliconplayer.audio.defaultDspSettings
@@ -569,5 +579,125 @@ class DesktopAudioEffectsTest {
             NativeBridge.setOfflineRenderMode(false)
             NativeBridge.releaseCurrentDecoder()
         }
+    }
+
+    @Test
+    fun chainEditorMutationsAndScopeHelpersBehaveCorrectly() {
+        val descriptors = queryEffectDescriptors()
+        assertEquals(
+            "OpenMPT Bass Expansion",
+            descriptors.first { it.id == EffectNodeIds.OPENMPT_BASS }.displayName
+        )
+        assertEquals(
+            "OpenMPT Surround",
+            descriptors.first { it.id == EffectNodeIds.OPENMPT_SURROUND }.displayName
+        )
+        assertEquals(
+            "OpenMPT Reverb",
+            descriptors.first { it.id == EffectNodeIds.OPENMPT_REVERB }.displayName
+        )
+        assertEquals(
+            "OpenMPT Bit Crush",
+            descriptors.first { it.id == EffectNodeIds.OPENMPT_BITCRUSH }.displayName
+        )
+        assertEquals(
+            "Gain",
+            descriptors.first { it.id == EffectNodeIds.GAIN }.displayName
+        )
+        assertTrue(descriptors.any { it.id == EffectNodeIds.OPENMPT_BASS })
+        assertTrue(descriptors.any { it.id == EffectNodeIds.OPENMPT_SURROUND })
+        assertTrue(descriptors.any { it.id == EffectNodeIds.OPENMPT_REVERB })
+        assertTrue(descriptors.any { it.id == EffectNodeIds.OPENMPT_BITCRUSH })
+        assertTrue(descriptors.any { it.id == EffectNodeIds.GAIN })
+
+        var chain = EffectChain.Empty
+            .addNode(EffectNodeIds.OPENMPT_BASS, descriptors)
+            .addNode(EffectNodeIds.GAIN, descriptors)
+            .addNode(EffectNodeIds.OPENMPT_REVERB, descriptors)
+        assertEquals(
+            listOf(EffectNodeIds.OPENMPT_BASS, EffectNodeIds.GAIN, EffectNodeIds.OPENMPT_REVERB),
+            chain.nodes.map { it.id }
+        )
+
+        val bassUid = chain.nodes[0].uid
+        val gainUid = chain.nodes[1].uid
+        val reverbUid = chain.nodes[2].uid
+        assertNotEquals(bassUid, gainUid)
+        assertNotEquals(gainUid, reverbUid)
+
+        chain = chain.setNodeParamAt(0, "depth", 4f, descriptors)
+            .setNodeMonoAt(1, true)
+            .setNodeEnabledAt(2, false)
+        assertEquals(4f, chain.nodes[0].params["depth"])
+        assertTrue(chain.nodes[1].options.mono)
+        assertFalse(chain.nodes[2].enabled)
+        assertEquals(bassUid, chain.nodes[0].uid)
+        assertEquals(gainUid, chain.nodes[1].uid)
+        assertEquals(reverbUid, chain.nodes[2].uid)
+
+        chain = chain.moveNode(2, 0)
+        assertEquals(
+            listOf(EffectNodeIds.OPENMPT_REVERB, EffectNodeIds.OPENMPT_BASS, EffectNodeIds.GAIN),
+            chain.nodes.map { it.id }
+        )
+        assertEquals(reverbUid, chain.nodes[0].uid)
+
+        chain = chain.removeNodeAt(1)
+        assertEquals(listOf(EffectNodeIds.OPENMPT_REVERB, EffectNodeIds.GAIN), chain.nodes.map { it.id })
+
+        val global = EffectChain.Empty.addNode(EffectNodeIds.OPENMPT_BASS, descriptors)
+        val core = EffectChain.Empty.addNode(EffectNodeIds.OPENMPT_SURROUND, descriptors)
+        val playlist = EffectChain.Empty.addNode(EffectNodeIds.OPENMPT_REVERB, descriptors)
+
+        assertEquals(
+            EffectChainScopeTarget.Playlist to playlist,
+            resolveInheritedChainForScope(
+                target = EffectChainScopeTarget.Song,
+                global = global,
+                core = core,
+                playlist = playlist
+            )
+        )
+        assertEquals(
+            EffectChainScopeTarget.Playlist,
+            higherPriorityOverrideScope(
+                viewingScope = EffectChainScopeTarget.Core,
+                core = core,
+                playlist = playlist,
+                song = null
+            )
+        )
+        assertEquals(
+            EffectChainScopeTarget.Playlist,
+            resolveInitialDialogScope(
+                savedScope = EffectChainScopeTarget.Global,
+                hasActiveCore = true,
+                hasActivePlaylist = true,
+                hasActiveSong = true,
+                coreChain = core,
+                playlistChain = playlist,
+                songChain = null
+            )
+        )
+
+        val prefs = InMemoryAppPreferences()
+        val presetA = EffectPreset(
+            id = "preset_1",
+            name = "Warm Bass",
+            chain = global
+        )
+        val presetB = EffectPreset(
+            id = "preset_2",
+            name = "Surround Wide",
+            chain = core
+        )
+        writeEffectPresets(prefs.edit(), listOf(presetA, presetB))
+        assertEquals(listOf(presetA, presetB), readEffectPresets(prefs))
+
+        writeGlobalEffectChain(prefs.edit(), global)
+        assertEquals(global, resolveEffectiveEffectChainForPrefs(prefs))
+        writeBypassAllEffects(prefs.edit(), true)
+        assertTrue(readBypassAllEffects(prefs))
+        assertEquals(EffectChain.Empty, resolveEffectiveEffectChainForPrefs(prefs))
     }
 }

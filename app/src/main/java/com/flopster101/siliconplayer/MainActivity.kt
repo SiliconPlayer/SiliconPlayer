@@ -3540,6 +3540,7 @@ private fun AppNavigation(
             playlistLibraryState = playlistLibraryState,
             onPlaylistLibraryStateChanged = onPlaylistLibraryStateChanged,
             activePlaylist = activePlaylist,
+            onActivePlaylistChanged = { activePlaylist = it },
             browserPlaylistPrompt = browserPlaylistPrompt,
             showAudioEffectsDialog = showAudioEffectsDialog,
             tempMasterVolumeDb = tempMasterVolumeDb,

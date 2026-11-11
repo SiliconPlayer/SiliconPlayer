@@ -25,7 +25,7 @@ IAudioEffect* createBitCrushEffect() {
 const EffectDescriptor& OpenMptBitCrushEffect::descriptor() {
     static const EffectDescriptor desc {
             "openmpt.bitcrush",
-            "Bit Crush",
+            "OpenMPT Bit Crush",
             1,
             kBitCrushParams,
             static_cast<int>(sizeof(kBitCrushParams) / sizeof(kBitCrushParams[0])),
