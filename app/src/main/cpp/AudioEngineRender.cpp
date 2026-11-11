@@ -531,13 +531,21 @@ int AudioEngine::renderOfflineAudioFrames(float* outputStereo, int numFrames, in
     effectChain.processInputStage(buffer.data(), renderedFrames, decodeChannels);
     spatializerEngine.processOrDownmix(
             buffer.data(),
+            outputStereo,
             renderedFrames,
             decodeChannels,
             bedLayout,
             2,
             sampleRateHz
     );
-    std::copy(buffer.begin(), buffer.begin() + static_cast<size_t>(renderedFrames) * 2, outputStereo);
+    if (reachedEnd && renderedFrames < numFrames) {
+        // Render the convolution tail that is still pending in the spatializer.
+        const int flushed = spatializerEngine.flush(
+                outputStereo + static_cast<size_t>(renderedFrames) * 2,
+                numFrames - renderedFrames
+        );
+        renderedFrames += flushed;
+    }
     applyMasterChannelRouting(outputStereo, renderedFrames, 2);
     effectChain.processNodesAndMasterStage(
             outputStereo,
@@ -809,6 +817,7 @@ void AudioEngine::renderWorkerLoop() {
 
     std::vector<float> localBuffer;
     localBuffer.resize(1024u * 2u);
+    std::vector<float> spatializerTail;
 
     for (;;) {
         const bool backgroundHeadroomActive = backgroundPlaybackMode.load(std::memory_order_relaxed);
@@ -1050,6 +1059,7 @@ void AudioEngine::renderWorkerLoop() {
             effectChain.processInputStage(localBuffer.data(), chunkFrames, decodeChannels);
             spatializerEngine.processOrDownmix(
                     localBuffer.data(),
+                    localBuffer.data(),
                     chunkFrames,
                     decodeChannels,
                     bedLayout,
@@ -1066,6 +1076,19 @@ void AudioEngine::renderWorkerLoop() {
             );
             applyOutputLimiter(localBuffer.data(), chunkFrames, channels);
             applyLookaheadClipper(localBuffer.data(), chunkFrames, channels, outputSampleRate);
+
+            if (reachedEnd && channels == 2) {
+                // Render the convolution tail that is still pending in the spatializer.
+                spatializerTail.assign(
+                        static_cast<size_t>(siliconplayer::spatial::SpatializerEngine::kBlockSize) * 2,
+                        0.0f
+                );
+                const int flushed = spatializerEngine.flush(
+                        spatializerTail.data(),
+                        siliconplayer::spatial::SpatializerEngine::kBlockSize
+                );
+                spatializerTail.resize(static_cast<size_t>(std::max(0, flushed)) * 2);
+            }
 
             const int mode = repeatMode.load();
             if (reachedEnd && mode != 1 && mode != 3) {
@@ -1087,6 +1110,14 @@ void AudioEngine::renderWorkerLoop() {
             chunkSuperseded = (chunkDecoderSerial != decoderSerial.load(std::memory_order_relaxed));
             if (!chunkSuperseded) {
                 appendRenderQueue(localBuffer.data(), chunkFrames, channels);
+                if (!spatializerTail.empty()) {
+                    appendRenderQueue(
+                            spatializerTail.data(),
+                            static_cast<int>(spatializerTail.size() / 2),
+                            2
+                    );
+                    spatializerTail.clear();
+                }
             }
         }
         if (chunkSuperseded) {

@@ -33,6 +33,8 @@ add_library(
         effects/EffectRegistry.cpp
         effects/AudioEffectChain.cpp
         spatial/SpatializerEngine.cpp
+        spatial/LibSpatialAudioBackend.cpp
+        spatial/SpatializerConfigJson.cpp
         effects/nodes/OpenMptBassEffect.cpp
         effects/nodes/OpenMptSurroundEffect.cpp
         effects/nodes/OpenMptReverbEffect.cpp

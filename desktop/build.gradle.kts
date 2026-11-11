@@ -267,7 +267,19 @@ tasks.register<JavaExec>("exportAudio") {
     args(exportArguments + force)
 }
 
+val desktopNativeTest by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Run the native desktop regression tests."
+    dependsOn(buildDesktopNative)
+    val nativeDir = nativeBuildDir.get().asFile
+    outputs.upToDateWhen { false }
+
+    workingDir = nativeDir
+    commandLine("ctest", "--output-on-failure")
+}
+
 tasks.withType<Test>().configureEach {
     dependsOn(buildDesktopNative)
+    dependsOn(desktopNativeTest)
     configureNativePaths(this)
 }

@@ -34,6 +34,7 @@ public:
     virtual ~ISpatializer() = default;
 
     virtual SpatializerBackendId backendId() const = 0;
+    // `maxBlockFrames` is the largest block the engine will hand to process().
     virtual bool prepare(
             int sampleRate,
             BedLayoutId inputLayout,
@@ -42,6 +43,8 @@ public:
             const SpatializerConfig& config) = 0;
     virtual void reset() = 0;
     virtual void updateConfig(const SpatializerConfig& config) = 0;
+    // Converts `frames` interleaved bed frames into interleaved stereo frames.
+    // `frames` always equals the block size negotiated during prepare().
     virtual void process(
             const float* inInterleaved,
             float* outStereoInterleaved,

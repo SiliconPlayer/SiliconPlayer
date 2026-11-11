@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
 project(siliconplayer_desktop LANGUAGES C CXX)
 
+enable_testing()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -93,6 +95,8 @@ set(MAIN_SOURCES
     "${APP_CPP_DIR}/effects/EffectRegistry.cpp"
     "${APP_CPP_DIR}/effects/AudioEffectChain.cpp"
     "${APP_CPP_DIR}/spatial/SpatializerEngine.cpp"
+    "${APP_CPP_DIR}/spatial/LibSpatialAudioBackend.cpp"
+    "${APP_CPP_DIR}/spatial/SpatializerConfigJson.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptBassEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptSurroundEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptReverbEffect.cpp"
@@ -127,7 +131,10 @@ set_target_properties(libspatialaudio_prebuilt PROPERTIES IMPORTED_LOCATION "${P
 
 add_library(siliconplayer_desktop SHARED ${MAIN_SOURCES})
 
-target_include_directories(siliconplayer_desktop PRIVATE ${COMMON_INCLUDES})
+target_include_directories(siliconplayer_desktop PRIVATE
+    ${COMMON_INCLUDES}
+    "${PREBUILT_DIR}/include"
+)
 
 target_compile_definitions(siliconplayer_desktop PRIVATE
     _GNU_SOURCE
@@ -622,3 +629,22 @@ target_link_libraries(siliconplayer_libdnfamitracker_decoder PRIVATE
     libdnfamitracker_prebuilt
     m
 )
+
+# -----------------------------------------------------------------------------
+# Native regression tests
+# -----------------------------------------------------------------------------
+add_executable(siliconplayer_spatializer_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/SpatializerNativeTest.cpp"
+    "${APP_CPP_DIR}/spatial/SpatializerEngine.cpp"
+    "${APP_CPP_DIR}/spatial/LibSpatialAudioBackend.cpp"
+)
+target_include_directories(siliconplayer_spatializer_test PRIVATE
+    "${APP_CPP_DIR}"
+    "${PREBUILT_DIR}/include"
+)
+target_link_libraries(siliconplayer_spatializer_test PRIVATE
+    libspatialaudio_prebuilt
+    libmysofa_prebuilt
+    m
+)
+add_test(NAME spatializer COMMAND siliconplayer_spatializer_test)

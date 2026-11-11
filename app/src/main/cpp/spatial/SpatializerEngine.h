@@ -11,6 +11,10 @@ namespace siliconplayer::spatial {
 
 class SpatializerEngine {
 public:
+    // Convolution block; the engine keeps the bed and the stereo result in
+    // block-sized FIFOs so the HRTF overlap-add stays frame aligned.
+    static constexpr int kBlockSize = 256;
+
     SpatializerEngine() = default;
 
     // Caller must hold decoderMutex when mutating config or calling processOrDownmix.
@@ -21,27 +25,25 @@ public:
         return activeFlag.load(std::memory_order_relaxed);
     }
 
-    bool shouldSpatializeStereo() const {
-        return activeFlag.load(std::memory_order_relaxed) &&
-               spatializeStereoFlag.load(std::memory_order_relaxed);
-    }
-
     double latencyFrames() const {
         return cachedLatencyFrames.load(std::memory_order_relaxed);
     }
 
     void reset();
 
-    // Processes or folds [frames * decodeChannels] in `buffer` into [frames * outChannels]
-    // in-place at the front of `buffer` (requires `buffer` sized to at least
-    // `frames * max(decodeChannels, outChannels)`).
+    // Renders the speaker bed into stereo. Writes exactly `frames` stereo
+    // frames to `outStereoInterleaved`; the input buffer is left untouched.
     void processOrDownmix(
-            float* buffer,
+            const float* bedInterleaved,
+            float* outStereoInterleaved,
             int frames,
             int decodeChannels,
             BedLayoutId bedLayout,
             int outChannels,
             int sampleRate);
+
+    // Renders the pending convolution tail; returns the stereo frames written.
+    int flush(float* outStereoInterleaved, int maxFrames);
 
     static void downmixBedToStereo(
             const float* inInterleaved,
@@ -78,31 +80,41 @@ private:
     };
 
     void updateLfeLowPassCoeffs(int sampleRate);
-    void applyBedChannelTrimsInPlace(
-            float* bedInterleaved,
-            int frames,
-            int decodeChannels,
-            BedLayoutId bedLayout);
+    void applyBedChannelTrims(float* bedBlock, int decodeChannels, BedLayoutId bedLayout);
     void refreshAtomicFlagsLocked();
+    void processBlocks(int sampleRate);
+    int drainOutput(float* outStereoInterleaved, int maxFrames);
+    void ensureBedCapacity(size_t frames);
+    void resetFifos();
 
     SpatializerConfig currentConfig;
     std::unique_ptr<ISpatializer> activeBackend;
+
     int preparedSampleRate = 0;
     int preparedInputChannels = 0;
     BedLayoutId preparedLayout = BedLayoutId::Stereo_2_0;
-    int preparedMaxFrames = 0;
+    int bedChannels = 0;
+    bool backendReady = false;
 
-    // 4th-order Linkwitz-Riley 120 Hz LFE low-pass (two cascaded 2nd-order Butterworth sections).
+    // 4th-order Linkwitz-Riley 120 Hz LFE low-pass (two cascaded 2nd-order sections).
     BiquadState lfeBiquad1;
     BiquadState lfeBiquad2;
     int lfeFilterSampleRate = 0;
 
-    std::vector<float> dryStereoScratch;
-    std::vector<float> wetStereoScratch;
+    std::vector<float> bedFifo;
+    size_t bedFifoFrames = 0;
+    size_t bedFifoStart = 0;
+    size_t bedFifoCapacity = 0;
+    std::vector<float> outFifo;
+    size_t outFifoFrames = 0;
+    size_t outFifoRead = 0;
+
+    std::vector<float> bedBlock;
+    std::vector<float> dryBlock;
+    std::vector<float> wetBlock;
     std::vector<float> lfeMonoScratch;
 
     std::atomic<bool> activeFlag { false };
-    std::atomic<bool> spatializeStereoFlag { false };
     std::atomic<double> cachedLatencyFrames { 0.0 };
 };
 

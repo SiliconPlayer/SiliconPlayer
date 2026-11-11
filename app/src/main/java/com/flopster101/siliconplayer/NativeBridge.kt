@@ -678,6 +678,8 @@ object NativeBridge {
     external fun setMultiChannelOutputMode(mode: Int)
     external fun setEffectChain(chainJson: String)
     external fun getEffectChain(): String
+    external fun setSpatializerConfig(configJson: String)
+    external fun getSpatializerConfig(): String
     external fun getEffectDescriptorsJson(): String
     external fun setDspBassEnabled(enabled: Boolean)
     external fun setDspBassDepth(depth: Int)

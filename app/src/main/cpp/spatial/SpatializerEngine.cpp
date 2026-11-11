@@ -1,5 +1,7 @@
 #include "SpatializerEngine.h"
 
+#include "LibSpatialAudioBackend.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -19,7 +21,13 @@ float dbToLinearClamped(float db, float minDb, float maxDb) {
 }
 
 std::unique_ptr<ISpatializer> createBackendInstance(SpatializerBackendId backendId) {
-    (void)backendId;
+    switch (backendId) {
+        case SpatializerBackendId::LibSpatialAudio:
+            return std::make_unique<LibSpatialAudioBackend>();
+        case SpatializerBackendId::None:
+        case SpatializerBackendId::SteamAudio:
+            break;
+    }
     return nullptr;
 }
 
@@ -27,12 +35,14 @@ std::unique_ptr<ISpatializer> createBackendInstance(SpatializerBackendId backend
 
 void SpatializerEngine::setConfig(const SpatializerConfig& config) {
     const bool backendChanged = (config.backend != currentConfig.backend);
+    const bool enabledChanged = (config.enabled != currentConfig.enabled);
     currentConfig = config;
-    if (backendChanged || currentConfig.backend == SpatializerBackendId::None) {
+    if (backendChanged || enabledChanged || currentConfig.backend == SpatializerBackendId::None) {
         activeBackend = createBackendInstance(currentConfig.backend);
         preparedSampleRate = 0;
         preparedInputChannels = 0;
-        preparedMaxFrames = 0;
+        backendReady = false;
+        resetFifos();
     } else if (activeBackend) {
         activeBackend->updateConfig(currentConfig);
     }
@@ -44,18 +54,32 @@ void SpatializerEngine::refreshAtomicFlagsLocked() {
                         currentConfig.backend != SpatializerBackendId::None &&
                         activeBackend != nullptr;
     activeFlag.store(active, std::memory_order_relaxed);
-    spatializeStereoFlag.store(currentConfig.spatializeStereo, std::memory_order_relaxed);
-    const double lat = (active && activeBackend)
-            ? static_cast<double>(std::max(0, activeBackend->latencyFrames()))
+    const double lat = active
+            ? static_cast<double>(kBlockSize) +
+              static_cast<double>(std::max(0, activeBackend->latencyFrames()))
             : 0.0;
     cachedLatencyFrames.store(lat, std::memory_order_relaxed);
 }
 
 void SpatializerEngine::reset() {
+    resetFifos();
     lfeBiquad1.reset();
     lfeBiquad2.reset();
     if (activeBackend) {
         activeBackend->reset();
+    }
+}
+
+void SpatializerEngine::resetFifos() {
+    bedFifoFrames = 0;
+    bedFifoStart = 0;
+    outFifoFrames = 0;
+    outFifoRead = 0;
+    // Prime the bed with one silent block so the first real block already has
+    // a full convolution window; this keeps the output FIFO gap-free.
+    if (bedChannels > 0 && bedFifoCapacity >= static_cast<size_t>(kBlockSize)) {
+        std::memset(bedFifo.data(), 0, static_cast<size_t>(kBlockSize) * bedChannels * sizeof(float));
+        bedFifoFrames = static_cast<size_t>(kBlockSize);
     }
 }
 
@@ -94,12 +118,11 @@ void SpatializerEngine::updateLfeLowPassCoeffs(int sampleRate) {
     lfeBiquad2.reset();
 }
 
-void SpatializerEngine::applyBedChannelTrimsInPlace(
-        float* bedInterleaved,
-        int frames,
+void SpatializerEngine::applyBedChannelTrims(
+        float* bedBlock,
         int decodeChannels,
         BedLayoutId bedLayout) {
-    if (!bedInterleaved || frames <= 0 || decodeChannels <= 2) {
+    if (!bedBlock || decodeChannels <= 2) {
         return;
     }
     const float centerGain = dbToLinearClamped(currentConfig.centerGainDb, -24.0f, 12.0f);
@@ -112,8 +135,8 @@ void SpatializerEngine::applyBedChannelTrimsInPlace(
         return;
     }
 
-    for (int f = 0; f < frames; ++f) {
-        float* frame = bedInterleaved + static_cast<size_t>(f) * decodeChannels;
+    for (int f = 0; f < kBlockSize; ++f) {
+        float* frame = bedBlock + static_cast<size_t>(f) * decodeChannels;
         if (bedLayout == BedLayoutId::Quad_4_0 && decodeChannels >= 4) {
             frame[2] *= surroundGain;
             frame[3] *= surroundGain;
@@ -169,12 +192,8 @@ void SpatializerEngine::downmixBedToStereo(
         const float norm = 1.0f / std::max(1.0f, 1.0f + sCoeff);
         for (int f = 0; f < frames; ++f) {
             const float* src = inInterleaved + static_cast<size_t>(f) * 4;
-            const float fl = src[0];
-            const float fr = src[1];
-            const float bl = src[2];
-            const float br = src[3];
-            outStereo[f * 2] = (fl + sCoeff * bl) * norm;
-            outStereo[f * 2 + 1] = (fr + sCoeff * br) * norm;
+            outStereo[f * 2] = (src[0] + sCoeff * src[2]) * norm;
+            outStereo[f * 2 + 1] = (src[1] + sCoeff * src[3]) * norm;
         }
         return;
     }
@@ -193,12 +212,10 @@ void SpatializerEngine::downmixBedToStereo(
 
         for (int f = 0; f < frames; ++f) {
             const float* src = inInterleaved + static_cast<size_t>(f) * decodeChannels;
-            const float fl = src[0];
-            const float fr = src[1];
             const float fc = src[2] * cCoeff;
             const float lfe = src[3] * lfeCoeff;
-            float left = fl + fc + lfe + src[4] * sCoeff;
-            float right = fr + fc + lfe + src[5] * sCoeff;
+            float left = src[0] + fc + lfe + src[4] * sCoeff;
+            float right = src[1] + fc + lfe + src[5] * sCoeff;
             if (has71) {
                 left += src[6] * sCoeff;
                 right += src[7] * sCoeff;
@@ -219,26 +236,146 @@ void SpatializerEngine::downmixBedToStereo(
         const float fl = src[0];
         const float fr = decodeChannels > 1 ? src[1] : src[0];
         const float fc = decodeChannels > 2 ? src[2] * cCoeff : 0.0f;
-        float surL = 0.0f;
-        float surR = 0.0f;
-        if (decodeChannels == 5) {
-            surL = src[3] * sCoeff;
-            surR = src[4] * sCoeff;
-        }
-        const float norm = 1.0f / std::max(1.0f, 1.0f + (decodeChannels > 2 ? cCoeff : 0.0f) + (decodeChannels == 5 ? sCoeff : 0.0f));
+        const float surL = decodeChannels == 5 ? src[3] * sCoeff : 0.0f;
+        const float surR = decodeChannels == 5 ? src[4] * sCoeff : 0.0f;
+        const float norm = 1.0f / std::max(
+                1.0f,
+                1.0f + (decodeChannels > 2 ? cCoeff : 0.0f) + (decodeChannels == 5 ? sCoeff : 0.0f)
+        );
         outStereo[f * 2] = (fl + fc + surL) * norm;
         outStereo[f * 2 + 1] = (fr + fc + surR) * norm;
     }
 }
 
+void SpatializerEngine::ensureBedCapacity(size_t frames) {
+    const size_t channels = static_cast<size_t>(std::max(bedChannels, 1));
+    const size_t needed = (bedFifoStart + frames + static_cast<size_t>(kBlockSize)) * channels;
+    if (bedFifoCapacity >= needed) {
+        return;
+    }
+    size_t capacity = std::max<size_t>(bedFifoCapacity, 1);
+    while (capacity < needed) {
+        capacity *= 2;
+    }
+    std::vector<float> grown(capacity * channels, 0.0f);
+    if (bedFifoCapacity > 0 && bedFifoFrames > 0) {
+        std::memcpy(
+                grown.data(),
+                bedFifo.data() + bedFifoStart * channels,
+                bedFifoFrames * channels * sizeof(float)
+        );
+    }
+    bedFifo.swap(grown);
+    bedFifoCapacity = capacity;
+    bedFifoStart = 0;
+}
+
+void SpatializerEngine::processBlocks(int sampleRate) {
+    const float wet = std::clamp(currentConfig.wetMix, 0.0f, 1.0f);
+    const float centerGain = dbToLinearClamped(currentConfig.centerGainDb, -24.0f, 12.0f);
+    const float surroundGain = dbToLinearClamped(currentConfig.surroundGainDb, -24.0f, 12.0f);
+    const float heightGain = dbToLinearClamped(currentConfig.heightGainDb, -24.0f, 12.0f);
+    const float lfeGain = dbToLinearClamped(currentConfig.lfeGainDb, -48.0f, 12.0f);
+    const bool hasLfeChannel =
+            (preparedLayout == BedLayoutId::Surround_5_1 ||
+            preparedLayout == BedLayoutId::Surround_7_1 ||
+            preparedLayout == BedLayoutId::Atmos_7_1_4) &&
+            bedChannels >= 4 &&
+            currentConfig.lfeGainDb > -47.5f;
+
+    while (bedFifoFrames >= static_cast<size_t>(kBlockSize)) {
+        float* block = bedFifo.data() + bedFifoStart * bedChannels;
+
+        if (wet < 0.999f) {
+            downmixBedToStereo(
+                    block,
+                    bedChannels,
+                    preparedLayout,
+                    dryBlock.data(),
+                    kBlockSize,
+                    centerGain,
+                    surroundGain,
+                    heightGain,
+                    lfeGain
+            );
+        }
+
+        if (hasLfeChannel) {
+            updateLfeLowPassCoeffs(sampleRate);
+            lfeMonoScratch.resize(static_cast<size_t>(kBlockSize));
+            const float scaledLfeGain = lfeGain * kInvSqrt2;
+            for (int f = 0; f < kBlockSize; ++f) {
+                float lfeSample = block[static_cast<size_t>(f) * bedChannels + 3];
+                block[static_cast<size_t>(f) * bedChannels + 3] = 0.0f;
+                if (currentConfig.lfeLowPassEnabled) {
+                    lfeSample = lfeBiquad2.processSample(lfeBiquad1.processSample(lfeSample));
+                }
+                lfeMonoScratch[static_cast<size_t>(f)] = lfeSample * scaledLfeGain;
+            }
+        }
+
+        applyBedChannelTrims(block, bedChannels, preparedLayout);
+
+        activeBackend->process(block, wetBlock.data(), kBlockSize);
+
+        for (int f = 0; f < kBlockSize; ++f) {
+            const float lfeAdd = hasLfeChannel ? lfeMonoScratch[static_cast<size_t>(f)] : 0.0f;
+            float outL = wetBlock[static_cast<size_t>(f) * 2] + lfeAdd;
+            float outR = wetBlock[static_cast<size_t>(f) * 2 + 1] + lfeAdd;
+            if (wet < 0.999f) {
+                const float dryWeight = 1.0f - wet;
+                outL = dryWeight * dryBlock[static_cast<size_t>(f) * 2] + wet * outL;
+                outR = dryWeight * dryBlock[static_cast<size_t>(f) * 2 + 1] + wet * outR;
+            }
+            outFifo.push_back(outL);
+            outFifo.push_back(outR);
+        }
+        outFifoFrames += static_cast<size_t>(kBlockSize);
+
+        bedFifoStart += static_cast<size_t>(kBlockSize);
+        bedFifoFrames -= static_cast<size_t>(kBlockSize);
+    }
+
+    if (bedFifoStart > 0 && (bedFifoStart + bedFifoFrames) * static_cast<size_t>(bedChannels) > bedFifoCapacity / 2) {
+        const size_t channels = static_cast<size_t>(std::max(bedChannels, 1));
+        std::memmove(
+                bedFifo.data(),
+                bedFifo.data() + bedFifoStart * channels,
+                bedFifoFrames * channels * sizeof(float)
+        );
+        bedFifoStart = 0;
+    }
+}
+
+int SpatializerEngine::drainOutput(float* outStereoInterleaved, int maxFrames) {
+    if (!outStereoInterleaved || maxFrames <= 0) {
+        return 0;
+    }
+    int written = 0;
+    while (written < maxFrames && outFifoFrames > 0) {
+        const float* src = outFifo.data() + outFifoRead * 2;
+        outStereoInterleaved[static_cast<size_t>(written) * 2] = src[0];
+        outStereoInterleaved[static_cast<size_t>(written) * 2 + 1] = src[1];
+        ++outFifoRead;
+        --outFifoFrames;
+        ++written;
+    }
+    if (outFifoRead > 0 && (outFifoFrames == 0 || outFifoRead * 2 > outFifo.size() / 2)) {
+        outFifo.erase(outFifo.begin(), outFifo.begin() + static_cast<long>(outFifoRead * 2));
+        outFifoRead = 0;
+    }
+    return written;
+}
+
 void SpatializerEngine::processOrDownmix(
-        float* buffer,
+        const float* bedInterleaved,
+        float* outStereoInterleaved,
         int frames,
         int decodeChannels,
         BedLayoutId bedLayout,
         int outChannels,
         int sampleRate) {
-    if (!buffer || frames <= 0 || decodeChannels <= 0 || outChannels <= 0) {
+    if (!outStereoInterleaved || frames <= 0 || decodeChannels <= 0 || outChannels <= 0) {
         return;
     }
 
@@ -248,125 +385,132 @@ void SpatializerEngine::processOrDownmix(
                              outChannels == 2 &&
                              (decodeChannels > 2 || (decodeChannels == 2 && currentConfig.spatializeStereo));
 
-    if (wantSpatial) {
-        if (sampleRate != preparedSampleRate ||
-            decodeChannels != preparedInputChannels ||
-            bedLayout != preparedLayout ||
-            frames > preparedMaxFrames) {
-            const int targetMaxFrames = std::max({ frames, preparedMaxFrames, 4096 });
-            if (activeBackend->prepare(sampleRate, bedLayout, decodeChannels, targetMaxFrames, currentConfig)) {
-                preparedSampleRate = sampleRate;
-                preparedInputChannels = decodeChannels;
-                preparedLayout = bedLayout;
-                preparedMaxFrames = targetMaxFrames;
-                refreshAtomicFlagsLocked();
-            }
-        }
-
-        if (preparedSampleRate == sampleRate && preparedInputChannels == decodeChannels) {
-            const float wet = std::clamp(currentConfig.wetMix, 0.0f, 1.0f);
-            const float centerGain = dbToLinearClamped(currentConfig.centerGainDb, -24.0f, 12.0f);
-            const float surroundGain = dbToLinearClamped(currentConfig.surroundGainDb, -24.0f, 12.0f);
-            const float heightGain = dbToLinearClamped(currentConfig.heightGainDb, -24.0f, 12.0f);
-            const float lfeGain = dbToLinearClamped(currentConfig.lfeGainDb, -48.0f, 12.0f);
-
-            if (wet < 0.999f) {
-                dryStereoScratch.resize(static_cast<size_t>(frames) * 2);
-                downmixBedToStereo(
-                        buffer,
-                        decodeChannels,
-                        bedLayout,
-                        dryStereoScratch.data(),
-                        frames,
-                        centerGain,
-                        surroundGain,
-                        heightGain,
-                        lfeGain
+    if (!wantSpatial) {
+        if (decodeChannels == outChannels) {
+            if (bedInterleaved != outStereoInterleaved) {
+                std::memcpy(
+                        outStereoInterleaved,
+                        bedInterleaved,
+                        static_cast<size_t>(frames) * outChannels * sizeof(float)
                 );
-            }
-
-            // Extract LFE channel (ch=3 in 5.1/7.1/7.1.4) before backend processing.
-            const bool hasLfeChannel =
-                    (bedLayout == BedLayoutId::Surround_5_1 ||
-                     bedLayout == BedLayoutId::Surround_7_1 ||
-                     bedLayout == BedLayoutId::Atmos_7_1_4) &&
-                    decodeChannels >= 4 &&
-                    currentConfig.lfeGainDb > -47.5f;
-            if (hasLfeChannel) {
-                updateLfeLowPassCoeffs(sampleRate);
-                lfeMonoScratch.resize(static_cast<size_t>(frames));
-                const float scaledLfeGain = lfeGain * kInvSqrt2;
-                for (int f = 0; f < frames; ++f) {
-                    float lfeSample = buffer[static_cast<size_t>(f) * decodeChannels + 3];
-                    buffer[static_cast<size_t>(f) * decodeChannels + 3] = 0.0f;
-                    if (currentConfig.lfeLowPassEnabled) {
-                        lfeSample = lfeBiquad2.processSample(lfeBiquad1.processSample(lfeSample));
-                    }
-                    lfeMonoScratch[static_cast<size_t>(f)] = lfeSample * scaledLfeGain;
-                }
-            }
-
-            applyBedChannelTrimsInPlace(buffer, frames, decodeChannels, bedLayout);
-
-            wetStereoScratch.resize(static_cast<size_t>(frames) * 2);
-            activeBackend->process(buffer, wetStereoScratch.data(), frames);
-
-            for (int f = 0; f < frames; ++f) {
-                const float lfeAdd = hasLfeChannel ? lfeMonoScratch[static_cast<size_t>(f)] : 0.0f;
-                float outL = wetStereoScratch[f * 2] + lfeAdd;
-                float outR = wetStereoScratch[f * 2 + 1] + lfeAdd;
-                if (wet < 0.999f) {
-                    const float dryWeight = 1.0f - wet;
-                    outL = dryWeight * dryStereoScratch[f * 2] + wet * outL;
-                    outR = dryWeight * dryStereoScratch[f * 2 + 1] + wet * outR;
-                }
-                buffer[f * 2] = outL;
-                buffer[f * 2 + 1] = outR;
             }
             return;
         }
-    }
-
-    if (decodeChannels == outChannels) {
-        return;
-    }
-
-    if (outChannels == 2) {
         const float centerGain = dbToLinearClamped(currentConfig.centerGainDb, -24.0f, 12.0f);
         const float surroundGain = dbToLinearClamped(currentConfig.surroundGainDb, -24.0f, 12.0f);
         const float heightGain = dbToLinearClamped(currentConfig.heightGainDb, -24.0f, 12.0f);
         const float lfeGain = dbToLinearClamped(currentConfig.lfeGainDb, -48.0f, 12.0f);
-        downmixBedToStereo(
-                buffer,
-                decodeChannels,
-                bedLayout,
-                buffer,
-                frames,
-                centerGain,
-                surroundGain,
-                heightGain,
-                lfeGain
-        );
+        if (outChannels == 2) {
+            downmixBedToStereo(
+                    bedInterleaved,
+                    decodeChannels,
+                    bedLayout,
+                    outStereoInterleaved,
+                    frames,
+                    centerGain,
+                    surroundGain,
+                    heightGain,
+                    lfeGain
+            );
+            return;
+        }
+        for (int f = 0; f < frames; ++f) {
+            const float* src = bedInterleaved + static_cast<size_t>(f) * decodeChannels;
+            float* dst = outStereoInterleaved + static_cast<size_t>(f) * outChannels;
+            for (int ch = 0; ch < outChannels; ++ch) {
+                dst[ch] = ch < decodeChannels ? src[ch] : 0.0f;
+            }
+        }
         return;
     }
 
-    if (decodeChannels > outChannels) {
-        for (int frame = 0; frame < frames; ++frame) {
-            const float* srcFrame = buffer + static_cast<size_t>(frame) * decodeChannels;
-            float* dstFrame = buffer + static_cast<size_t>(frame) * outChannels;
-            for (int outCh = 0; outCh < outChannels; ++outCh) {
-                dstFrame[outCh] = srcFrame[outCh];
-            }
-        }
-    } else {
-        for (int frame = frames - 1; frame >= 0; --frame) {
-            const float* srcFrame = buffer + static_cast<size_t>(frame) * decodeChannels;
-            float* dstFrame = buffer + static_cast<size_t>(frame) * outChannels;
-            for (int outCh = 0; outCh < outChannels; ++outCh) {
-                dstFrame[outCh] = outCh < decodeChannels ? srcFrame[outCh] : 0.0f;
-            }
+    const bool layoutChanged =
+            !backendReady ||
+            sampleRate != preparedSampleRate ||
+            decodeChannels != preparedInputChannels ||
+            bedLayout != preparedLayout;
+    if (layoutChanged) {
+        bedChannels = decodeChannels;
+        preparedSampleRate = sampleRate;
+        preparedInputChannels = decodeChannels;
+        preparedLayout = bedLayout;
+        bedBlock.assign(static_cast<size_t>(kBlockSize) * bedChannels, 0.0f);
+        dryBlock.assign(static_cast<size_t>(kBlockSize) * 2, 0.0f);
+        wetBlock.assign(static_cast<size_t>(kBlockSize) * 2, 0.0f);
+        bedFifo.clear();
+        bedFifoCapacity = 0;
+        bedFifoStart = 0;
+        bedFifoFrames = 0;
+        ensureBedCapacity(static_cast<size_t>(kBlockSize));
+        backendReady = activeBackend->prepare(
+                sampleRate,
+                bedLayout,
+                decodeChannels,
+                kBlockSize,
+                currentConfig
+        );
+        resetFifos();
+        refreshAtomicFlagsLocked();
+        if (!backendReady) {
+            // The backend cannot render this layout; fall back to a plain downmix.
+            const float centerGain = dbToLinearClamped(currentConfig.centerGainDb, -24.0f, 12.0f);
+            const float surroundGain = dbToLinearClamped(currentConfig.surroundGainDb, -24.0f, 12.0f);
+            const float heightGain = dbToLinearClamped(currentConfig.heightGainDb, -24.0f, 12.0f);
+            const float lfeGain = dbToLinearClamped(currentConfig.lfeGainDb, -48.0f, 12.0f);
+            downmixBedToStereo(
+                    bedInterleaved,
+                    decodeChannels,
+                    bedLayout,
+                    outStereoInterleaved,
+                    frames,
+                    centerGain,
+                    surroundGain,
+                    heightGain,
+                    lfeGain
+            );
+            return;
         }
     }
+
+    ensureBedCapacity(static_cast<size_t>(frames));
+
+    const size_t channels = static_cast<size_t>(std::max(bedChannels, 1));
+    float* bedDst = bedFifo.data() + (bedFifoStart + bedFifoFrames) * channels;
+    for (int f = 0; f < frames; ++f) {
+        std::memcpy(
+                bedDst + static_cast<size_t>(f) * channels,
+                bedInterleaved + static_cast<size_t>(f) * decodeChannels,
+                static_cast<size_t>(decodeChannels) * sizeof(float)
+        );
+    }
+    bedFifoFrames += static_cast<size_t>(frames);
+
+    processBlocks(sampleRate);
+
+    const int written = drainOutput(outStereoInterleaved, frames);
+    if (written < frames) {
+        std::memset(
+                outStereoInterleaved + static_cast<size_t>(written) * 2,
+                0,
+                static_cast<size_t>(frames - written) * 2 * sizeof(float)
+        );
+    }
+}
+
+int SpatializerEngine::flush(float* outStereoInterleaved, int maxFrames) {
+    if (!outStereoInterleaved || maxFrames <= 0) {
+        return 0;
+    }
+    if (bedFifoFrames > 0 && activeBackend && currentConfig.enabled) {
+        // Complete the pending block with silence so the convolution tail of
+        // the last real samples is rendered instead of being dropped.
+        const size_t channels = static_cast<size_t>(std::max(bedChannels, 1));
+        float* block = bedFifo.data() + (bedFifoStart + bedFifoFrames) * channels;
+        std::memset(block, 0, (static_cast<size_t>(kBlockSize) - bedFifoFrames) * channels * sizeof(float));
+        bedFifoFrames = static_cast<size_t>(kBlockSize);
+        processBlocks(preparedSampleRate);
+    }
+    return drainOutput(outStereoInterleaved, maxFrames);
 }
 
 } // namespace siliconplayer::spatial

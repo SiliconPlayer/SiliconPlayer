@@ -12,6 +12,7 @@
 #include "ChannelScopeTrigger.h"
 #include "decoders/DecoderRegistry.h"
 #include "effects/EffectRegistry.h"
+#include "spatial/SpatializerConfigJson.h"
 #include "silicon/vis/vis_api.h"
 #include <algorithm>
 #include <vector>
@@ -3275,6 +3276,33 @@ Java_com_flopster101_siliconplayer_NativeBridge_getEffectChain(
         return toJString(env, siliconplayer::effects::serializeEffectChainJson({}));
     }
     return toJString(env, audioEngine->getEffectChainJson());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_setSpatializerConfig(
+        JNIEnv* env, jobject, jstring configJson) {
+    ensureEngine();
+    std::string jsonStr;
+    if (configJson != nullptr) {
+        const char* utf = env->GetStringUTFChars(configJson, nullptr);
+        if (utf != nullptr) {
+            jsonStr = utf;
+            env->ReleaseStringUTFChars(configJson, utf);
+        }
+    }
+    audioEngine->setSpatializerConfig(siliconplayer::spatial::parseSpatializerConfigJson(jsonStr));
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_flopster101_siliconplayer_NativeBridge_getSpatializerConfig(
+        JNIEnv* env, jobject) {
+    if (audioEngine == nullptr) {
+        return toJString(env, siliconplayer::spatial::serializeSpatializerConfigJson({}));
+    }
+    return toJString(
+            env,
+            siliconplayer::spatial::serializeSpatializerConfigJson(audioEngine->getSpatializerConfig())
+    );
 }
 
 extern "C" JNIEXPORT jstring JNICALL
