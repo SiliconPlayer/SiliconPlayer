@@ -23,6 +23,14 @@ struct SpatializerConfig {
     float lfeGainDb = -3.0f;
     bool lfeLowPassEnabled = true;
     float wetMix = 1.0f;
+    float bassGainDb = 0.0f;
+    float trebleGainDb = 0.0f;
+    float surroundTrebleGainDb = 0.0f;
+    bool wideSurround = false;
+    bool frontAmbience = false;
+    float virtualizerWidth = 1.0f;
+    bool frontDiffuse = false;
+    int compressorMode = 0; // 0 = off, 1 = gentle, 2 = detail
     // Output level makeup applied to the spatialized render.
     float outputGainDb = 8.5f;
     int ambisonicOrder = 3;

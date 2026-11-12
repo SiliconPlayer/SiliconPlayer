@@ -42,6 +42,10 @@ void SpatializerEngine::setConfig(const SpatializerConfig& config) {
             config.renderMethod != currentConfig.renderMethod ||
             config.ambisonicOrder != currentConfig.ambisonicOrder ||
             config.yawDegrees != currentConfig.yawDegrees ||
+            config.wideSurround != currentConfig.wideSurround ||
+            config.frontAmbience != currentConfig.frontAmbience ||
+            std::abs(config.virtualizerWidth - currentConfig.virtualizerWidth) > 0.001f ||
+            config.frontDiffuse != currentConfig.frontDiffuse ||
             config.customSofaPath != currentConfig.customSofaPath;
     currentConfig = config;
     if (backendChanged || enabledChanged || rendererChanged ||
@@ -73,6 +77,16 @@ void SpatializerEngine::reset() {
     resetFifos();
     lfeBiquad1.reset();
     lfeBiquad2.reset();
+    surroundTrebleLeft.reset();
+    surroundTrebleRight.reset();
+    bassLeft.reset();
+    bassRight.reset();
+    trebleLeft.reset();
+    trebleRight.reset();
+    compressorGain = 1.0f;
+    compressorHighGain = 1.0f;
+    dynamicsBandEnvMid = 0.0f;
+    dynamicsBandEnvHigh = 0.0f;
     if (activeBackend) {
         activeBackend->reset();
     }
@@ -125,6 +139,164 @@ void SpatializerEngine::updateLfeLowPassCoeffs(int sampleRate) {
     lfeBiquad2.a1 = a1;
     lfeBiquad2.a2 = a2;
     lfeBiquad2.reset();
+}
+
+void SpatializerEngine::updateSurroundToneCoeffs(int sampleRate) {
+    const float gainDb = std::clamp(currentConfig.surroundTrebleGainDb, -12.0f, 12.0f);
+    if (sampleRate <= 0 ||
+        (sampleRate == surroundToneFilterSampleRate && gainDb == surroundToneFilterGainDb)) {
+        return;
+    }
+    surroundToneFilterSampleRate = sampleRate;
+    surroundToneFilterGainDb = gainDb;
+    const double a = std::pow(10.0, static_cast<double>(gainDb) / 40.0);
+    const double omega = 2.0 * M_PI * 3200.0 / sampleRate;
+    const double sn = std::sin(omega);
+    const double cs = std::cos(omega);
+    const double alpha = sn * M_SQRT1_2;
+    const double twoSqrtAAlpha = 2.0 * std::sqrt(a) * alpha;
+    const double b0 = a * ((a + 1.0) + (a - 1.0) * cs + twoSqrtAAlpha);
+    const double b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cs);
+    const double b2 = a * ((a + 1.0) + (a - 1.0) * cs - twoSqrtAAlpha);
+    const double a0 = (a + 1.0) - (a - 1.0) * cs + twoSqrtAAlpha;
+    const double a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cs);
+    const double a2 = (a + 1.0) - (a - 1.0) * cs - twoSqrtAAlpha;
+    for (BiquadState* filter : {&surroundTrebleLeft, &surroundTrebleRight}) {
+        filter->b0 = static_cast<float>(b0 / a0);
+        filter->b1 = static_cast<float>(b1 / a0);
+        filter->b2 = static_cast<float>(b2 / a0);
+        filter->a1 = static_cast<float>(a1 / a0);
+        filter->a2 = static_cast<float>(a2 / a0);
+    }
+}
+
+void SpatializerEngine::updateToneCoeffs(int sampleRate) {
+    const float bassDb = std::clamp(currentConfig.bassGainDb, -12.0f, 12.0f);
+    const float trebleDb = std::clamp(currentConfig.trebleGainDb, -12.0f, 12.0f);
+    if (sampleRate <= 0 ||
+        (sampleRate == toneFilterSampleRate &&
+         bassDb == toneFilterBassDb && trebleDb == toneFilterTrebleDb)) {
+        return;
+    }
+    toneFilterSampleRate = sampleRate;
+    toneFilterBassDb = bassDb;
+    toneFilterTrebleDb = trebleDb;
+
+    auto configureShelf = [sampleRate](
+            BiquadState& filter,
+            float frequency,
+            float gainDb,
+            bool highShelf) {
+        const double gain = static_cast<double>(gainDb);
+        const double a = std::pow(10.0, gain / 40.0);
+        const double omega = 2.0 * M_PI * frequency / sampleRate;
+        const double sn = std::sin(omega);
+        const double cs = std::cos(omega);
+        const double alpha = sn * M_SQRT1_2;
+        const double twoSqrtAAlpha = 2.0 * std::sqrt(a) * alpha;
+        double b0;
+        double b1;
+        double b2;
+        double a0;
+        double a1;
+        double a2;
+        if (highShelf) {
+            b0 = a * ((a + 1.0) + (a - 1.0) * cs + twoSqrtAAlpha);
+            b1 = -2.0 * a * ((a - 1.0) + (a + 1.0) * cs);
+            b2 = a * ((a + 1.0) + (a - 1.0) * cs - twoSqrtAAlpha);
+            a0 = (a + 1.0) - (a - 1.0) * cs + twoSqrtAAlpha;
+            a1 = 2.0 * ((a - 1.0) - (a + 1.0) * cs);
+            a2 = (a + 1.0) - (a - 1.0) * cs - twoSqrtAAlpha;
+        } else {
+            b0 = a * ((a + 1.0) - (a - 1.0) * cs + twoSqrtAAlpha);
+            b1 = 2.0 * a * ((a - 1.0) - (a + 1.0) * cs);
+            b2 = a * ((a + 1.0) - (a - 1.0) * cs - twoSqrtAAlpha);
+            a0 = (a + 1.0) + (a - 1.0) * cs + twoSqrtAAlpha;
+            a1 = -2.0 * ((a - 1.0) + (a + 1.0) * cs);
+            a2 = (a + 1.0) + (a - 1.0) * cs - twoSqrtAAlpha;
+        }
+        filter.b0 = static_cast<float>(b0 / a0);
+        filter.b1 = static_cast<float>(b1 / a0);
+        filter.b2 = static_cast<float>(b2 / a0);
+        filter.a1 = static_cast<float>(a1 / a0);
+        filter.a2 = static_cast<float>(a2 / a0);
+    };
+
+    configureShelf(bassLeft, 180.0f, bassDb, false);
+    configureShelf(bassRight, 180.0f, bassDb, false);
+    configureShelf(trebleLeft, 4500.0f, trebleDb, true);
+    configureShelf(trebleRight, 4500.0f, trebleDb, true);
+}
+
+void SpatializerEngine::applyCompressor(float* stereoBlock, int frames, int sampleRate) {
+    if (!stereoBlock || frames <= 0 || currentConfig.compressorMode <= 0) {
+        compressorGain = 1.0f;
+        compressorHighGain = 1.0f;
+        return;
+    }
+    if (currentConfig.compressorMode == 1) {
+        const float threshold = std::pow(10.0f, -18.0f / 20.0f);
+        const float makeup = std::pow(10.0f, 2.0f / 20.0f);
+        const float attack = std::exp(-1.0f / (0.020f * sampleRate));
+        const float release = std::exp(-1.0f / (0.180f * sampleRate));
+        for (int f = 0; f < frames; ++f) {
+            const float left = stereoBlock[static_cast<size_t>(f) * 2];
+            const float right = stereoBlock[static_cast<size_t>(f) * 2 + 1];
+            const float level = std::max(std::abs(left), std::abs(right));
+            const float targetGain = level > threshold
+                    ? std::pow(threshold / level, 0.5f)
+                    : 1.0f;
+            const float smoothing = targetGain < compressorGain ? attack : release;
+            compressorGain = smoothing * compressorGain + (1.0f - smoothing) * targetGain;
+            stereoBlock[static_cast<size_t>(f) * 2] = left * compressorGain * makeup;
+            stereoBlock[static_cast<size_t>(f) * 2 + 1] = right * compressorGain * makeup;
+        }
+        return;
+    }
+
+    // Phase-coherent wideband transient + kick-ducking ceiling dynamics.
+    // Audio is scaled by a single stereo-linked scalar gain so no crossover
+    // phase shift or comb filtering degrades transient attacks.
+    const float outputGain = dbToLinearClamped(currentConfig.outputGainDb, -24.0f, 18.0f);
+    const float ceiling = std::min(0.935f / std::max(outputGain, 1e-4f), 0.45f);
+    const float fastCoeff = std::exp(-1.0f / (0.002f * sampleRate));
+    const float slowCoeff = std::exp(-1.0f / (0.018f * sampleRate));
+    const float transAttack = std::exp(-1.0f / (0.001f * sampleRate));
+    const float transRelease = std::exp(-1.0f / (0.020f * sampleRate));
+    const float limRelease = std::exp(-1.0f / (0.018f * sampleRate));
+
+    for (int f = 0; f < frames; ++f) {
+        const int index = f * 2;
+        const float left = stereoBlock[index];
+        const float right = stereoBlock[index + 1];
+        const float peak = std::max(std::abs(left), std::abs(right));
+        const float energy = 0.5f * (left * left + right * right);
+
+        dynamicsBandEnvHigh = fastCoeff * dynamicsBandEnvHigh + (1.0f - fastCoeff) * energy;
+        dynamicsBandEnvMid = slowCoeff * dynamicsBandEnvMid + (1.0f - slowCoeff) * energy;
+
+        float targetTrans = 1.0f;
+        if (dynamicsBandEnvHigh > 1e-8f && dynamicsBandEnvHigh > dynamicsBandEnvMid * 1.30f) {
+            const float ratioDb = 10.0f * std::log10(dynamicsBandEnvHigh / std::max(dynamicsBandEnvMid, 1e-10f));
+            const float quietScale = 1.0f - std::clamp(dynamicsBandEnvMid / 0.015f, 0.0f, 1.0f);
+            const float boostDb = std::clamp((ratioDb - 1.1f) * 0.55f * quietScale, 0.0f, 2.5f);
+            targetTrans = std::pow(10.0f, boostDb / 20.0f);
+        }
+        const float tCoeff = targetTrans > compressorHighGain ? transAttack : transRelease;
+        compressorHighGain = tCoeff * compressorHighGain + (1.0f - tCoeff) * targetTrans;
+
+        const float postTransPeak = peak * compressorHighGain;
+        const float targetLim = postTransPeak > ceiling ? (ceiling / postTransPeak) : 1.0f;
+        if (targetLim < compressorGain) {
+            compressorGain = targetLim;
+        } else {
+            compressorGain = limRelease * compressorGain + (1.0f - limRelease) * targetLim;
+        }
+
+        const float gain = compressorHighGain * compressorGain;
+        stereoBlock[index] = left * gain;
+        stereoBlock[index + 1] = right * gain;
+    }
 }
 
 void SpatializerEngine::applyBedChannelTrims(
@@ -310,25 +482,46 @@ void SpatializerEngine::processBlocks(int sampleRate) {
             );
         }
 
+        const bool backendHandlesCoherentLfe =
+                currentConfig.backend == SpatializerBackendId::SteamAudio &&
+                currentConfig.frontDiffuse &&
+                currentConfig.customSofaPath.empty();
         if (hasLfeChannel) {
-            updateLfeLowPassCoeffs(sampleRate);
             lfeMonoScratch.resize(static_cast<size_t>(kBlockSize));
-            const float scaledLfeGain = lfeGain * kInvSqrt2;
-            for (int f = 0; f < kBlockSize; ++f) {
-                float lfeSample = block[static_cast<size_t>(f) * bedChannels + 3];
-                block[static_cast<size_t>(f) * bedChannels + 3] = 0.0f;
-                if (currentConfig.lfeLowPassEnabled) {
-                    lfeSample = lfeBiquad2.processSample(lfeBiquad1.processSample(lfeSample));
+            if (backendHandlesCoherentLfe) {
+                const float lfeScale = lfeGain / kInvSqrt2;
+                for (int f = 0; f < kBlockSize; ++f) {
+                    block[static_cast<size_t>(f) * bedChannels + 3] *= lfeScale;
+                    lfeMonoScratch[static_cast<size_t>(f)] = 0.0f;
                 }
-                lfeMonoScratch[static_cast<size_t>(f)] = lfeSample * scaledLfeGain;
+            } else {
+                updateLfeLowPassCoeffs(sampleRate);
+                const float scaledLfeGain = lfeGain * kInvSqrt2;
+                for (int f = 0; f < kBlockSize; ++f) {
+                    float lfeSample = block[static_cast<size_t>(f) * bedChannels + 3];
+                    block[static_cast<size_t>(f) * bedChannels + 3] = 0.0f;
+                    if (currentConfig.lfeLowPassEnabled) {
+                        lfeSample = lfeBiquad2.processSample(lfeBiquad1.processSample(lfeSample));
+                    }
+                    lfeMonoScratch[static_cast<size_t>(f)] = lfeSample * scaledLfeGain;
+                }
             }
         }
 
         applyBedChannelTrims(block, bedChannels, preparedLayout);
+        if (std::abs(currentConfig.surroundTrebleGainDb) > 0.001f && bedChannels >= 6) {
+            updateSurroundToneCoeffs(sampleRate);
+            for (int f = 0; f < kBlockSize; ++f) {
+                float* frame = block + static_cast<size_t>(f) * bedChannels;
+                frame[4] = surroundTrebleLeft.processSample(frame[4]);
+                frame[5] = surroundTrebleRight.processSample(frame[5]);
+            }
+        }
 
         activeBackend->process(block, wetBlock.data(), kBlockSize);
 
         const float hrtfGain = activeBackend->outputGainCompensation();
+        updateToneCoeffs(sampleRate);
         for (int f = 0; f < kBlockSize; ++f) {
             const float lfeAdd = hasLfeChannel ? lfeMonoScratch[static_cast<size_t>(f)] : 0.0f;
             float outL = wetBlock[static_cast<size_t>(f) * 2] * hrtfGain + lfeAdd;
@@ -338,8 +531,14 @@ void SpatializerEngine::processBlocks(int sampleRate) {
                 outL = dryWeight * dryBlock[static_cast<size_t>(f) * 2] + wet * outL;
                 outR = dryWeight * dryBlock[static_cast<size_t>(f) * 2 + 1] + wet * outR;
             }
-            outFifo.push_back(outL * outputGain);
-            outFifo.push_back(outR * outputGain);
+            outL = trebleLeft.processSample(bassLeft.processSample(outL));
+            outR = trebleRight.processSample(bassRight.processSample(outR));
+            wetBlock[static_cast<size_t>(f) * 2] = outL;
+            wetBlock[static_cast<size_t>(f) * 2 + 1] = outR;
+        }
+        applyCompressor(wetBlock.data(), kBlockSize, sampleRate);
+        for (int f = 0; f < kBlockSize * 2; ++f) {
+            outFifo.push_back(wetBlock[static_cast<size_t>(f)] * outputGain);
         }
         outFifoFrames += static_cast<size_t>(kBlockSize);
 

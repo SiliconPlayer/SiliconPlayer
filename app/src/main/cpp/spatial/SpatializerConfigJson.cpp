@@ -237,6 +237,15 @@ SpatializerConfig parseSpatializerConfigJson(std::string_view json) {
     config.lfeGainDb = numberOr(values, "lfeGainDb", config.lfeGainDb);
     config.lfeLowPassEnabled = boolOr(values, "lfeLowPassEnabled", config.lfeLowPassEnabled);
     config.wetMix = std::clamp(numberOr(values, "wetMix", config.wetMix), 0.0f, 1.0f);
+    config.bassGainDb = std::clamp(numberOr(values, "bassGainDb", config.bassGainDb), -12.0f, 12.0f);
+    config.trebleGainDb = std::clamp(numberOr(values, "trebleGainDb", config.trebleGainDb), -12.0f, 12.0f);
+    config.surroundTrebleGainDb = std::clamp(
+            numberOr(values, "surroundTrebleGainDb", config.surroundTrebleGainDb), -12.0f, 12.0f);
+    config.wideSurround = boolOr(values, "wideSurround", config.wideSurround);
+    config.frontAmbience = boolOr(values, "frontAmbience", config.frontAmbience);
+    config.virtualizerWidth = std::clamp(numberOr(values, "virtualizerWidth", config.virtualizerWidth), 0.0f, 2.0f);
+    config.frontDiffuse = boolOr(values, "frontDiffuse", config.frontDiffuse);
+    config.compressorMode = std::clamp(intOr(values, "compressorMode", config.compressorMode), 0, 2);
     config.outputGainDb = std::clamp(numberOr(values, "outputGainDb", config.outputGainDb), -24.0f, 18.0f);
     config.ambisonicOrder = std::clamp(intOr(values, "ambisonicOrder", config.ambisonicOrder), 1, 3);
     config.renderMethod = std::clamp(intOr(values, "renderMethod", config.renderMethod), 0, 1);
@@ -256,6 +265,14 @@ std::string serializeSpatializerConfigJson(const SpatializerConfig& config) {
     out += "\"lfeGainDb\":" + std::to_string(config.lfeGainDb) + ",";
     out += "\"lfeLowPassEnabled\":" + std::string(config.lfeLowPassEnabled ? "true" : "false") + ",";
     out += "\"wetMix\":" + std::to_string(config.wetMix) + ",";
+    out += "\"bassGainDb\":" + std::to_string(config.bassGainDb) + ",";
+    out += "\"trebleGainDb\":" + std::to_string(config.trebleGainDb) + ",";
+    out += "\"surroundTrebleGainDb\":" + std::to_string(config.surroundTrebleGainDb) + ",";
+    out += "\"wideSurround\":" + std::string(config.wideSurround ? "true" : "false") + ",";
+    out += "\"frontAmbience\":" + std::string(config.frontAmbience ? "true" : "false") + ",";
+    out += "\"virtualizerWidth\":" + std::to_string(config.virtualizerWidth) + ",";
+    out += "\"frontDiffuse\":" + std::string(config.frontDiffuse ? "true" : "false") + ",";
+    out += "\"compressorMode\":" + std::to_string(config.compressorMode) + ",";
     out += "\"outputGainDb\":" + std::to_string(config.outputGainDb) + ",";
     out += "\"ambisonicOrder\":" + std::to_string(config.ambisonicOrder) + ",";
     out += "\"renderMethod\":" + std::to_string(config.renderMethod) + ",";

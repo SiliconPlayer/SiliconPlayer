@@ -33,12 +33,18 @@ public:
     float outputGainCompensation() const override;
 
 private:
-    void buildSpeakerLayout(BedLayoutId inputLayout, int inputChannels);
+    void buildSpeakerLayout(
+            BedLayoutId inputLayout,
+            int inputChannels,
+            bool wideSurround);
     void releaseEffect();
+    void releaseReflections();
 
     IPLContext context = nullptr;
     IPLHRTF hrtf = nullptr;
     IPLVirtualSurroundEffect effect = nullptr;
+    IPLReflectionEffect reflectionLeft = nullptr;
+    IPLReflectionEffect reflectionRight = nullptr;
 
     IPLSpeakerLayout speakerLayout{};
     std::vector<IPLVector3> speakerDirections;
@@ -47,11 +53,26 @@ private:
     std::vector<float*> channelPtrs;
     std::vector<float> stereoScratch;
     std::vector<float*> stereoPtrs;
+    std::vector<float> reflectionScratch;
+    std::vector<float*> reflectionPtrs;
+    std::vector<float> earlyReflectionLeft;
+    std::vector<float> earlyReflectionRight;
+    std::vector<float> earlyReflectionCross;
+    std::vector<float> mimoFrontMid;
+    std::vector<float> mimoFrontSide;
+    std::vector<float> mimoSurrMid;
+    std::vector<float> mimoSurrSide;
+    std::vector<float> mimoRoomExciter;
+    int diffuseCursor = 0;
+    int roomCursor = 0;
+    std::vector<float> reflectionLeftScratch;
+    std::vector<float> reflectionRightScratch;
 
     int blockSize = 0;
     int bedChannels = 0;
     int latencyFramesValue = 0;
     std::string sofaPath;
+    SpatializerConfig activeConfig;
 };
 
 } // namespace siliconplayer::spatial

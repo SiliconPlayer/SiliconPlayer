@@ -84,6 +84,9 @@ private:
     };
 
     void updateLfeLowPassCoeffs(int sampleRate);
+    void updateSurroundToneCoeffs(int sampleRate);
+    void updateToneCoeffs(int sampleRate);
+    void applyCompressor(float* stereoBlock, int frames, int sampleRate);
     void applyBedChannelTrims(float* bedBlock, int decodeChannels, BedLayoutId bedLayout);
     void refreshAtomicFlagsLocked();
     void processBlocks(int sampleRate);
@@ -104,6 +107,21 @@ private:
     BiquadState lfeBiquad1;
     BiquadState lfeBiquad2;
     int lfeFilterSampleRate = 0;
+    BiquadState surroundTrebleLeft;
+    BiquadState surroundTrebleRight;
+    int surroundToneFilterSampleRate = 0;
+    float surroundToneFilterGainDb = 0.0f;
+    BiquadState bassLeft;
+    BiquadState bassRight;
+    BiquadState trebleLeft;
+    BiquadState trebleRight;
+    int toneFilterSampleRate = 0;
+    float toneFilterBassDb = 0.0f;
+    float toneFilterTrebleDb = 0.0f;
+    float compressorGain = 1.0f;
+    float compressorHighGain = 1.0f;
+    float dynamicsBandEnvMid = 0.0f;
+    float dynamicsBandEnvHigh = 0.0f;
 
     std::vector<float> bedFifo;
     size_t bedFifoFrames = 0;

@@ -138,6 +138,7 @@ void testLevelAndBypass(
     // Isolate the HRTF makeup from the user-facing loudness boost.
     auto config = makeConfig(0, backendId);
     config.outputGainDb = 0.0f;
+    config.frontAmbience = true;
     engine.setConfig(config);
 
     std::vector<float> bed(static_cast<size_t>(kBlock) * kChannels, 0.0f);
@@ -264,6 +265,12 @@ void testResetDropsBufferedOutput(
     siliconplayer::spatial::SpatializerEngine engine;
     auto config = makeConfig(0, backendId);
     config.outputGainDb = 0.0f;
+    if (backendId == siliconplayer::spatial::SpatializerBackendId::SteamAudio) {
+        config.frontAmbience = true;
+        config.frontDiffuse = true;
+        config.virtualizerWidth = 1.5f;
+        config.compressorMode = 2;
+    }
     engine.setConfig(config);
 
     std::vector<float> bed(static_cast<size_t>(kBlock) * kChannels, 0.0f);
@@ -273,6 +280,7 @@ void testResetDropsBufferedOutput(
             const float sample = std::sin(2.0 * M_PI * 1000.0 * (b * kBlock + f) / kSampleRate);
             bed[static_cast<size_t>(f) * kChannels] = sample;
             bed[static_cast<size_t>(f) * kChannels + 1] = sample;
+            bed[static_cast<size_t>(f) * kChannels + 4] = sample;
         }
         engine.processOrDownmix(
                 bed.data(), out.data(), kBlock, kChannels,
@@ -294,6 +302,192 @@ void testResetDropsBufferedOutput(
     }
     printf("  %s post-reset energy=%.9f\n", label, energy);
     check(energy < 1e-10, "reset never replays buffered audio");
+}
+
+void testToneAndDynamics() {
+    auto renderRms = [](float frequency, float bassDb, float trebleDb, int compressorMode, float amplitude = 0.1f) {
+        siliconplayer::spatial::SpatializerEngine engine;
+        auto config = makeConfig(0, siliconplayer::spatial::SpatializerBackendId::SteamAudio);
+        config.outputGainDb = 0.0f;
+        config.bassGainDb = bassDb;
+        config.trebleGainDb = trebleDb;
+        config.compressorMode = compressorMode;
+        engine.setConfig(config);
+        std::vector<float> bed(static_cast<size_t>(kBlock) * kChannels, 0.0f);
+        std::vector<float> out(static_cast<size_t>(kBlock) * 2, 0.0f);
+        double energy = 0.0;
+        for (int b = 0; b < 40; ++b) {
+            for (int f = 0; f < kBlock; ++f) {
+                const float sample = amplitude * std::sin(
+                        2.0 * M_PI * frequency * (b * kBlock + f) / kSampleRate);
+                bed[static_cast<size_t>(f) * kChannels + 2] = sample;
+            }
+            engine.processOrDownmix(
+                    bed.data(), out.data(), kBlock, kChannels,
+                    siliconplayer::spatial::BedLayoutId::Surround_5_1,
+                    2, kSampleRate);
+            if (b >= 20) {
+                for (const float sample : out) {
+                    energy += static_cast<double>(sample) * sample;
+                }
+            }
+        }
+        return std::sqrt(energy / (20.0 * kBlock * 2));
+    };
+
+    const double bassReference = renderRms(80.0f, 0.0f, 0.0f, 0);
+    const double bassBoosted = renderRms(80.0f, 1.5f, 0.0f, 0);
+    const double bassDb = 20.0 * std::log10(bassBoosted / bassReference);
+    printf("  bass shelf at 80 Hz: %+.2f dB\n", bassDb);
+    check(std::abs(bassDb - 1.5) < 0.25, "soft-V bass shelf tracks its gain");
+
+    const double trebleReference = renderRms(10000.0f, 0.0f, 0.0f, 0);
+    const double trebleBoosted = renderRms(10000.0f, 0.0f, 1.5f, 0);
+    const double trebleDb = 20.0 * std::log10(trebleBoosted / trebleReference);
+    printf("  treble shelf at 10 kHz: %+.2f dB\n", trebleDb);
+    check(std::abs(trebleDb - 1.5) < 0.25, "soft-V treble shelf tracks its gain");
+
+    const double dynamicsOff = renderRms(1000.0f, 0.0f, 0.0f, 0);
+    const double dynamicsOn = renderRms(1000.0f, 0.0f, 0.0f, 1);
+    const double makeupDb = 20.0 * std::log10(dynamicsOn / dynamicsOff);
+    printf("  gentle dynamics on a quiet tone: %+.2f dB\n", makeupDb);
+    check(makeupDb > 1.5f && makeupDb < 2.5f, "gentle dynamics lifts quiet content");
+
+    const double detailQuiet = renderRms(4000.0f, 0.0f, 0.0f, 2, 0.005f);
+    const double directQuiet = renderRms(4000.0f, 0.0f, 0.0f, 0, 0.005f);
+    const double detailLift = 20.0 * std::log10(detailQuiet / directQuiet);
+    printf("  detail dynamics on a steady high-band tone: %+.2f dB\n", detailLift);
+    check(std::abs(detailLift) < 1.0f, "detail dynamics does not over-lift steady content");
+
+    auto renderPlucks = [](int compressorMode) {
+        siliconplayer::spatial::SpatializerEngine engine;
+        auto config = makeConfig(0, siliconplayer::spatial::SpatializerBackendId::SteamAudio);
+        config.outputGainDb = 0.0f;
+        config.compressorMode = compressorMode;
+        engine.setConfig(config);
+        std::vector<float> bed(static_cast<size_t>(kBlock) * kChannels, 0.0f);
+        std::vector<float> out(static_cast<size_t>(kBlock) * 2, 0.0f);
+        double energy = 0.0;
+        int measured = 0;
+        for (int b = 0; b < 64; ++b) {
+            std::fill(bed.begin(), bed.end(), 0.0f);
+            for (int f = 0; f < kBlock; ++f) {
+                const int t = b * kBlock + f;
+                if (t % 4800 < 480) {
+                    const float envelope = std::exp(-static_cast<float>(t % 4800) / 96.0f);
+                    const float sample = 0.008f * envelope * std::sin(2.0 * M_PI * 4000.0 * t / kSampleRate);
+                    bed[static_cast<size_t>(f) * kChannels + 4] = sample;
+                    bed[static_cast<size_t>(f) * kChannels + 5] = sample;
+                }
+            }
+            engine.processOrDownmix(
+                    bed.data(), out.data(), kBlock, kChannels,
+                    siliconplayer::spatial::BedLayoutId::Surround_5_1,
+                    2, kSampleRate);
+            if (b >= 16) {
+                for (const float sample : out) {
+                    energy += static_cast<double>(sample) * sample;
+                }
+                measured += kBlock * 2;
+            }
+        }
+        return std::sqrt(energy / std::max(1, measured));
+    };
+    const double detailPlucks = renderPlucks(2);
+    const double directPlucks = renderPlucks(0);
+    const double pluckLift = 20.0 * std::log10(detailPlucks / directPlucks);
+    printf("  detail dynamics on quiet plucks: %+.2f dB\n", pluckLift);
+    check(pluckLift > 0.5f && pluckLift < 4.0f, "detail dynamics lifts quiet plucks without constant maximum boost");
+}
+
+void testFrontAmbience() {
+    auto measure = [](bool enabled, double& sideEnergy, double& tailEnergy) {
+        siliconplayer::spatial::SpatializerEngine engine;
+        auto config = makeConfig(0, siliconplayer::spatial::SpatializerBackendId::SteamAudio);
+        config.outputGainDb = 0.0f;
+        config.frontAmbience = enabled;
+        engine.setConfig(config);
+        std::vector<float> bed(static_cast<size_t>(kBlock) * kChannels, 0.0f);
+        std::vector<float> out(static_cast<size_t>(kBlock) * 2, 0.0f);
+        for (int b = 0; b < 40; ++b) {
+            for (int f = 0; f < kBlock; ++f) {
+                const float sample = b < 24
+                        ? 0.2f * std::sin(2.0 * M_PI * 1000.0 * (b * kBlock + f) / kSampleRate)
+                        : 0.0f;
+                bed[static_cast<size_t>(f) * kChannels + 2] = sample;
+            }
+            engine.processOrDownmix(
+                    bed.data(), out.data(), kBlock, kChannels,
+                    siliconplayer::spatial::BedLayoutId::Surround_5_1,
+                    2, kSampleRate);
+            for (int f = 0; f < kBlock; ++f) {
+                const float left = out[static_cast<size_t>(f) * 2];
+                const float right = out[static_cast<size_t>(f) * 2 + 1];
+                if (b >= 16 && b < 24) {
+                    const float side = (left - right) * 0.5f;
+                    sideEnergy += static_cast<double>(side) * side;
+                } else if (b >= 32) {
+                    tailEnergy += static_cast<double>(left) * left;
+                    tailEnergy += static_cast<double>(right) * right;
+                }
+            }
+        }
+    };
+
+    double directSide = 0.0;
+    double directTail = 0.0;
+    double ambientSide = 0.0;
+    double ambientTail = 0.0;
+    measure(false, directSide, directTail);
+    measure(true, ambientSide, ambientTail);
+    printf("  front ambience: side %.6f -> %.6f, tail %.6f -> %.6f\n",
+           directSide, ambientSide, directTail, ambientTail);
+    check(std::abs(ambientSide - directSide) > 1e-4,
+          "front ambience changes center-channel spatialization");
+    check(ambientTail > directTail * 2.0, "front ambience adds a decaying tail");
+}
+
+void testFrontDiffusion() {
+    auto render = [](bool enabled) {
+        siliconplayer::spatial::SpatializerEngine engine;
+        auto config = makeConfig(0, siliconplayer::spatial::SpatializerBackendId::SteamAudio);
+        config.outputGainDb = 0.0f;
+        config.frontDiffuse = enabled;
+        engine.setConfig(config);
+        std::vector<float> bed(static_cast<size_t>(kBlock) * kChannels, 0.0f);
+        std::vector<float> out(static_cast<size_t>(kBlock) * 2, 0.0f);
+        std::vector<float> timeline;
+        for (int b = 0; b < 8; ++b) {
+            std::fill(bed.begin(), bed.end(), 0.0f);
+            if (b == 0) {
+                bed[0] = 0.5f;
+                bed[1] = 0.5f;
+            }
+            engine.processOrDownmix(
+                    bed.data(), out.data(), kBlock, kChannels,
+                    siliconplayer::spatial::BedLayoutId::Surround_5_1,
+                    2, kSampleRate);
+            timeline.insert(timeline.end(), out.begin(), out.end());
+        }
+        return timeline;
+    };
+    const auto direct = render(false);
+    const auto diffuse = render(true);
+    double earlyDifference = 0.0;
+    double lateEnergy = 0.0;
+    for (int f = 0; f < static_cast<int>(direct.size()) / 2; ++f) {
+        const double left = diffuse[static_cast<size_t>(f) * 2] - direct[static_cast<size_t>(f) * 2];
+        const double right = diffuse[static_cast<size_t>(f) * 2 + 1] - direct[static_cast<size_t>(f) * 2 + 1];
+        if (f < 2 * kBlock) {
+            earlyDifference += left * left + right * right;
+        }
+        if (f >= 3 * kBlock) {
+            lateEnergy += left * left + right * right;
+        }
+    }
+    printf("  front diffusion: early difference=%.9f late energy=%.9f\n", earlyDifference, lateEnergy);
+    check(earlyDifference > 1e-5, "front diffusion changes frontal impulse phase");
+    check(lateEnergy > 1e-8, "front diffusion disperses frontal transients over time");
 }
 
 } // namespace
@@ -321,6 +515,9 @@ int main() {
     testResetDropsBufferedOutput(
             siliconplayer::spatial::SpatializerBackendId::SteamAudio,
             "steam-audio");
+    testToneAndDynamics();
+    testFrontAmbience();
+    testFrontDiffusion();
     if (g_failures == 0) {
         printf("ALL PASS\n");
         return 0;
