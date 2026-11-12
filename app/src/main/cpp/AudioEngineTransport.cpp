@@ -349,6 +349,9 @@ void AudioEngine::stop() {
         requestStreamStop();
         isPlaying = false;
         naturalEndPending.store(false);
+        // Invalidate an in-flight render before a rapid stop/start can make it
+        // eligible to append again; the worker also rejects stopped chunks.
+        decoderSerial.fetch_add(1);
         clearRenderQueue();
         renderWorkerCv.notify_all();
     }
@@ -700,18 +703,21 @@ bool AudioEngine::isSeekInProgress() const {
 }
 
 void AudioEngine::seekToSeconds(double seconds) {
-    const uint64_t targetDecoderSerial = decoderSerial.load();
     const double normalizedTarget = std::max(0.0, seconds);
-    clearRenderQueue();
 
-    // Cancel any pending async-seek request first so a stale worker cycle
-    // cannot overwrite a new seek result.
+    // Block new fills before clearing. Chunks already rendering are rejected
+    // by both the serial check and seekInProgress at append time, so no stale
+    // audio can be queued after the clear.
     {
         std::lock_guard<std::mutex> lock(seekWorkerMutex);
         seekAbortRequested.store(true);
         seekRequestPending = false;
+        seekInProgress.store(true);
     }
+    const uint64_t targetDecoderSerial = decoderSerial.fetch_add(1) + 1;
     seekWorkerCv.notify_one();
+    renderWorkerCv.notify_one();
+    clearRenderQueue();
 
     positionSeconds.store(normalizedTarget);
     naturalEndPending.store(false);
@@ -722,7 +728,6 @@ void AudioEngine::seekToSeconds(double seconds) {
         seekRequestSeconds = normalizedTarget;
         seekRequestDecoderSerial = targetDecoderSerial;
         seekRequestPending = true;
-        seekInProgress.store(true);
     }
     seekWorkerCv.notify_one();
     renderWorkerCv.notify_one();
@@ -809,7 +814,8 @@ void AudioEngine::seekWorkerLoop() {
             std::lock_guard<std::mutex> lock(decoderMutex);
             if (decoder && targetDecoderSerial == decoderSerial.load() && !seekAbortRequested.load()) {
                 double resolvedPosition = runAsyncSeekLocked(targetSeconds);
-                if (!seekAbortRequested.load()) {
+                if (!seekAbortRequested.load() &&
+                    targetDecoderSerial == decoderSerial.load()) {
                     const double duration = decoder->getDuration();
                     if (duration > 0.0 && repeatMode.load() != 2) {
                         resolvedPosition = std::clamp(resolvedPosition, 0.0, duration);

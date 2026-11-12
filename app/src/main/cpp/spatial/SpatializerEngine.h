@@ -25,6 +25,10 @@ public:
         return activeFlag.load(std::memory_order_relaxed);
     }
 
+    bool isRenderingMultichannel() const {
+        return renderingActiveFlag.load(std::memory_order_relaxed);
+    }
+
     double latencyFrames() const {
         return cachedLatencyFrames.load(std::memory_order_relaxed);
     }
@@ -115,6 +119,7 @@ private:
     std::vector<float> lfeMonoScratch;
 
     std::atomic<bool> activeFlag { false };
+    std::atomic<bool> renderingActiveFlag { false };
     std::atomic<double> cachedLatencyFrames { 0.0 };
 };
 

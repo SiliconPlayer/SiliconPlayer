@@ -258,6 +258,44 @@ void testOutputGain(
     check(std::abs(ratio - expected) < 0.05, "loudness boost tracks the configured dB");
 }
 
+void testResetDropsBufferedOutput(
+        siliconplayer::spatial::SpatializerBackendId backendId,
+        const char* label) {
+    siliconplayer::spatial::SpatializerEngine engine;
+    auto config = makeConfig(0, backendId);
+    config.outputGainDb = 0.0f;
+    engine.setConfig(config);
+
+    std::vector<float> bed(static_cast<size_t>(kBlock) * kChannels, 0.0f);
+    std::vector<float> out(static_cast<size_t>(kBlock) * 2, 0.0f);
+    for (int b = 0; b < 3; ++b) {
+        for (int f = 0; f < kBlock; ++f) {
+            const float sample = std::sin(2.0 * M_PI * 1000.0 * (b * kBlock + f) / kSampleRate);
+            bed[static_cast<size_t>(f) * kChannels] = sample;
+            bed[static_cast<size_t>(f) * kChannels + 1] = sample;
+        }
+        engine.processOrDownmix(
+                bed.data(), out.data(), kBlock, kChannels,
+                siliconplayer::spatial::BedLayoutId::Surround_5_1,
+                2, kSampleRate);
+    }
+
+    engine.reset();
+    std::fill(bed.begin(), bed.end(), 0.0f);
+    std::fill(out.begin(), out.end(), 1.0f);
+    engine.processOrDownmix(
+            bed.data(), out.data(), kBlock, kChannels,
+            siliconplayer::spatial::BedLayoutId::Surround_5_1,
+            2, kSampleRate);
+
+    double energy = 0.0;
+    for (const float sample : out) {
+        energy += static_cast<double>(sample) * sample;
+    }
+    printf("  %s post-reset energy=%.9f\n", label, energy);
+    check(energy < 1e-10, "reset never replays buffered audio");
+}
+
 } // namespace
 
 int main() {
@@ -275,6 +313,12 @@ int main() {
             siliconplayer::spatial::SpatializerBackendId::LibSpatialAudio,
             "libspatialaudio");
     testOutputGain(
+            siliconplayer::spatial::SpatializerBackendId::SteamAudio,
+            "steam-audio");
+    testResetDropsBufferedOutput(
+            siliconplayer::spatial::SpatializerBackendId::LibSpatialAudio,
+            "libspatialaudio");
+    testResetDropsBufferedOutput(
             siliconplayer::spatial::SpatializerBackendId::SteamAudio,
             "steam-audio");
     if (g_failures == 0) {

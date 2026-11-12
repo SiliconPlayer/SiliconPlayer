@@ -30,6 +30,9 @@ namespace {
     constexpr int kScopeVisibleMaxQueueBudgetMs = 170;
     // Recovery headroom must stay within what the scope's delay estimator spans.
     constexpr int kScopeVisibleRecoveryMaxQueueFrames = 14000;
+    // The spatializer already adds algorithmic latency; do not multiply that
+    // with seconds of decoded-ahead queue during background/recovery fills.
+    constexpr int kSpatializerMaxQueueBudgetMs = 100;
 
     pid_t currentThreadId() {
 #ifdef SYS_gettid
@@ -869,6 +872,13 @@ void AudioEngine::renderWorkerLoop() {
             // the delay estimate never saturates keeps the history advancing.
             effectiveTarget = std::min(effectiveTarget, kScopeVisibleRecoveryMaxQueueFrames);
         }
+        if (spatializerEngine.isRenderingMultichannel()) {
+            const int queueRate = streamSampleRate > 0 ? streamSampleRate : 48000;
+            const int spatializerCeiling = std::max(
+                    baseChunkFrames * 2,
+                    (queueRate * kSpatializerMaxQueueBudgetMs) / 1000);
+            effectiveTarget = std::min(effectiveTarget, spatializerCeiling);
+        }
         {
             std::unique_lock<std::mutex> lock(renderQueueMutex);
             renderWorkerCv.wait(lock, [this, effectiveTarget]() {
@@ -924,7 +934,7 @@ void AudioEngine::renderWorkerLoop() {
         ).count();
         {
             std::lock_guard<std::mutex> lock(decoderMutex);
-            if (!decoder || !isPlaying.load()) {
+            if (!decoder || !isPlaying.load() || seekInProgress.load()) {
                 continue;
             }
             chunkDecoderSerial = decoderSerial.load(std::memory_order_relaxed);
@@ -1107,7 +1117,10 @@ void AudioEngine::renderWorkerLoop() {
         bool chunkSuperseded = false;
         {
             std::lock_guard<std::mutex> lock(decoderMutex);
-            chunkSuperseded = (chunkDecoderSerial != decoderSerial.load(std::memory_order_relaxed));
+            chunkSuperseded =
+                    chunkDecoderSerial != decoderSerial.load(std::memory_order_relaxed) ||
+                    seekInProgress.load() ||
+                    (!isPlaying.load() && !renderTerminalStopPending.load());
             if (!chunkSuperseded) {
                 appendRenderQueue(localBuffer.data(), chunkFrames, channels);
                 if (!spatializerTail.empty()) {
@@ -1121,8 +1134,9 @@ void AudioEngine::renderWorkerLoop() {
             }
         }
         if (chunkSuperseded) {
-            // Decoder swapped mid-render; drop the stale frames so the old
-            // track never leaks into the new one, then render the new head.
+            // Decoder swapped or transport invalidated mid-render; drop both
+            // the stale frames and any tail rendered alongside them.
+            spatializerTail.clear();
             renderWorkerCv.notify_one();
             continue;
         }

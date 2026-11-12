@@ -81,6 +81,7 @@ void SpatializerEngine::reset() {
 void SpatializerEngine::resetFifos() {
     bedFifoFrames = 0;
     bedFifoStart = 0;
+    outFifo.clear();
     outFifoFrames = 0;
     outFifoRead = 0;
     // Prime the bed with one silent block so the first real block already has
@@ -395,6 +396,7 @@ void SpatializerEngine::processOrDownmix(
                              outChannels == 2 &&
                              decodeChannels > 2;
 
+    renderingActiveFlag.store(wantSpatial, std::memory_order_relaxed);
     if (!wantSpatial) {
         if (decodeChannels == outChannels) {
             if (bedInterleaved != outStereoInterleaved) {
@@ -462,6 +464,7 @@ void SpatializerEngine::processOrDownmix(
         resetFifos();
         refreshAtomicFlagsLocked();
         if (!backendReady) {
+            renderingActiveFlag.store(false, std::memory_order_relaxed);
             // The backend cannot render this layout; fall back to a plain downmix.
             const float centerGain = dbToLinearClamped(currentConfig.centerGainDb, -24.0f, 12.0f);
             const float surroundGain = dbToLinearClamped(currentConfig.surroundGainDb, -24.0f, 12.0f);
