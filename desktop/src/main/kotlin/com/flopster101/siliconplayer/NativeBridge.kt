@@ -145,6 +145,10 @@ object NativeBridge {
         forcedDecoderOneShot = decoderName
     }
 
+    fun platformDolbyClaims(path: String): Boolean = false
+
+    fun suppressPlatformCoreForNextOpen() {}
+
     fun consumeForcedDecoderOneShot(): String? {
         val decoder = forcedDecoderOneShot
         forcedDecoderOneShot = null

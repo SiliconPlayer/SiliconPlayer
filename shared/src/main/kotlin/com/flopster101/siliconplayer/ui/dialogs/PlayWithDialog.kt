@@ -23,6 +23,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,11 +34,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.flopster101.siliconplayer.ui.theme.Radius
 import com.flopster101.siliconplayer.AppPreferenceKeys
+import com.flopster101.siliconplayer.DecoderNames
 import com.flopster101.siliconplayer.NativeBridge
 import com.flopster101.siliconplayer.VerticalScrollbarTrack
 import com.flopster101.siliconplayer.applyDecoderPriorityOrder
+import com.flopster101.siliconplayer.isDecoderSupportedOnCurrentPlatform
 import com.flopster101.siliconplayer.onSizeChangedDeferred
 import com.flopster101.siliconplayer.platform.AppPreferences
 import com.flopster101.siliconplayer.platform.LocalToastHandler
@@ -115,12 +120,37 @@ internal fun PlayWithDialog(
     val allEnabled = remember(file) {
         NativeBridge.getRegisteredDecoderNames().filter { NativeBridge.isDecoderEnabled(it) }
     }
+    // The platform core is not in the native registry, so it is appended
+    // last and only when the device can actually decode this file.
+    val platformEnabled = remember(prefs) {
+        prefs.getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, true)
+    }
+    val platformSupported = isDecoderSupportedOnCurrentPlatform(DecoderNames.PLATFORM_DOLBY)
+    // Deciding this needs a header probe, so the row appears once it lands.
+    var platformClaims by remember(file) { mutableStateOf(false) }
+    LaunchedEffect(file, platformSupported) {
+        if (platformSupported) {
+            platformClaims = withContext(Dispatchers.IO) {
+                NativeBridge.platformDolbyClaims(file.absolutePath)
+            }
+        }
+    }
+    val showPlatformRow = (platformEnabled || showDisabledCores) && platformSupported && platformClaims
     var showAll by remember(file) { mutableStateOf(false) }
     var alwaysPrioritize by remember(file) { mutableStateOf(false) }
     var dontAskAgain by remember(file) { mutableStateOf(false) }
-    val rows = if (showAll) allEnabled else claimants + disabledSupporters
-    var selected by remember(file, showAll) {
-        mutableStateOf(if (claimants.isEmpty()) allEnabled.firstOrNull() else claimants.first())
+    val rows = (if (showAll) allEnabled else claimants + disabledSupporters) +
+        if (showPlatformRow) listOf(DecoderNames.PLATFORM_DOLBY) else emptyList()
+    var selected by remember(file, showAll, showPlatformRow, platformEnabled) {
+        mutableStateOf(
+            if (showPlatformRow && platformEnabled) {
+                DecoderNames.PLATFORM_DOLBY
+            } else {
+                claimants.firstOrNull()
+                    ?: allEnabled.firstOrNull()
+                    ?: DecoderNames.PLATFORM_DOLBY.takeIf { showPlatformRow }
+            }
+        )
     }
     val prioritizeAllowed = claimants.size >= 2 && selected != null && selected in claimants
 
@@ -211,7 +241,10 @@ internal fun PlayWithDialog(
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
-                                        text = if (decoderName in disabledSupporters && !showAll) {
+                                        text = if (
+                                            (decoderName in disabledSupporters && !showAll) ||
+                                            (decoderName == DecoderNames.PLATFORM_DOLBY && !platformEnabled)
+                                        ) {
                                             "$decoderName (disabled)"
                                         } else {
                                             decoderName
@@ -262,12 +295,20 @@ internal fun PlayWithDialog(
                 enabled = selected != null,
                 onClick = {
                     val chosen = selected ?: return@TextButton
-                    if (alwaysPrioritize && prioritizeAllowed) {
-                        if (promoteDecoderForFile(file, chosen, prefs)) {
-                            toastHandler.showToast("Prioritized $chosen for this format")
-                        }
-                    } else if (chosen != claimants.firstOrNull()) {
+                    if (chosen == DecoderNames.PLATFORM_DOLBY) {
                         NativeBridge.prioritizeNextOpenWith(chosen)
+                    } else {
+                        if (alwaysPrioritize && prioritizeAllowed) {
+                            if (promoteDecoderForFile(file, chosen, prefs)) {
+                                toastHandler.showToast("Prioritized $chosen for this format")
+                            }
+                        } else if (chosen != claimants.firstOrNull()) {
+                            NativeBridge.prioritizeNextOpenWith(chosen)
+                        }
+                        if (platformClaims) {
+                            // The platform core would otherwise claim this file.
+                            NativeBridge.suppressPlatformCoreForNextOpen()
+                        }
                     }
                     if (dontAskAgain) {
                         prefs.edit()
