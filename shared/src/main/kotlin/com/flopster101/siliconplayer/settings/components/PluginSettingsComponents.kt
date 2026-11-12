@@ -139,7 +139,7 @@ internal fun PluginListItemCard(
                         shape = Radius.Inner
                     ) {
                         Text(
-                            text = if (isWatch) "$priority" else "Priority: $priority",
+                            text = "$priority",
                             style = MaterialTheme.typography.labelSmall,
                             modifier = Modifier.padding(horizontal = if (isWatch) 6.dp else 6.dp, vertical = 2.dp)
                         )
