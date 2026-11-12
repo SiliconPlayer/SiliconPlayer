@@ -10,6 +10,9 @@ namespace siliconplayer::spatial {
 
 namespace {
 
+// RMS-normalized HRTFs land within ~1 dB of unity, so no makeup is applied.
+constexpr float kHrtfGainCompensation = 1.0f;
+
 // Steam Audio uses a right-handed frame where -Z is front, +X is right and
 // +Y is up; the bed layout stores azimuth (left positive) and elevation.
 IPLVector3 directionForSpeaker(const SpeakerPolarPosition& speaker) {
@@ -114,6 +117,10 @@ bool SteamAudioBackend::prepare(
 
     latencyFramesValue = 0;
     return true;
+}
+
+float SteamAudioBackend::outputGainCompensation() const {
+    return kHrtfGainCompensation;
 }
 
 void SteamAudioBackend::reset() {

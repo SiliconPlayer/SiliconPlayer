@@ -618,6 +618,7 @@ private:
 
     int resolveOutputSampleRateForCore(const std::string& coreName) const;
     int resolveOutputStreamChannelsForTrackLocked() const;
+    bool isFfmpegMultichannelTrackLocked() const;
     int resolveDecoderOutputChannelsForTrackLocked() const;
     siliconplayer::spatial::BedLayoutId resolveDecoderOutputBedLayoutLocked(int decodeChannels) const;
     void applyStreamBufferPreset();

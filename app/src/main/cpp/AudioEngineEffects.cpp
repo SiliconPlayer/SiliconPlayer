@@ -235,15 +235,26 @@ void AudioEngine::setSpatializerConfig(const siliconplayer::spatial::Spatializer
     bool needStreamReconfigure = false;
     {
         std::lock_guard<std::mutex> lock(decoderMutex);
+        const bool wasActive = spatializerEngine.isActiveForMultichannel();
         const int prevStreamChannels = resolveOutputStreamChannelsForTrackLocked();
+        const int prevDecodeChannels = decoder ? decoder->getChannelCount() : 0;
+
         spatializerEngine.setConfig(config);
+
+        const bool nowActive = spatializerEngine.isActiveForMultichannel();
         const int nextStreamChannels = resolveOutputStreamChannelsForTrackLocked();
+        int nextDecodeChannels = prevDecodeChannels;
         if (decoder) {
-            const int desiredDecodeChannels = resolveDecoderOutputChannelsForTrackLocked();
-            decoder->setOutputChannelCount(desiredDecodeChannels);
+            nextDecodeChannels = resolveDecoderOutputChannelsForTrackLocked();
+            decoder->setOutputChannelCount(nextDecodeChannels);
             metadataCacheDirty.store(true, std::memory_order_release);
         }
-        needStreamReconfigure = (prevStreamChannels != nextStreamChannels) && isPlaying.load();
+        // Toggling the stage changes both the device width and the decoder
+        // bed, so the stream and its queued samples are stale either way.
+        needStreamReconfigure = isPlaying.load() &&
+                (wasActive != nowActive ||
+                 prevStreamChannels != nextStreamChannels ||
+                 prevDecodeChannels != nextDecodeChannels);
     }
     if (needStreamReconfigure) {
         reconfigureStream(true);
@@ -256,10 +267,8 @@ siliconplayer::spatial::SpatializerConfig AudioEngine::getSpatializerConfig() {
 }
 
 double AudioEngine::getEffectChainLatencyFrames() const {
-    const bool spatializerActive = decoder &&
-            std::string(decoder->getName()) == "FFmpeg" &&
-            decoder->getSourceChannelCount() > 2 &&
-            spatializerEngine.isActiveForMultichannel();
+    const bool spatializerActive =
+            isFfmpegMultichannelTrackLocked() && spatializerEngine.isActiveForMultichannel();
     return effectChain.latencyFrames() +
            (spatializerActive ? spatializerEngine.latencyFrames() : 0.0);
 }

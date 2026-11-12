@@ -30,6 +30,7 @@ public:
             float* outStereoInterleaved,
             int frames) override;
     int latencyFrames() const override { return latencyFramesValue; }
+    float outputGainCompensation() const override;
 
 private:
     void buildSpeakerLayout(BedLayoutId inputLayout, int inputChannels);

@@ -95,9 +95,9 @@ int AudioEngine::resolveOutputStreamChannelsForTrackLocked() const {
     if (uac.isStreaming()) {
         return uac.currentFormat().channels > 0 ? uac.currentFormat().channels : 2;
     }
-    if (decoder && std::string(decoder->getName()) == "FFmpeg" &&
-        decoder->getSourceChannelCount() > 2 &&
-        spatializerEngine.isActiveForMultichannel()) {
+    // A software spatializer always renders to stereo; without one the mode
+    // below decides whether the source keeps its multichannel layout.
+    if (isFfmpegMultichannelTrackLocked() && spatializerEngine.isActiveForMultichannel()) {
         return 2;
     }
     const int mode = multiChannelOutputMode.load(std::memory_order_relaxed);
@@ -120,12 +120,20 @@ int AudioEngine::resolveOutputStreamChannelsForTrackLocked() const {
     return 2;
 }
 
+bool AudioEngine::isFfmpegMultichannelTrackLocked() const {
+    // outputShadowMuted marks the muted FFmpeg shadow engine that System Dolby
+    // runs for parallel visualization; only it owns the audible stream.
+    return decoder &&
+           std::string(decoder->getName()) == "FFmpeg" &&
+           decoder->getSourceChannelCount() > 2 &&
+           !outputShadowMuted.load(std::memory_order_relaxed);
+}
+
 int AudioEngine::resolveDecoderOutputChannelsForTrackLocked() const {
     if (!decoder) {
         return 2;
     }
-    if (std::string(decoder->getName()) == "FFmpeg" &&
-        spatializerEngine.isActiveForMultichannel()) {
+    if (isFfmpegMultichannelTrackLocked() && spatializerEngine.isActiveForMultichannel()) {
         const int srcChannels = decoder->getSourceChannelCount();
         if (srcChannels > 2) {
             const int preferredBed = decoder->getCoreIntInfo("preferredSpatialBedChannels", 0);
@@ -498,6 +506,7 @@ void AudioEngine::reconfigureStream(bool resumePlayback) {
     isPlaying.store(false);
 
     const int previousSampleRate = streamSampleRate;
+    const int previousChannelCount = streamChannelCount;
 
     closeStream();
     createStream();
@@ -505,7 +514,9 @@ void AudioEngine::reconfigureStream(bool resumePlayback) {
     // tear the fresh device down again and never restart it.
     streamNeedsRebuild.store(false);
 
-    if (streamSampleRate != previousSampleRate) {
+    // The ring holds raw interleaved samples, so a stride change would replay
+    // queued audio at the wrong width. Drop it with the old channel layout.
+    if (streamSampleRate != previousSampleRate || streamChannelCount != previousChannelCount) {
         clearRenderQueue();
     }
 

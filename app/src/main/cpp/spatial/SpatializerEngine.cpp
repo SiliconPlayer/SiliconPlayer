@@ -326,10 +326,11 @@ void SpatializerEngine::processBlocks(int sampleRate) {
 
         activeBackend->process(block, wetBlock.data(), kBlockSize);
 
+        const float hrtfGain = activeBackend->outputGainCompensation();
         for (int f = 0; f < kBlockSize; ++f) {
             const float lfeAdd = hasLfeChannel ? lfeMonoScratch[static_cast<size_t>(f)] : 0.0f;
-            float outL = wetBlock[static_cast<size_t>(f) * 2] + lfeAdd;
-            float outR = wetBlock[static_cast<size_t>(f) * 2 + 1] + lfeAdd;
+            float outL = wetBlock[static_cast<size_t>(f) * 2] * hrtfGain + lfeAdd;
+            float outR = wetBlock[static_cast<size_t>(f) * 2 + 1] * hrtfGain + lfeAdd;
             if (wet < 0.999f) {
                 const float dryWeight = 1.0f - wet;
                 outL = dryWeight * dryBlock[static_cast<size_t>(f) * 2] + wet * outL;

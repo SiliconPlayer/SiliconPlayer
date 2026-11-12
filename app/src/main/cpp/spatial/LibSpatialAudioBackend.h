@@ -36,6 +36,7 @@ public:
             float* outStereoInterleaved,
             int frames) override;
     int latencyFrames() const override { return latencyFramesValue; }
+    float outputGainCompensation() const override;
 
 private:
     struct SpeakerPlan {

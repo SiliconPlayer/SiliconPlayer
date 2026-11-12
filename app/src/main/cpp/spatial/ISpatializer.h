@@ -50,6 +50,9 @@ public:
             float* outStereoInterleaved,
             int frames) = 0;
     virtual int latencyFrames() const { return 0; }
+    // Broadband gain the HRTF convolution costs; the engine restores it so
+    // enabling the spatializer does not drop the level.
+    virtual float outputGainCompensation() const { return 1.0f; }
 };
 
 } // namespace siliconplayer::spatial

@@ -19,7 +19,7 @@ enum class SpatializerBackend(val id: String) {
 }
 
 data class SpatializerConfig(
-    val backend: SpatializerBackend = SpatializerBackend.Off,
+    val backend: SpatializerBackend = SpatializerBackend.SteamAudio,
     val enabled: Boolean = true,
     val spatializeStereo: Boolean = false,
     val centerGainDb: Float = 0f,
@@ -106,3 +106,8 @@ internal fun shouldShowSpatializerNode(
         channelCount > 2 &&
         config.enabled &&
         config.backend != SpatializerBackend.Off
+
+// The platform Dolby core owns its own pipeline and never spatializes; the
+// muted FFmpeg shadow engine it runs for visualization is excluded natively.
+internal fun isSystemDolbyActive(decoderName: String?): Boolean =
+    decoderName.matchesDecoderName(DecoderNames.PLATFORM_DOLBY)

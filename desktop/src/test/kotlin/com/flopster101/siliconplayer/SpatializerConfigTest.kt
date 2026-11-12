@@ -38,13 +38,20 @@ class SpatializerConfigTest {
         assertFalse(shouldShowSpatializerNode(DecoderNames.FFMPEG, 2, config))
         assertFalse(shouldShowSpatializerNode(DecoderNames.LIB_OPEN_MPT, 6, config))
         assertFalse(shouldShowSpatializerNode(DecoderNames.FFMPEG, 6, config.copy(enabled = false)))
-        assertFalse(shouldShowSpatializerNode(DecoderNames.FFMPEG, 6, SpatializerConfig()))
+        assertFalse(
+            shouldShowSpatializerNode(
+                DecoderNames.FFMPEG,
+                6,
+                config.copy(backend = SpatializerBackend.Off)
+            )
+        )
     }
 
     @Test
-    fun keepsBackendOffByDefault() {
+    fun defaultsToSteamAudio() {
         val config = SpatializerConfig.fromJson(null)
-        assertEquals(SpatializerBackend.Off, config.backend)
+        assertEquals(SpatializerBackend.SteamAudio, config.backend)
+        assertTrue(config.enabled)
         assertFalse(config.spatializeStereo)
         assertEquals(1f, config.wetMix, 0.0001f)
     }

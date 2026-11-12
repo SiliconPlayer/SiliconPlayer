@@ -15,6 +15,9 @@ namespace siliconplayer::spatial {
 
 namespace {
 
+// Measured broadband loss of the bundled MIT HRTFs (front, center, surround).
+constexpr float kHrtfGainCompensation = 2.47f;
+
 // The bundled MIT HRTF only carries filters for these rates.
 constexpr int kMitHrtfRates[] = { 44100, 48000, 88200, 96000 };
 
@@ -164,6 +167,12 @@ bool LibSpatialAudioBackend::prepare(
     return useAmbisonics
             ? configureAmbisonics(sampleRate, config)
             : configureVirtualSpeakers(sampleRate, config);
+}
+
+float LibSpatialAudioBackend::outputGainCompensation() const {
+    // The bundled MIT HRTFs attenuate ~6-9 dB per speaker; the mean of the
+    // front/center/surround set is the least surprising broadband target.
+    return kHrtfGainCompensation;
 }
 
 void LibSpatialAudioBackend::reset() {
