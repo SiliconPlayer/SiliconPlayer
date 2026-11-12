@@ -2,7 +2,7 @@ package com.flopster101.siliconplayer
 
 internal object DecoderNames {
     const val FFMPEG = "FFmpeg"
-    const val PLATFORM_DOLBY = "System Dolby"
+    const val PLATFORM_DOLBY = "Dolby MediaCodec"
     const val LIB_OPEN_MPT = "libopenmpt"
     const val LIBXMP = "libxmp"
     const val UFMOD = "uFMOD-C"

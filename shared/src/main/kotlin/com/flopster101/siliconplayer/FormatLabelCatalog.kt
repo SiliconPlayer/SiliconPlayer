@@ -110,7 +110,7 @@ private val FORMAT_LABELS: Map<String, FormatLabel> = mapOf(
 private val FORMAT_LABELS_BY_ID: Map<String, FormatLabel> =
     FORMAT_LABELS.mapKeys { (id, _) -> id.uppercase() }
 
-// The System Dolby core still decodes metadata through FFmpeg, so the
+// The Dolby MediaCodec core still decodes metadata through FFmpeg, so the
 // stream-level format name is the one that reaches the player.
 internal fun readCurrentFormatLabel(extensionLabel: String): FormatLabel? {
     return try {

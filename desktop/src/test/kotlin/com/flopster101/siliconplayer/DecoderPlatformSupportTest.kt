@@ -6,14 +6,14 @@ import org.junit.Test
 
 class DecoderPlatformSupportTest {
     @Test
-    fun systemDolbyIsAndroidOnly() {
+    fun dolbyMediaCodecIsAndroidOnly() {
         assertTrue(isDecoderSupportedOnPlatform(DecoderNames.PLATFORM_DOLBY, DecoderPlatform.Android))
         assertFalse(isDecoderSupportedOnPlatform(DecoderNames.PLATFORM_DOLBY, DecoderPlatform.Desktop))
     }
 
     @Test
     fun restrictionIsCaseInsensitive() {
-        assertFalse(isDecoderSupportedOnPlatform("system dolby", DecoderPlatform.Desktop))
+        assertFalse(isDecoderSupportedOnPlatform("dolby mediacodec", DecoderPlatform.Desktop))
     }
 
     @Test

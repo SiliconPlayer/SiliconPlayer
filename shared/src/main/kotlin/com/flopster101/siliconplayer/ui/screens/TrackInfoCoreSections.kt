@@ -435,7 +435,7 @@ internal fun appendCoreTrackInfoCopyRows(
         }
 
         decoderName.equals(DecoderNames.PLATFORM_DOLBY, ignoreCase = true) -> {
-            builder.append('\n').append("[System Dolby]").append('\n')
+            builder.append('\n').append("[Dolby MediaCodec]").append('\n')
             if (metadata.platformDolby.componentCodecName.isNotBlank()) row("System codec", metadata.platformDolby.componentCodecName)
             if (metadata.platformDolby.streamCodecName.isNotBlank()) row("Stream codec", metadata.platformDolby.streamCodecName)
             if (metadata.platformDolby.containerName.isNotBlank()) row("Container", metadata.platformDolby.containerName)

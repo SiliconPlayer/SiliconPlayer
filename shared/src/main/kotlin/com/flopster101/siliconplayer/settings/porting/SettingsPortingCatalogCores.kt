@@ -320,7 +320,7 @@ private val KnownCoreSettings: Map<String, List<TypedPrefValue>> = mapOf(
         boolV(CorePreferenceKeys.VIOGSF_INTERPOLATION, ViogsfDefaults.interpolation),
         intV(CorePreferenceKeys.VIOGSF_FILTERING, ViogsfDefaults.filteringPercent)
     ),
-    "System Dolby" to listOf(
+    "Dolby MediaCodec" to listOf(
         intV("platform_dolby_decoder", 0, onlyWhenSet = true)
     )
 )

@@ -23,17 +23,6 @@ internal data class AboutEntity(
 internal object AboutCatalog {
     private val coreEntries: List<AboutEntity> = listOf(
         AboutEntity(
-            id = "core.platformdolby",
-            kind = AboutEntityKind.Core,
-            name = DecoderNames.PLATFORM_DOLBY,
-            description = "Android system decoding backend for AC-3 and E-AC-3 with device-provided Dolby processing.",
-            author = "SiliconPlayer integration and Android platform codec providers",
-            license = "Platform-provided; SiliconPlayer integration is GPL-3.0-or-later",
-            links = listOf(
-                AboutEntityLink("Android MediaCodec", "https://developer.android.com/reference/android/media/MediaCodec")
-            )
-        ),
-        AboutEntity(
             id = "core.ffmpeg",
             kind = AboutEntityKind.Core,
             name = DecoderNames.FFMPEG,
@@ -273,6 +262,17 @@ internal object AboutCatalog {
             links = listOf(
                 AboutEntityLink("Project", "http://nezplug.sourceforge.net/"),
                 AboutEntityLink("Source", "http://offgao.net/program/nezplug++.html")
+            )
+        ),
+        AboutEntity(
+            id = "core.platformdolby",
+            kind = AboutEntityKind.Core,
+            name = DecoderNames.PLATFORM_DOLBY,
+            description = "Android system decoding backend for AC-3 and E-AC-3 with device-provided Dolby processing.",
+            author = "SiliconPlayer integration and Android platform codec providers",
+            license = "Platform-provided; SiliconPlayer integration is GPL-3.0-or-later",
+            links = listOf(
+                AboutEntityLink("Android MediaCodec", "https://developer.android.com/reference/android/media/MediaCodec")
             )
         )
     )
