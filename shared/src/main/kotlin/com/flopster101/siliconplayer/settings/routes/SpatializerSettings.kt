@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.audio.SpatializerBackend
 import com.flopster101.siliconplayer.audio.SpatializerConfig
 import com.flopster101.siliconplayer.audio.SpatializerPreset
+import com.flopster101.siliconplayer.platform.LocalWindowSizeInfo
 import com.flopster101.siliconplayer.ui.theme.Radius
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -163,6 +165,8 @@ private fun SpatializerBackendDialog(
 ) {
     var draft by remember(backend, config) { mutableStateOf(config.copy(spatializeStereo = false)) }
     val title = "${spatializerBackendLabel(backend)} settings"
+    val windowSize = LocalWindowSizeInfo.current
+    val maxDialogHeight = windowSize.screenHeightDp.dp * 0.75f
     val content: @Composable () -> Unit = {
         if (backend == SpatializerBackend.LibSpatialAudio) {
             SpatializerRenderModeSelector(
@@ -319,7 +323,7 @@ private fun SpatializerBackendDialog(
         }
     } else {
         AlertDialog(
-            modifier = adaptiveDialogModifier(),
+            modifier = adaptiveDialogModifier().heightIn(max = maxDialogHeight),
             properties = adaptiveDialogProperties(),
             onDismissRequest = onDismiss,
             title = { Text(title) },
