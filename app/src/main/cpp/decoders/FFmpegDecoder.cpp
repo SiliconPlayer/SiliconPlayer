@@ -104,21 +104,21 @@ std::string ffErrString(int errnum) {
     return std::string(errbuf);
 }
 
+// A custom callback replaces the default one, so it must apply the level
+// filter itself; FFmpeg's demuxer chatter lands at INFO and below.
+constexpr int kFfmpegMaxLogLevel = AV_LOG_WARNING;
+
 void ffmpegLogCallback(void* avcl, int level, const char* fmt, va_list args) {
     (void)avcl;
-    if (fmt == nullptr) return;
+    if (fmt == nullptr || level > kFfmpegMaxLogLevel) return;
     char msg[1024];
     vsnprintf(msg, sizeof(msg), fmt, args);
     size_t len = strlen(msg);
     while (len > 0 && (msg[len - 1] == '\n' || msg[len - 1] == '\r')) msg[--len] = '\0';
     if (level <= AV_LOG_ERROR) {
         LOGE("[FFmpeg] %s", msg);
-    } else if (level <= AV_LOG_WARNING) {
-        LOGW("[FFmpeg] %s", msg);
-    } else if (level <= AV_LOG_INFO) {
-        LOGI("[FFmpeg] %s", msg);
     } else {
-        LOGD("[FFmpeg] %s", msg);
+        LOGW("[FFmpeg] %s", msg);
     }
 }
 
