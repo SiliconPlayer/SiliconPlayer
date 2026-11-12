@@ -7,6 +7,23 @@ import com.flopster101.siliconplayer.matchesDecoderName
 import com.flopster101.siliconplayer.platform.AppPreferences
 import org.json.JSONObject
 
+enum class SpatializerPreset(val id: String, val label: String) {
+    Neutral("neutral", "Neutral"),
+    Music("music", "Music"),
+    Wide("wide", "Wide"),
+    Atmosphere("atmosphere", "Atmosphere"),
+    Cinema("cinema", "Cinema"),
+    Custom("custom", "Custom");
+
+    companion object {
+        fun fromId(id: String?): SpatializerPreset = when (id) {
+            "soft_v" -> Music
+            "soft_v_wide", "soft_v_wide_spatial" -> Atmosphere
+            else -> entries.firstOrNull { it.id == id } ?: Custom
+        }
+    }
+}
+
 enum class SpatializerBackend(val id: String) {
     Off("off"),
     LibSpatialAudio("libspatialaudio"),
@@ -28,6 +45,15 @@ data class SpatializerConfig(
     val lfeGainDb: Float = -3f,
     val lfeLowPassEnabled: Boolean = true,
     val wetMix: Float = 1f,
+    val bassGainDb: Float = 0f,
+    val trebleGainDb: Float = 0f,
+    val surroundTrebleGainDb: Float = 0f,
+    val wideSurround: Boolean = false,
+    val frontAmbience: Boolean = false,
+    val virtualizerWidth: Float = 1f,
+    val frontDiffuse: Boolean = false,
+    val compressorMode: Int = 0,
+    val preset: SpatializerPreset = SpatializerPreset.Neutral,
     // Output level makeup applied to the spatialized render.
     val outputGainDb: Float = 8.5f,
     val ambisonicOrder: Int = 3,
@@ -45,12 +71,98 @@ data class SpatializerConfig(
         .put("lfeGainDb", lfeGainDb.toDouble())
         .put("lfeLowPassEnabled", lfeLowPassEnabled)
         .put("wetMix", wetMix.toDouble())
+        .put("bassGainDb", bassGainDb.toDouble())
+        .put("trebleGainDb", trebleGainDb.toDouble())
+        .put("surroundTrebleGainDb", surroundTrebleGainDb.toDouble())
+        .put("wideSurround", wideSurround)
+        .put("frontAmbience", frontAmbience)
+        .put("virtualizerWidth", virtualizerWidth.toDouble())
+        .put("frontDiffuse", frontDiffuse)
+        .put("compressorMode", compressorMode)
+        .put("preset", preset.id)
         .put("outputGainDb", outputGainDb.toDouble())
         .put("ambisonicOrder", ambisonicOrder)
         .put("renderMethod", renderMethod)
         .put("yawDegrees", yawDegrees.toDouble())
         .put("customSofaPath", customSofaPath)
         .toString()
+
+    fun withPreset(preset: SpatializerPreset): SpatializerConfig {
+        val defaults = SpatializerConfig()
+        return when (preset) {
+            SpatializerPreset.Custom -> copy(preset = preset)
+            SpatializerPreset.Neutral -> copy(
+                bassGainDb = defaults.bassGainDb,
+                trebleGainDb = defaults.trebleGainDb,
+                surroundTrebleGainDb = defaults.surroundTrebleGainDb,
+                centerGainDb = defaults.centerGainDb,
+                surroundGainDb = defaults.surroundGainDb,
+                heightGainDb = defaults.heightGainDb,
+                wideSurround = defaults.wideSurround,
+                frontAmbience = defaults.frontAmbience,
+                virtualizerWidth = defaults.virtualizerWidth,
+                frontDiffuse = defaults.frontDiffuse,
+                compressorMode = defaults.compressorMode,
+                preset = preset,
+            )
+            SpatializerPreset.Music -> copy(
+                bassGainDb = 1f,
+                trebleGainDb = 1f,
+                surroundTrebleGainDb = -1.5f,
+                centerGainDb = -0.5f,
+                surroundGainDb = 0.5f,
+                heightGainDb = defaults.heightGainDb,
+                wideSurround = false,
+                frontAmbience = false,
+                virtualizerWidth = 1.2f,
+                frontDiffuse = true,
+                compressorMode = 1,
+                preset = preset,
+            )
+            SpatializerPreset.Wide -> copy(
+                bassGainDb = defaults.bassGainDb,
+                trebleGainDb = defaults.trebleGainDb,
+                surroundTrebleGainDb = -3f,
+                centerGainDb = -1.5f,
+                surroundGainDb = 1.5f,
+                heightGainDb = defaults.heightGainDb,
+                wideSurround = true,
+                frontAmbience = true,
+                virtualizerWidth = 1.35f,
+                frontDiffuse = false,
+                compressorMode = 1,
+                preset = preset,
+            )
+            SpatializerPreset.Atmosphere -> copy(
+                bassGainDb = 0f,
+                trebleGainDb = 0.5f,
+                surroundTrebleGainDb = -3f,
+                centerGainDb = -1.5f,
+                surroundGainDb = 1.5f,
+                heightGainDb = defaults.heightGainDb,
+                wideSurround = true,
+                frontAmbience = true,
+                virtualizerWidth = 1.5f,
+                frontDiffuse = true,
+                compressorMode = 2,
+                preset = preset,
+            )
+            SpatializerPreset.Cinema -> copy(
+                bassGainDb = 1.5f,
+                trebleGainDb = 1f,
+                surroundTrebleGainDb = -2.5f,
+                centerGainDb = -1f,
+                surroundGainDb = 2.5f,
+                heightGainDb = 1f,
+                wideSurround = true,
+                frontAmbience = true,
+                virtualizerWidth = 1.75f,
+                frontDiffuse = true,
+                compressorMode = 2,
+                preset = preset,
+            )
+        }
+    }
 
     companion object {
         fun fromJson(json: String?): SpatializerConfig {
@@ -71,10 +183,25 @@ data class SpatializerConfig(
                 lfeGainDb = root.optDouble("lfeGainDb", defaults.lfeGainDb.toDouble()).toFloat(),
                 lfeLowPassEnabled = root.optBoolean("lfeLowPassEnabled", defaults.lfeLowPassEnabled),
                 wetMix = root.optDouble("wetMix", defaults.wetMix.toDouble()).toFloat().coerceIn(0f, 1f),
+                bassGainDb = root.optDouble("bassGainDb", defaults.bassGainDb.toDouble())
+                    .toFloat().coerceIn(-12f, 12f),
+                trebleGainDb = root.optDouble("trebleGainDb", defaults.trebleGainDb.toDouble())
+                    .toFloat().coerceIn(-12f, 12f),
+                surroundTrebleGainDb = root.optDouble(
+                    "surroundTrebleGainDb",
+                    defaults.surroundTrebleGainDb.toDouble()
+                ).toFloat().coerceIn(-12f, 12f),
+                wideSurround = root.optBoolean("wideSurround", defaults.wideSurround),
+                frontAmbience = root.optBoolean("frontAmbience", defaults.frontAmbience),
+                virtualizerWidth = root.optDouble("virtualizerWidth", defaults.virtualizerWidth.toDouble())
+                    .toFloat().coerceIn(0f, 2f),
+                frontDiffuse = root.optBoolean("frontDiffuse", defaults.frontDiffuse),
+                compressorMode = root.optInt("compressorMode", defaults.compressorMode).coerceIn(0, 2),
+                preset = SpatializerPreset.fromId(root.optString("preset", defaults.preset.id)),
                 outputGainDb = root.optDouble("outputGainDb", defaults.outputGainDb.toDouble())
                     .toFloat().coerceIn(-24f, 18f),
                 ambisonicOrder = root.optInt("ambisonicOrder", defaults.ambisonicOrder).coerceIn(1, 3),
-                renderMethod = root.optInt("renderMethod", defaults.renderMethod).coerceIn(0, 1),
+                renderMethod = root.optInt("renderMethod", defaults.renderMethod).coerceIn(0, 2),
                 yawDegrees = root.optDouble("yawDegrees", defaults.yawDegrees.toDouble()).toFloat(),
                 customSofaPath = root.optString("customSofaPath", defaults.customSofaPath),
             )

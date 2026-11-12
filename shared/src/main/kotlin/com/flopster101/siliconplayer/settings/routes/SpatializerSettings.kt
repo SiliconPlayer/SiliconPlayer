@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.flopster101.siliconplayer.audio.SpatializerBackend
 import com.flopster101.siliconplayer.audio.SpatializerConfig
+import com.flopster101.siliconplayer.audio.SpatializerPreset
 import com.flopster101.siliconplayer.ui.theme.Radius
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -45,6 +46,7 @@ internal fun SpatializerSettingsSection(
     onConfigChanged: (SpatializerConfig) -> Unit
 ) {
     var backendDialogOpen by remember { mutableStateOf(false) }
+    var presetDialogOpen by remember { mutableStateOf(false) }
     var backendEditor by remember { mutableStateOf<SpatializerBackend?>(null) }
     var boostDialogOpen by remember { mutableStateOf(false) }
     var sofaDialogOpen by remember { mutableStateOf(false) }
@@ -55,6 +57,13 @@ internal fun SpatializerSettingsSection(
         description = "Binaural rendering for multichannel audio decoded by FFmpeg.",
         value = spatializerBackendLabel(config.backend),
         onClick = { backendDialogOpen = true }
+    )
+    SettingsRowSpacer()
+    SettingsValuePickerCard(
+        title = "Steam Audio preset",
+        description = "Choose a listening profile. Manual adjustments switch to Custom.",
+        value = config.preset.label,
+        onClick = { presetDialogOpen = true }
     )
     SettingsRowSpacer()
     SettingsValuePickerCard(
@@ -97,6 +106,18 @@ internal fun SpatializerSettingsSection(
                 onConfigChanged(config.copy(backend = backend, enabled = backend != SpatializerBackend.Off))
             },
             onDismiss = { backendDialogOpen = false }
+        )
+    }
+
+    if (presetDialogOpen) {
+        SettingsSingleChoiceDialog(
+            title = "Steam Audio preset",
+            selectedValue = config.preset,
+            options = SpatializerPreset.entries
+                .filter { it != SpatializerPreset.Custom }
+                .map { preset -> ChoiceDialogOption(value = preset, label = preset.label) },
+            onSelected = { preset -> onConfigChanged(config.withPreset(preset)) },
+            onDismiss = { presetDialogOpen = false }
         )
     }
 
@@ -146,30 +167,118 @@ private fun SpatializerBackendDialog(
         if (backend == SpatializerBackend.LibSpatialAudio) {
             SpatializerRenderModeSelector(
                 selected = draft.renderMethod,
-                onSelected = { draft = draft.copy(renderMethod = it) }
+                onSelected = { draft = draft.copy(renderMethod = it, preset = SpatializerPreset.Custom) }
             )
         }
         SpatializerGainSlider(
             label = "Center",
             value = draft.centerGainDb,
-            onValueChange = { draft = draft.copy(centerGainDb = it) }
+            onValueChange = { draft = draft.copy(centerGainDb = it, preset = SpatializerPreset.Custom) }
         )
         SpatializerGainSlider(
             label = "Surround",
             value = draft.surroundGainDb,
-            onValueChange = { draft = draft.copy(surroundGainDb = it) }
+            onValueChange = { draft = draft.copy(surroundGainDb = it, preset = SpatializerPreset.Custom) }
         )
         SpatializerGainSlider(
             label = "Height",
             value = draft.heightGainDb,
-            onValueChange = { draft = draft.copy(heightGainDb = it) }
+            onValueChange = { draft = draft.copy(heightGainDb = it, preset = SpatializerPreset.Custom) }
+        )
+        SpatializerGainSlider(
+            label = "Bass shelf",
+            value = draft.bassGainDb,
+            range = -12f..12f,
+            step = 0.5f,
+            valueLabel = { spatializerBoostLabel(it) },
+            onValueChange = { draft = draft.copy(bassGainDb = it, preset = SpatializerPreset.Custom) }
+        )
+        SpatializerGainSlider(
+            label = "Treble shelf",
+            value = draft.trebleGainDb,
+            range = -12f..12f,
+            step = 0.5f,
+            valueLabel = { spatializerBoostLabel(it) },
+            onValueChange = { draft = draft.copy(trebleGainDb = it, preset = SpatializerPreset.Custom) }
+        )
+        SpatializerGainSlider(
+            label = "Surround treble",
+            value = draft.surroundTrebleGainDb,
+            range = -12f..6f,
+            step = 0.5f,
+            valueLabel = { spatializerBoostLabel(it) },
+            onValueChange = {
+                draft = draft.copy(surroundTrebleGainDb = it, preset = SpatializerPreset.Custom)
+            }
         )
         SpatializerGainSlider(
             label = "LFE",
             value = draft.lfeGainDb,
             range = -12f..6f,
-            onValueChange = { draft = draft.copy(lfeGainDb = it) }
+            onValueChange = { draft = draft.copy(lfeGainDb = it, preset = SpatializerPreset.Custom) }
         )
+        if (backend == SpatializerBackend.SteamAudio) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Front ambience", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = draft.frontAmbience,
+                    onCheckedChange = {
+                        draft = draft.copy(frontAmbience = it, preset = SpatializerPreset.Custom)
+                    }
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Wide surround", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = draft.wideSurround,
+                    onCheckedChange = {
+                        draft = draft.copy(wideSurround = it, preset = SpatializerPreset.Custom)
+                    }
+                )
+            }
+            SpatializerGainSlider(
+                label = "Frontal width",
+                value = draft.virtualizerWidth,
+                range = 0f..2f,
+                step = 0.1f,
+                valueLabel = { String.format(Locale.US, "%.1fx", it) },
+                onValueChange = { draft = draft.copy(virtualizerWidth = it, preset = SpatializerPreset.Custom) }
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Front diffusion", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = draft.frontDiffuse,
+                    onCheckedChange = { draft = draft.copy(frontDiffuse = it, preset = SpatializerPreset.Custom) }
+                )
+            }
+            Text("Dynamics", style = MaterialTheme.typography.bodyMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("Off" to 0, "Gentle" to 1, "Detail" to 2).forEach { (label, mode) ->
+                    FilterChip(
+                        selected = draft.compressorMode == mode,
+                        onClick = {
+                            draft = draft.copy(compressorMode = mode, preset = SpatializerPreset.Custom)
+                        },
+                        label = { Text(label) }
+                    )
+                }
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -178,7 +287,7 @@ private fun SpatializerBackendDialog(
             Text("LFE low-pass (120 Hz)", style = MaterialTheme.typography.bodyMedium)
             Switch(
                 checked = draft.lfeLowPassEnabled,
-                onCheckedChange = { draft = draft.copy(lfeLowPassEnabled = it) }
+                onCheckedChange = { draft = draft.copy(lfeLowPassEnabled = it, preset = SpatializerPreset.Custom) }
             )
         }
         SpatializerGainSlider(
@@ -187,7 +296,7 @@ private fun SpatializerBackendDialog(
             range = 0f..1f,
             step = 0.05f,
             valueLabel = { "${(it * 100).roundToInt()}%" },
-            onValueChange = { draft = draft.copy(wetMix = it) }
+            onValueChange = { draft = draft.copy(wetMix = it, preset = SpatializerPreset.Custom) }
         )
     }
 
