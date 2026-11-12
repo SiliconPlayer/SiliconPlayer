@@ -36,6 +36,9 @@ private fun spatializerBackendLabel(backend: SpatializerBackend): String = when 
     SpatializerBackend.SteamAudio -> "Steam Audio"
 }
 
+private fun spatializerBoostLabel(db: Float): String =
+    String.format(Locale.US, "%+.1f dB", db)
+
 @Composable
 internal fun SpatializerSettingsSection(
     config: SpatializerConfig,
@@ -43,6 +46,7 @@ internal fun SpatializerSettingsSection(
 ) {
     var backendDialogOpen by remember { mutableStateOf(false) }
     var backendEditor by remember { mutableStateOf<SpatializerBackend?>(null) }
+    var boostDialogOpen by remember { mutableStateOf(false) }
     var sofaDialogOpen by remember { mutableStateOf(false) }
 
     SettingsSectionLabel("Spatial audio")
@@ -51,6 +55,13 @@ internal fun SpatializerSettingsSection(
         description = "Binaural rendering for multichannel audio decoded by FFmpeg.",
         value = spatializerBackendLabel(config.backend),
         onClick = { backendDialogOpen = true }
+    )
+    SettingsRowSpacer()
+    SettingsValuePickerCard(
+        title = "Loudness boost",
+        description = "Output level makeup applied after spatialization.",
+        value = spatializerBoostLabel(config.outputGainDb),
+        onClick = { boostDialogOpen = true }
     )
     SettingsRowSpacer()
     SettingsItemCard(
@@ -86,6 +97,14 @@ internal fun SpatializerSettingsSection(
                 onConfigChanged(config.copy(backend = backend, enabled = backend != SpatializerBackend.Off))
             },
             onDismiss = { backendDialogOpen = false }
+        )
+    }
+
+    if (boostDialogOpen) {
+        SpatializerOutputGainDialog(
+            currentDb = config.outputGainDb,
+            onDismiss = { boostDialogOpen = false },
+            onConfirm = { onConfigChanged(config.copy(outputGainDb = it)) }
         )
     }
 
@@ -200,6 +219,76 @@ private fun SpatializerBackendDialog(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    content()
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onConfirm(draft)
+                    onDismiss()
+                }) {
+                    Text("Apply")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SpatializerOutputGainDialog(
+    currentDb: Float,
+    onDismiss: () -> Unit,
+    onConfirm: (Float) -> Unit
+) {
+    var draft by remember(currentDb) { mutableStateOf(currentDb) }
+    val title = "Loudness boost"
+    val content: @Composable () -> Unit = {
+        Text(
+            text = "Level makeup applied to the spatialized output. The default " +
+                "+8.5 dB renders louder than the plain downmix.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        SpatializerGainSlider(
+            label = "Boost",
+            value = draft,
+            range = 0f..15f,
+            step = 0.5f,
+            valueLabel = { spatializerBoostLabel(it) },
+            onValueChange = { draft = it }
+        )
+    }
+
+    if (isWatchDevice()) {
+        WatchDialogContainer(title = title, onDismissRequest = onDismiss) {
+            content()
+            Button(
+                onClick = {
+                    onConfirm(draft)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = Radius.Control
+            ) {
+                Text("Apply")
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel")
+            }
+        }
+    } else {
+        AlertDialog(
+            modifier = adaptiveDialogModifier(),
+            properties = adaptiveDialogProperties(),
+            onDismissRequest = onDismiss,
+            title = { Text(title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     content()
                 }
             },

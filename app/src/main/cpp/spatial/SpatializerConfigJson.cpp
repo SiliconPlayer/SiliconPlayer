@@ -237,6 +237,7 @@ SpatializerConfig parseSpatializerConfigJson(std::string_view json) {
     config.lfeGainDb = numberOr(values, "lfeGainDb", config.lfeGainDb);
     config.lfeLowPassEnabled = boolOr(values, "lfeLowPassEnabled", config.lfeLowPassEnabled);
     config.wetMix = std::clamp(numberOr(values, "wetMix", config.wetMix), 0.0f, 1.0f);
+    config.outputGainDb = std::clamp(numberOr(values, "outputGainDb", config.outputGainDb), -24.0f, 18.0f);
     config.ambisonicOrder = std::clamp(intOr(values, "ambisonicOrder", config.ambisonicOrder), 1, 3);
     config.renderMethod = std::clamp(intOr(values, "renderMethod", config.renderMethod), 0, 1);
     config.yawDegrees = numberOr(values, "yawDegrees", config.yawDegrees);
@@ -255,6 +256,7 @@ std::string serializeSpatializerConfigJson(const SpatializerConfig& config) {
     out += "\"lfeGainDb\":" + std::to_string(config.lfeGainDb) + ",";
     out += "\"lfeLowPassEnabled\":" + std::string(config.lfeLowPassEnabled ? "true" : "false") + ",";
     out += "\"wetMix\":" + std::to_string(config.wetMix) + ",";
+    out += "\"outputGainDb\":" + std::to_string(config.outputGainDb) + ",";
     out += "\"ambisonicOrder\":" + std::to_string(config.ambisonicOrder) + ",";
     out += "\"renderMethod\":" + std::to_string(config.renderMethod) + ",";
     out += "\"yawDegrees\":" + std::to_string(config.yawDegrees) + ",";

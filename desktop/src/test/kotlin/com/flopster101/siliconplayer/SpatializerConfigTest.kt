@@ -22,6 +22,7 @@ class SpatializerConfigTest {
             lfeGainDb = -9f,
             lfeLowPassEnabled = false,
             wetMix = 0.25f,
+            outputGainDb = 3.5f,
             ambisonicOrder = 2,
             renderMethod = 1,
             yawDegrees = 45f,
@@ -57,6 +58,11 @@ class SpatializerConfigTest {
     }
 
     @Test
+    fun defaultsToThePlatformSpatializerBoost() {
+        assertEquals(8.5f, SpatializerConfig.fromJson(null).outputGainDb, 0.0001f)
+    }
+
+    @Test
     fun clampsOutOfRangeValues() {
         val restored = SpatializerConfig.fromJson(
             """{"backend":"libspatialaudio","wetMix":4.0,"ambisonicOrder":9,"renderMethod":7}"""
@@ -64,6 +70,11 @@ class SpatializerConfigTest {
         assertEquals(1f, restored.wetMix, 0.0001f)
         assertEquals(3, restored.ambisonicOrder)
         assertEquals(1, restored.renderMethod)
+        assertEquals(
+            18f,
+            SpatializerConfig.fromJson("""{"outputGainDb":99.0}""").outputGainDb,
+            0.0001f
+        )
     }
 
     @Test

@@ -23,6 +23,8 @@ struct SpatializerConfig {
     float lfeGainDb = -3.0f;
     bool lfeLowPassEnabled = true;
     float wetMix = 1.0f;
+    // Output level makeup applied to the spatialized render.
+    float outputGainDb = 8.5f;
     int ambisonicOrder = 3;
     int renderMethod = 0; // 0 = Virtual Speakers (Direct HRTF), 1 = Ambisonics (HOA)
     float yawDegrees = 0.0f;

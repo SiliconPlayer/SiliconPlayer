@@ -28,6 +28,8 @@ data class SpatializerConfig(
     val lfeGainDb: Float = -3f,
     val lfeLowPassEnabled: Boolean = true,
     val wetMix: Float = 1f,
+    // Output level makeup applied to the spatialized render.
+    val outputGainDb: Float = 8.5f,
     val ambisonicOrder: Int = 3,
     val renderMethod: Int = 0,
     val yawDegrees: Float = 0f,
@@ -43,6 +45,7 @@ data class SpatializerConfig(
         .put("lfeGainDb", lfeGainDb.toDouble())
         .put("lfeLowPassEnabled", lfeLowPassEnabled)
         .put("wetMix", wetMix.toDouble())
+        .put("outputGainDb", outputGainDb.toDouble())
         .put("ambisonicOrder", ambisonicOrder)
         .put("renderMethod", renderMethod)
         .put("yawDegrees", yawDegrees.toDouble())
@@ -68,6 +71,8 @@ data class SpatializerConfig(
                 lfeGainDb = root.optDouble("lfeGainDb", defaults.lfeGainDb.toDouble()).toFloat(),
                 lfeLowPassEnabled = root.optBoolean("lfeLowPassEnabled", defaults.lfeLowPassEnabled),
                 wetMix = root.optDouble("wetMix", defaults.wetMix.toDouble()).toFloat().coerceIn(0f, 1f),
+                outputGainDb = root.optDouble("outputGainDb", defaults.outputGainDb.toDouble())
+                    .toFloat().coerceIn(-24f, 18f),
                 ambisonicOrder = root.optInt("ambisonicOrder", defaults.ambisonicOrder).coerceIn(1, 3),
                 renderMethod = root.optInt("renderMethod", defaults.renderMethod).coerceIn(0, 1),
                 yawDegrees = root.optDouble("yawDegrees", defaults.yawDegrees.toDouble()).toFloat(),

@@ -135,7 +135,10 @@ void testLevelAndBypass(
         siliconplayer::spatial::SpatializerBackendId backendId,
         const char* label) {
     siliconplayer::spatial::SpatializerEngine engine;
-    engine.setConfig(makeConfig(0, backendId));
+    // Isolate the HRTF makeup from the user-facing loudness boost.
+    auto config = makeConfig(0, backendId);
+    config.outputGainDb = 0.0f;
+    engine.setConfig(config);
 
     std::vector<float> bed(static_cast<size_t>(kBlock) * kChannels, 0.0f);
     std::vector<float> out(static_cast<size_t>(kBlock) * 2, 0.0f);
@@ -180,6 +183,7 @@ void testLevelAndBypass(
 
     // Turning the stage off must restore the plain downmix immediately.
     siliconplayer::spatial::SpatializerConfig off = makeConfig(0, backendId);
+    off.outputGainDb = 0.0f;
     off.backend = siliconplayer::spatial::SpatializerBackendId::None;
     engine.setConfig(off);
     check(!engine.isActiveForMultichannel(), "off disables the spatializer stage");
@@ -207,6 +211,53 @@ void testLevelAndBypass(
     check(centered, "off renders a symmetric plain downmix");
 }
 
+void testOutputGain(
+        siliconplayer::spatial::SpatializerBackendId backendId,
+        const char* label) {
+    auto renderRms = [&](float gainDb) {
+        siliconplayer::spatial::SpatializerEngine engine;
+        auto config = makeConfig(0, backendId);
+        config.outputGainDb = gainDb;
+        engine.setConfig(config);
+
+        std::vector<float> bed(static_cast<size_t>(kBlock) * kChannels, 0.0f);
+        std::vector<float> out(static_cast<size_t>(kBlock) * 2, 0.0f);
+        double energy = 0.0;
+        int measured = 0;
+        for (int b = 0; b < 32; ++b) {
+            for (int f = 0; f < kBlock; ++f) {
+                const int t = b * kBlock + f;
+                const float s = std::sin(2.0 * M_PI * 1000.0 * t / kSampleRate);
+                bed[static_cast<size_t>(f) * kChannels] = s;
+                bed[static_cast<size_t>(f) * kChannels + 1] = s;
+            }
+            engine.processOrDownmix(
+                    bed.data(),
+                    out.data(),
+                    kBlock,
+                    kChannels,
+                    siliconplayer::spatial::BedLayoutId::Surround_5_1,
+                    2,
+                    kSampleRate
+            );
+            if (b < 8) continue;
+            for (const float sample : out) {
+                energy += static_cast<double>(sample) * sample;
+            }
+            measured += kBlock * 2;
+        }
+        return std::sqrt(energy / std::max(1, measured));
+    };
+
+    const double unity = renderRms(0.0f);
+    const double boosted = renderRms(8.5f);
+    const double ratio = boosted / std::max(1e-9, unity);
+    const double expected = std::pow(10.0, 8.5 / 20.0);
+    printf("  %s boost: 0 dB rms=%.4f, +8.5 dB rms=%.4f (x%.3f, expected x%.3f)\n",
+           label, unity, boosted, ratio, expected);
+    check(std::abs(ratio - expected) < 0.05, "loudness boost tracks the configured dB");
+}
+
 } // namespace
 
 int main() {
@@ -218,6 +269,12 @@ int main() {
             siliconplayer::spatial::SpatializerBackendId::LibSpatialAudio,
             "libspatialaudio");
     testLevelAndBypass(
+            siliconplayer::spatial::SpatializerBackendId::SteamAudio,
+            "steam-audio");
+    testOutputGain(
+            siliconplayer::spatial::SpatializerBackendId::LibSpatialAudio,
+            "libspatialaudio");
+    testOutputGain(
             siliconplayer::spatial::SpatializerBackendId::SteamAudio,
             "steam-audio");
     if (g_failures == 0) {

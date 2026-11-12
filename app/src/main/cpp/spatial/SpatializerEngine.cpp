@@ -284,6 +284,7 @@ void SpatializerEngine::processBlocks(int sampleRate) {
     const float surroundGain = dbToLinearClamped(currentConfig.surroundGainDb, -24.0f, 12.0f);
     const float heightGain = dbToLinearClamped(currentConfig.heightGainDb, -24.0f, 12.0f);
     const float lfeGain = dbToLinearClamped(currentConfig.lfeGainDb, -48.0f, 12.0f);
+    const float outputGain = dbToLinearClamped(currentConfig.outputGainDb, -24.0f, 18.0f);
     const bool hasLfeChannel =
             (preparedLayout == BedLayoutId::Surround_5_1 ||
             preparedLayout == BedLayoutId::Surround_7_1 ||
@@ -336,8 +337,8 @@ void SpatializerEngine::processBlocks(int sampleRate) {
                 outL = dryWeight * dryBlock[static_cast<size_t>(f) * 2] + wet * outL;
                 outR = dryWeight * dryBlock[static_cast<size_t>(f) * 2 + 1] + wet * outR;
             }
-            outFifo.push_back(outL);
-            outFifo.push_back(outR);
+            outFifo.push_back(outL * outputGain);
+            outFifo.push_back(outR * outputGain);
         }
         outFifoFrames += static_cast<size_t>(kBlockSize);
 
