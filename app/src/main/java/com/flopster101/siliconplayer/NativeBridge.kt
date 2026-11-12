@@ -80,8 +80,23 @@ object NativeBridge {
     private var forcedDecoderOneShot: String? = null
 
     fun prioritizeNextOpenWith(decoderName: String) {
+        if (decoderName == DecoderNames.PLATFORM_DOLBY) {
+            PlatformDolbyPlayer.forceForNextOpen()
+            forcedDecoderOneShot = null
+            return
+        }
         forcedDecoderOneShot = decoderName
     }
+
+    /** Keep the Android platform core off the next load; used by Play with... */
+    @JvmStatic
+    fun suppressPlatformCoreForNextOpen() {
+        PlatformDolbyPlayer.suppressForNextOpen()
+    }
+
+    /** True when the Android platform core can decode [path]. */
+    @JvmStatic
+    fun platformDolbyClaims(path: String): Boolean = PlatformDolbyPlayer.canClaim(path)
 
     // Crash guard: armed synchronously around every decoder load, so it only
     // survives when the process died mid-load. A guarded path is skipped once

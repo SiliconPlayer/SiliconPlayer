@@ -3,6 +3,8 @@ package com.flopster101.siliconplayer.playback
 import android.content.Context
 import com.flopster101.siliconplayer.SpLog
 import android.media.MediaCodecList
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.media.MediaPlayer
 import android.media.AudioAttributes
 import android.os.Handler
@@ -26,6 +28,10 @@ import java.io.File
  * Any failure falls back to the FFmpeg engine transparently.
  */
 internal object PlatformDolbyPlayer {
+
+    private const val PLAY_WITH_NONE = 0
+    private const val PLAY_WITH_FORCE = 1
+    private const val PLAY_WITH_SUPPRESS = 2
 
     // Claimed synchronously during activate() so transport redirection is
     // deterministic; cleared on deactivate/fallback.
@@ -68,6 +74,11 @@ internal object PlatformDolbyPlayer {
     @Volatile
     private var handoffPath: String? = null
 
+    // Play with... routing for the next load: 1 picks this core even when
+    // its toggle is off, 2 keeps the chosen in-app core instead.
+    @Volatile
+    private var playWithRouting = PLAY_WITH_NONE
+
     // Direct-SMB source whose cache is still downloading; FFmpeg stays
     // audible until the cached copy can take over at the engine position.
     @Volatile
@@ -89,15 +100,64 @@ internal object PlatformDolbyPlayer {
             // decoder needs reloading underneath it.
             handoffPath = null
             naturalEnd = false
+            playWithRouting = PLAY_WITH_NONE
             SpLog.i("PlatformDolby", "adopted seamless handoff for $path")
             return
         }
         deactivate()
-        if (!shouldUsePlatform(path)) {
+        val usePlatform = shouldUsePlatform(path)
+        playWithRouting = PLAY_WITH_NONE
+        if (!usePlatform) {
             SpLog.i("PlatformDolby", "not routed to platform core: $path")
             return
         }
         activate(path, pendingStart = false)
+    }
+
+    /** Play with... picks this core even while its toggle is off. */
+    @JvmStatic
+    fun forceForNextOpen() {
+        playWithRouting = PLAY_WITH_FORCE
+    }
+
+    /** Play with... picked an in-app core, so this one stays out of the way. */
+    @JvmStatic
+    fun suppressForNextOpen() {
+        playWithRouting = PLAY_WITH_SUPPRESS
+    }
+
+    /**
+     * True when the platform core can decode [path]: its demuxer reports a
+     * DD-family audio track and this device ships the matching codec.
+     * shortcut: local files only, remote streams are not probed here.
+     */
+    @JvmStatic
+    fun canClaim(path: String): Boolean = when (platformAudioMime(path)) {
+        "audio/ac3" -> resolvePlatformDolbyDecoder("audio/ac3") != null
+        "audio/eac3", "audio/eac3-joc" ->
+            resolvePlatformDolbyDecoder("audio/eac3") != null ||
+                resolvePlatformDolbyDecoder("audio/eac3-joc") != null
+        else -> false
+    }
+
+    // First audio track the framework demuxer reports, which is the one
+    // MediaPlayer would pick; null when the file is unreadable or remote.
+    private fun platformAudioMime(path: String): String? {
+        if (isRemoteSource(path)) return null
+        return try {
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(path)
+                (0 until extractor.trackCount).firstNotNullOfOrNull { index ->
+                    extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
+                        ?.takeIf { it.startsWith("audio/") }
+                }
+            } finally {
+                extractor.release()
+            }
+        } catch (t: Throwable) {
+            null
+        }
     }
 
     /**
@@ -444,10 +504,15 @@ internal object PlatformDolbyPlayer {
         } catch (t: Throwable) {
             return false
         }
+        if (playWithRouting == PLAY_WITH_SUPPRESS) return false
         val prefs = context.getSharedPreferences(
             AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE
         )
-        if (!prefs.getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, true)) return false
+        if (playWithRouting != PLAY_WITH_FORCE &&
+            !prefs.getBoolean(AppPreferenceKeys.PLATFORM_DOLBY_DECODER, true)
+        ) {
+            return false
+        }
         // Bit-perfect owns the output only while it actually drives it; the
         // toggle alone must not suppress the platform core on other routes.
         if (BitPerfectCoordinator.isBitPerfectInUse(prefs, context)) return false
