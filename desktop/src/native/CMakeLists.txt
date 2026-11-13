@@ -134,11 +134,15 @@ set_target_properties(libspatialaudio_prebuilt PROPERTIES IMPORTED_LOCATION "${P
 add_library(libphonon_prebuilt SHARED IMPORTED)
 set_target_properties(libphonon_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libphonon.so")
 
+add_library(libpffft_prebuilt STATIC IMPORTED)
+set_target_properties(libpffft_prebuilt PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/pffft/lib/libpffft.a")
+
 add_library(siliconplayer_desktop SHARED ${MAIN_SOURCES})
 
 target_include_directories(siliconplayer_desktop PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 
 target_compile_definitions(siliconplayer_desktop PRIVATE
@@ -159,6 +163,7 @@ target_link_libraries(siliconplayer_desktop PRIVATE
     libmysofa_prebuilt
     libspatialaudio_prebuilt
     libphonon_prebuilt
+    libpffft_prebuilt
     OpenGL::GL
     ${X11_LIBRARIES}
     Threads::Threads
@@ -250,6 +255,7 @@ add_library(siliconplayer_xmp_decoder SHARED
 target_include_directories(siliconplayer_xmp_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_xmp_decoder PRIVATE
     libxmp_prebuilt
@@ -310,6 +316,7 @@ add_library(siliconplayer_ufmod_decoder SHARED
 target_include_directories(siliconplayer_ufmod_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_ufmod_decoder PRIVATE
     libufmod_prebuilt
@@ -333,6 +340,7 @@ target_compile_definitions(siliconplayer_ayfly_decoder PRIVATE
 target_include_directories(siliconplayer_ayfly_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_ayfly_decoder PRIVATE
     libayfly_prebuilt
@@ -357,6 +365,7 @@ add_library(siliconplayer_uade_decoder SHARED
 target_include_directories(siliconplayer_uade_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_uade_decoder PRIVATE
     libuade_prebuilt
@@ -384,6 +393,7 @@ add_library(siliconplayer_vgm_decoder SHARED
 target_include_directories(siliconplayer_vgm_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_vgm_decoder PRIVATE
     libvgm_player_prebuilt
@@ -405,6 +415,7 @@ add_library(siliconplayer_crsid_decoder SHARED
 target_include_directories(siliconplayer_crsid_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_crsid_decoder PRIVATE
     libcRSID_prebuilt
@@ -429,6 +440,7 @@ add_library(siliconplayer_sc68_decoder SHARED
 target_include_directories(siliconplayer_sc68_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_sc68_decoder PRIVATE
     libsc68_prebuilt
@@ -452,6 +464,7 @@ add_library(siliconplayer_adplug_decoder SHARED
 target_include_directories(siliconplayer_adplug_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_adplug_decoder PRIVATE
     libadplug_prebuilt
@@ -492,6 +505,7 @@ add_library(siliconplayer_vio2sf_decoder SHARED
 target_include_directories(siliconplayer_vio2sf_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_vio2sf_decoder PRIVATE
     libvio2sf_prebuilt
@@ -512,6 +526,7 @@ add_library(siliconplayer_libupse_decoder SHARED
 target_include_directories(siliconplayer_libupse_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_libupse_decoder PRIVATE
     libupse_prebuilt
@@ -531,6 +546,7 @@ add_library(siliconplayer_viogsf_decoder SHARED
 target_include_directories(siliconplayer_viogsf_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_viogsf_decoder PRIVATE
     libviogsf_prebuilt
@@ -571,6 +587,7 @@ add_library(siliconplayer_hivelytracker_decoder SHARED
 target_include_directories(siliconplayer_hivelytracker_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_hivelytracker_decoder PRIVATE
     libhivelytracker_prebuilt
@@ -589,6 +606,7 @@ add_library(siliconplayer_klystrack_decoder SHARED
 target_include_directories(siliconplayer_klystrack_decoder PRIVATE
     ${COMMON_INCLUDES}
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_klystrack_decoder PRIVATE
     libklystrack_prebuilt
@@ -649,11 +667,13 @@ add_executable(siliconplayer_spatializer_test
 target_include_directories(siliconplayer_spatializer_test PRIVATE
     "${APP_CPP_DIR}"
     "${PREBUILT_DIR}/include"
+    "${PREBUILT_DIR}/pffft/include"
 )
 target_link_libraries(siliconplayer_spatializer_test PRIVATE
     libspatialaudio_prebuilt
     libmysofa_prebuilt
     libphonon_prebuilt
+    libpffft_prebuilt
     m
 )
 add_test(NAME spatializer COMMAND siliconplayer_spatializer_test)

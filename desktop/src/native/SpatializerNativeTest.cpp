@@ -2,6 +2,7 @@
 #include "spatial/LibSpatialAudioBackend.h"
 #include "spatial/SpatializerEngine.h"
 #include "spatial/SteamAudioBackend.h"
+#include "spatial/SteamAudioSpatialKernel.h"
 
 #include <algorithm>
 #include <cmath>
@@ -447,6 +448,85 @@ void testFrontAmbience() {
     check(ambientTail > directTail * 2.0, "front ambience adds a decaying tail");
 }
 
+void testHybridConvolutionMatchesDirectFir() {
+    using namespace siliconplayer::spatial;
+    constexpr int blocks = 20;
+    constexpr int totalFrames = blocks * kBlock;
+    auto config = makeConfig(0, SpatializerBackendId::SteamAudio);
+    config.frontDiffuse = true;
+    config.frontAmbience = true;
+    config.virtualizerWidth = 1.25f;
+    SteamAudioBackend backend;
+    check(backend.prepare(kSampleRate, BedLayoutId::Surround_5_1, kChannels, kBlock, config),
+          "hybrid FFT backend prepares");
+
+    std::vector<float> input(static_cast<size_t>(totalFrames) * kChannels);
+    unsigned random = 0x12345678;
+    for (int f = 0; f < totalFrames; ++f) {
+        for (int ch = 0; ch < kChannels; ++ch) {
+            random ^= random << 13;
+            random ^= random >> 17;
+            random ^= random << 5;
+            input[static_cast<size_t>(f) * kChannels + ch] =
+                    static_cast<float>((random >> 8) * (1.0f / 8388608.0f) - 1.0f) *
+                    0.02f * (ch + 1);
+        }
+    }
+    std::vector<float> actual;
+    actual.reserve(totalFrames * 2);
+    std::vector<float> output(kBlock * 2);
+    for (int block = 0; block < blocks; ++block) {
+        backend.process(
+                input.data() + static_cast<size_t>(block) * kBlock * kChannels,
+                output.data(),
+                kBlock);
+        actual.insert(actual.end(), output.begin(), output.end());
+    }
+
+    std::vector<float> frontMid(totalFrames);
+    std::vector<float> frontSide(totalFrames);
+    std::vector<float> surrMid(totalFrames);
+    std::vector<float> surrSide(totalFrames);
+    std::vector<float> roomExciter(totalFrames);
+    for (int f = 0; f < totalFrames; ++f) {
+        const float* src = input.data() + static_cast<size_t>(f) * kChannels;
+        frontMid[f] = 0.5f * (src[0] + src[1]) + 0.4202006f * src[2] + 0.40f * src[3];
+        frontSide[f] = 0.5f * (src[0] - src[1]);
+        surrMid[f] = 0.5f * (src[4] + src[5]);
+        surrSide[f] = 0.5f * (src[4] - src[5]);
+        roomExciter[f] = frontMid[f] + 2.4f * surrMid[f] + 0.30f * frontSide[f] + 0.55f * surrSide[f];
+    }
+    auto sampleBefore = [](const std::vector<float>& signal, int index) {
+        return index >= 0 ? signal[static_cast<size_t>(index)] : 0.0f;
+    };
+    double maxError = 0.0;
+    for (int f = 0; f < totalFrames; ++f) {
+        double mid = 0.0;
+        double side = 0.0;
+        double roomMid = 0.0;
+        double roomSide = 0.0;
+        for (int tap = 0; tap < kSpatialDirectTaps; ++tap) {
+            mid += sampleBefore(frontMid, f - tap) * kSpatialFrontMid[tap] +
+                   sampleBefore(surrMid, f - tap) * kSpatialSurroundMid[tap];
+            side += sampleBefore(frontSide, f - tap) * kSpatialFrontSide[tap] +
+                    sampleBefore(surrSide, f - tap) * kSpatialSurroundSide[tap];
+        }
+        for (int tap = 0; tap < kSpatialRoomTaps; ++tap) {
+            const float exciter = sampleBefore(roomExciter, f - kSpatialRoomDelay - tap);
+            roomMid += exciter * kSpatialRoomMid[tap];
+            roomSide += exciter * kSpatialRoomSide[tap];
+        }
+        mid += roomMid;
+        side = (side + roomSide) * (1.25f / 1.5f);
+        const float expectedLeft = static_cast<float>(mid + side);
+        const float expectedRight = static_cast<float>(mid - side);
+        maxError = std::max(maxError, static_cast<double>(std::abs(actual[static_cast<size_t>(f) * 2] - expectedLeft)));
+        maxError = std::max(maxError, static_cast<double>(std::abs(actual[static_cast<size_t>(f) * 2 + 1] - expectedRight)));
+    }
+    printf("  hybrid FFT maximum error: %.9f\n", maxError);
+    check(maxError < 2e-5, "hybrid FFT matches the calibrated direct FIR and room filters");
+}
+
 void testFrontDiffusion() {
     auto render = [](bool enabled) {
         siliconplayer::spatial::SpatializerEngine engine;
@@ -518,6 +598,7 @@ int main() {
     testToneAndDynamics();
     testFrontAmbience();
     testFrontDiffusion();
+    testHybridConvolutionMatchesDirectFir();
     if (g_failures == 0) {
         printf("ALL PASS\n");
         return 0;

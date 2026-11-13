@@ -3,11 +3,251 @@
 #include "SteamAudioContext.h"
 #include "SteamAudioSpatialKernel.h"
 
+#include <pffft.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 
 namespace siliconplayer::spatial {
+
+class SteamAudioHybridConvolver {
+public:
+    ~SteamAudioHybridConvolver() {
+        release();
+    }
+
+    bool prepare(int channels, int frames) {
+        release();
+        if (channels < 2 || frames != kSpatialDirectTaps) {
+            return false;
+        }
+        bedChannels = channels;
+        blockFrames = frames;
+        fft = pffft_new_setup(kFftSize, PFFFT_REAL);
+        storage = static_cast<float*>(pffft_aligned_malloc(kStorageFloats * sizeof(float)));
+        if (!fft || !storage) {
+            release();
+            return false;
+        }
+        std::fill(storage, storage + kStorageFloats, 0.0f);
+
+        size_t offset = 0;
+        auto take = [&](size_t count) {
+            float* result = storage + offset;
+            offset += count;
+            return result;
+        };
+        timeBlocks = take(kSignalCount * kFftSize);
+        inputSpectra = take(kDirectSignalCount * kFftSize);
+        directFilters = take(kDirectSignalCount * kFftSize);
+        roomFilters = take(2 * kRoomPartitionCount * kFftSize);
+        roomHistory = take(kRoomPartitionCount * kFftSize);
+        outputSpectra = take(2 * kFftSize);
+        outputTime = take(2 * kFftSize);
+        overlap = take(2 * kSpatialDirectTaps);
+        fftWork = take(kFftSize);
+
+        const float* directTaps[kDirectSignalCount] = {
+            kSpatialFrontMid,
+            kSpatialFrontSide,
+            kSpatialSurroundMid,
+            kSpatialSurroundSide,
+        };
+        for (int signal = 0; signal < kDirectSignalCount; ++signal) {
+            std::copy(directTaps[signal], directTaps[signal] + kSpatialDirectTaps, timeBlocks);
+            pffft_transform(
+                    fft,
+                    timeBlocks,
+                    directFilters + signal * kFftSize,
+                    fftWork,
+                    PFFFT_FORWARD);
+            std::fill(timeBlocks, timeBlocks + kFftSize, 0.0f);
+        }
+        for (int partition = 0; partition < kRoomPartitionCount; ++partition) {
+            for (int i = 0; i < kSpatialDirectTaps; ++i) {
+                const int tap = partition * kSpatialDirectTaps + i - kSpatialRoomDelay;
+                if (tap >= 0 && tap < kSpatialRoomTaps) {
+                    timeBlocks[i] = kSpatialRoomMid[tap];
+                    timeBlocks[kFftSize + i] = kSpatialRoomSide[tap];
+                }
+            }
+            pffft_transform(
+                    fft,
+                    timeBlocks,
+                    roomFilters + (partition * 2) * kFftSize,
+                    fftWork,
+                    PFFFT_FORWARD);
+            pffft_transform(
+                    fft,
+                    timeBlocks + kFftSize,
+                    roomFilters + (partition * 2 + 1) * kFftSize,
+                    fftWork,
+                    PFFFT_FORWARD);
+            std::fill(timeBlocks, timeBlocks + 2 * kFftSize, 0.0f);
+        }
+        return true;
+    }
+
+    void reset() {
+        if (!storage) {
+            return;
+        }
+        std::fill(roomHistory, roomHistory + kRoomPartitionCount * kFftSize, 0.0f);
+        std::fill(overlap, overlap + 2 * kSpatialDirectTaps, 0.0f);
+        roomSlot = 0;
+    }
+
+    void process(
+            const float* input,
+            float* output,
+            int frames,
+            float roomScale,
+            float widthScale) {
+        std::fill(timeBlocks, timeBlocks + kSignalCount * kFftSize, 0.0f);
+        for (int f = 0; f < frames; ++f) {
+            const float* src = input + static_cast<size_t>(f) * bedChannels;
+            float fl = src[0];
+            float fr = src[1];
+            float fc = 0.0f;
+            float lfe = 0.0f;
+            float sl = 0.0f;
+            float sr = 0.0f;
+            if (bedChannels == 4) {
+                sl = src[2];
+                sr = src[3];
+            } else if (bedChannels >= 6) {
+                fc = src[2];
+                lfe = src[3];
+                sl = src[4];
+                sr = src[5];
+                if (bedChannels >= 8) {
+                    sl += 0.85f * src[6];
+                    sr += 0.85f * src[7];
+                }
+                if (bedChannels >= 12) {
+                    fl += 0.60f * src[8];
+                    fr += 0.60f * src[9];
+                    sl += 0.35f * src[8] + 0.70f * src[10];
+                    sr += 0.35f * src[9] + 0.70f * src[11];
+                }
+            } else if (bedChannels == 3) {
+                fc = src[2];
+            }
+
+            const float frontMid = 0.5f * (fl + fr) + 0.4202006f * fc + 0.40f * lfe;
+            const float frontSide = 0.5f * (fl - fr);
+            const float surrMid = 0.5f * (sl + sr);
+            const float surrSide = 0.5f * (sl - sr);
+            timeBlocks[f] = frontMid;
+            timeBlocks[kFftSize + f] = frontSide;
+            timeBlocks[2 * kFftSize + f] = surrMid;
+            timeBlocks[3 * kFftSize + f] = surrSide;
+            timeBlocks[4 * kFftSize + f] =
+                    frontMid + 2.4f * surrMid + 0.30f * frontSide + 0.55f * surrSide;
+        }
+        for (int signal = 0; signal < kDirectSignalCount; ++signal) {
+            pffft_transform(
+                    fft,
+                    timeBlocks + signal * kFftSize,
+                    inputSpectra + signal * kFftSize,
+                    fftWork,
+                    PFFFT_FORWARD);
+        }
+        float* currentRoom = roomHistory + roomSlot * kFftSize;
+        pffft_transform(fft, timeBlocks + 4 * kFftSize, currentRoom, fftWork, PFFFT_FORWARD);
+
+        std::fill(outputSpectra, outputSpectra + 2 * kFftSize, 0.0f);
+        constexpr float scale = 1.0f / static_cast<float>(kFftSize);
+        pffft_zconvolve_accumulate(fft, inputSpectra, directFilters, outputSpectra, scale);
+        pffft_zconvolve_accumulate(
+                fft,
+                inputSpectra + 2 * kFftSize,
+                directFilters + 2 * kFftSize,
+                outputSpectra,
+                scale);
+        pffft_zconvolve_accumulate(
+                fft,
+                inputSpectra + kFftSize,
+                directFilters + kFftSize,
+                outputSpectra + kFftSize,
+                scale);
+        pffft_zconvolve_accumulate(
+                fft,
+                inputSpectra + 3 * kFftSize,
+                directFilters + 3 * kFftSize,
+                outputSpectra + kFftSize,
+                scale);
+        for (int partition = 0; partition < kRoomPartitionCount; ++partition) {
+            int historySlot = roomSlot - partition;
+            if (historySlot < 0) {
+                historySlot += kRoomPartitionCount;
+            }
+            const float* history = roomHistory + historySlot * kFftSize;
+            const float* filters = roomFilters + (partition * 2) * kFftSize;
+            pffft_zconvolve_accumulate(fft, history, filters, outputSpectra, roomScale * scale);
+            pffft_zconvolve_accumulate(
+                    fft,
+                    history,
+                    filters + kFftSize,
+                    outputSpectra + kFftSize,
+                    roomScale * scale);
+        }
+        roomSlot = (roomSlot + 1) % kRoomPartitionCount;
+
+        pffft_transform(fft, outputSpectra, outputTime, fftWork, PFFFT_BACKWARD);
+        pffft_transform(
+                fft,
+                outputSpectra + kFftSize,
+                outputTime + kFftSize,
+                fftWork,
+                PFFFT_BACKWARD);
+        for (int f = 0; f < frames; ++f) {
+            const float mid = outputTime[f] + overlap[f];
+            const float side = (outputTime[kFftSize + f] + overlap[kSpatialDirectTaps + f]) * widthScale;
+            output[static_cast<size_t>(f) * 2] = mid + side;
+            output[static_cast<size_t>(f) * 2 + 1] = mid - side;
+            overlap[f] = outputTime[kSpatialDirectTaps + f];
+            overlap[kSpatialDirectTaps + f] = outputTime[kFftSize + kSpatialDirectTaps + f];
+        }
+    }
+
+private:
+    static constexpr int kDirectSignalCount = 4;
+    static constexpr int kSignalCount = 5;
+    static constexpr int kFftSize = kSpatialDirectTaps * 2;
+    static constexpr int kRoomPartitionCount =
+            (kSpatialRoomDelay + kSpatialRoomTaps + kSpatialDirectTaps - 1) / kSpatialDirectTaps;
+    static constexpr int kStorageFloats =
+            (kSignalCount + kDirectSignalCount * 2 + kRoomPartitionCount * 3 + 4 + 1) * kFftSize +
+             2 * kSpatialDirectTaps;
+
+    void release() {
+        if (fft) {
+            pffft_destroy_setup(fft);
+            fft = nullptr;
+        }
+        if (storage) {
+            pffft_aligned_free(storage);
+            storage = nullptr;
+        }
+    }
+
+    PFFFT_Setup* fft = nullptr;
+    float* storage = nullptr;
+    float* timeBlocks = nullptr;
+    float* inputSpectra = nullptr;
+    float* directFilters = nullptr;
+    float* roomFilters = nullptr;
+    float* roomHistory = nullptr;
+    float* outputSpectra = nullptr;
+    float* outputTime = nullptr;
+    float* overlap = nullptr;
+    float* fftWork = nullptr;
+    int bedChannels = 0;
+    int blockFrames = 0;
+    int roomSlot = 0;
+};
 
 namespace {
 
@@ -167,13 +407,13 @@ bool SteamAudioBackend::prepare(
             static_cast<size_t>(blockSize) + static_cast<size_t>(std::ceil(sampleRate * 0.013)), 0.0f);
     earlyReflectionCross.assign(
             static_cast<size_t>(blockSize) + static_cast<size_t>(std::ceil(sampleRate * 0.017)), 0.0f);
-    mimoFrontMid.assign(static_cast<size_t>(kSpatialDirectTaps) * 2, 0.0f);
-    mimoFrontSide.assign(static_cast<size_t>(kSpatialDirectTaps) * 2, 0.0f);
-    mimoSurrMid.assign(static_cast<size_t>(kSpatialDirectTaps) * 2, 0.0f);
-    mimoSurrSide.assign(static_cast<size_t>(kSpatialDirectTaps) * 2, 0.0f);
-    mimoRoomExciter.assign(static_cast<size_t>(kSpatialRoomHistory) * 2, 0.0f);
-    diffuseCursor = 0;
-    roomCursor = 0;
+    hybridConvolver.reset();
+    if (config.frontDiffuse && config.customSofaPath.empty() && bedChannels >= 2) {
+        auto convolver = std::make_unique<SteamAudioHybridConvolver>();
+        if (convolver->prepare(bedChannels, blockSize)) {
+            hybridConvolver = std::move(convolver);
+        }
+    }
     reflectionLeftScratch.assign(static_cast<size_t>(blockSize), 0.0f);
     reflectionRightScratch.assign(static_cast<size_t>(blockSize), 0.0f);
 
@@ -198,13 +438,9 @@ void SteamAudioBackend::reset() {
     std::fill(earlyReflectionLeft.begin(), earlyReflectionLeft.end(), 0.0f);
     std::fill(earlyReflectionRight.begin(), earlyReflectionRight.end(), 0.0f);
     std::fill(earlyReflectionCross.begin(), earlyReflectionCross.end(), 0.0f);
-    std::fill(mimoFrontMid.begin(), mimoFrontMid.end(), 0.0f);
-    std::fill(mimoFrontSide.begin(), mimoFrontSide.end(), 0.0f);
-    std::fill(mimoSurrMid.begin(), mimoSurrMid.end(), 0.0f);
-    std::fill(mimoSurrSide.begin(), mimoSurrSide.end(), 0.0f);
-    std::fill(mimoRoomExciter.begin(), mimoRoomExciter.end(), 0.0f);
-    diffuseCursor = 0;
-    roomCursor = 0;
+    if (hybridConvolver) {
+        hybridConvolver->reset();
+    }
 }
 
 void SteamAudioBackend::updateConfig(const SpatializerConfig& config) {
@@ -224,86 +460,11 @@ void SteamAudioBackend::process(
         return;
     }
 
-    if (activeConfig.frontDiffuse && activeConfig.customSofaPath.empty() && bedChannels >= 2) {
+    if (hybridConvolver && activeConfig.frontDiffuse &&
+        activeConfig.customSofaPath.empty() && bedChannels >= 2) {
         const float widthScale = std::clamp(activeConfig.virtualizerWidth / 1.5f, 0.25f, 2.0f);
-        for (int f = 0; f < frames; ++f) {
-            const float* src = inInterleaved + static_cast<size_t>(f) * bedChannels;
-            float fl = src[0];
-            float fr = src[1];
-            float fc = 0.0f;
-            float lfe = 0.0f;
-            float sl = 0.0f;
-            float sr = 0.0f;
-            if (bedChannels == 4) {
-                sl = src[2];
-                sr = src[3];
-            } else if (bedChannels >= 6) {
-                fc = src[2];
-                lfe = src[3];
-                sl = src[4];
-                sr = src[5];
-                if (bedChannels >= 8) {
-                    sl += 0.85f * src[6];
-                    sr += 0.85f * src[7];
-                }
-                if (bedChannels >= 12) {
-                    fl += 0.60f * src[8];
-                    fr += 0.60f * src[9];
-                    sl += 0.35f * src[8] + 0.70f * src[10];
-                    sr += 0.35f * src[9] + 0.70f * src[11];
-                }
-            } else if (bedChannels == 3) {
-                fc = src[2];
-            }
-
-            const float frontMid = 0.5f * (fl + fr) + 0.4202006f * fc + 0.40f * lfe;
-            const float frontSide = 0.5f * (fl - fr);
-            const float surrMid = 0.5f * (sl + sr);
-            const float surrSide = 0.5f * (sl - sr);
-            const float roomExciter = frontMid + 2.4f * surrMid + 0.30f * frontSide + 0.55f * surrSide;
-
-            diffuseCursor = (diffuseCursor - 1) & (kSpatialDirectTaps - 1);
-            const size_t cur = static_cast<size_t>(diffuseCursor);
-            const size_t mirror = cur + static_cast<size_t>(kSpatialDirectTaps);
-            mimoFrontMid[cur] = frontMid;
-            mimoFrontMid[mirror] = frontMid;
-            mimoFrontSide[cur] = frontSide;
-            mimoFrontSide[mirror] = frontSide;
-            mimoSurrMid[cur] = surrMid;
-            mimoSurrMid[mirror] = surrMid;
-            mimoSurrSide[cur] = surrSide;
-            mimoSurrSide[mirror] = surrSide;
-
-            roomCursor = (roomCursor == 0) ? (kSpatialRoomHistory - 1) : (roomCursor - 1);
-            const size_t rCur = static_cast<size_t>(roomCursor);
-            mimoRoomExciter[rCur] = roomExciter;
-            mimoRoomExciter[rCur + static_cast<size_t>(kSpatialRoomHistory)] = roomExciter;
-
-            const float* __restrict fmHist = mimoFrontMid.data() + cur;
-            const float* __restrict fsHist = mimoFrontSide.data() + cur;
-            const float* __restrict smHist = mimoSurrMid.data() + cur;
-            const float* __restrict ssHist = mimoSurrSide.data() + cur;
-            float midOut = 0.0f;
-            float sideOut = 0.0f;
-            for (int k = 0; k < kSpatialDirectTaps; ++k) {
-                midOut += fmHist[k] * kSpatialFrontMid[k] + smHist[k] * kSpatialSurroundMid[k];
-                sideOut += fsHist[k] * kSpatialFrontSide[k] + ssHist[k] * kSpatialSurroundSide[k];
-            }
-
-            const float* __restrict rmHist = mimoRoomExciter.data() + rCur + static_cast<size_t>(kSpatialRoomDelay);
-            float roomMid = 0.0f;
-            float roomSide = 0.0f;
-            for (int k = 0; k < kSpatialRoomTaps; ++k) {
-                const float r = rmHist[k];
-                roomMid += r * kSpatialRoomMid[k];
-                roomSide += r * kSpatialRoomSide[k];
-            }
-            const float roomScale = activeConfig.frontAmbience ? 1.0f : 0.35f;
-            midOut += roomMid * roomScale;
-            sideOut = (sideOut + roomSide * roomScale) * widthScale;
-            outStereoInterleaved[static_cast<size_t>(f) * 2] = midOut + sideOut;
-            outStereoInterleaved[static_cast<size_t>(f) * 2 + 1] = midOut - sideOut;
-        }
+        const float roomScale = activeConfig.frontAmbience ? 1.0f : 0.35f;
+        hybridConvolver->process(inInterleaved, outStereoInterleaved, frames, roomScale, widthScale);
         return;
     }
 

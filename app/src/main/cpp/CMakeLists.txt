@@ -50,6 +50,10 @@ add_library(
         usb/UacDriverJni.cpp
 )
 
+target_include_directories(siliconplayer PRIVATE
+    "${CMAKE_SOURCE_DIR}/prebuilt/${ANDROID_ABI}/pffft/include"
+)
+
 target_compile_definitions(
         siliconplayer
         PRIVATE
@@ -206,6 +210,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     add_library(libphonon SHARED IMPORTED)
     set_target_properties(libphonon PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libphonon.so")
 
+    # FFT convolution for the Steam Audio hybrid kernel (Static)
+    add_library(libpffft STATIC IMPORTED)
+    set_target_properties(libpffft PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/pffft/lib/libpffft.a")
+
     # Import libupse (Shared)
     add_library(libupse SHARED IMPORTED)
     set_target_properties(libupse PROPERTIES IMPORTED_LOCATION "${PREBUILT_DIR}/lib/libupse.so")
@@ -292,6 +300,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
             libmysofa
             libspatialaudio
             libphonon
+            libpffft
             z # zlib is needed for openmpt/ffmpeg/vgm
             m # libbinio can require libm symbols on some toolchains
             usb1.0

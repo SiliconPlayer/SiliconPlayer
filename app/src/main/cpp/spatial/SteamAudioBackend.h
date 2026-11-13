@@ -5,10 +5,13 @@
 
 #include <phonon/phonon.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace siliconplayer::spatial {
+
+class SteamAudioHybridConvolver;
 
 class SteamAudioBackend : public ISpatializer {
 public:
@@ -58,13 +61,7 @@ private:
     std::vector<float> earlyReflectionLeft;
     std::vector<float> earlyReflectionRight;
     std::vector<float> earlyReflectionCross;
-    std::vector<float> mimoFrontMid;
-    std::vector<float> mimoFrontSide;
-    std::vector<float> mimoSurrMid;
-    std::vector<float> mimoSurrSide;
-    std::vector<float> mimoRoomExciter;
-    int diffuseCursor = 0;
-    int roomCursor = 0;
+    std::unique_ptr<SteamAudioHybridConvolver> hybridConvolver;
     std::vector<float> reflectionLeftScratch;
     std::vector<float> reflectionRightScratch;
 
