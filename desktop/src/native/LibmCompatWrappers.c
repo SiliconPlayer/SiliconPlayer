@@ -5,7 +5,12 @@
 
 float __wrap_sqrtf(float x) { return (float)sqrt((double)x); }
 float __wrap_atan2f(float y, float x) { return (float)atan2((double)y, (double)x); }
-float __wrap_log10f(float x) { return (float)log10((double)x); }
+float __wrap_log10f(float x) {
+    // A volatile result prevents GCC from narrowing this back to log10f;
+    // --wrap would otherwise route that call straight back into this shim.
+    volatile double result = log10((double)x);
+    return (float)result;
+}
 double __wrap_cosh(double x) { double e = exp(x); return 0.5 * (e + 1.0 / e); }
 double __wrap_sinh(double x) { double e = exp(x); return 0.5 * (e - 1.0 / e); }
 // Scale-first hypot: no intermediate overflow, only fabs/sqrt underneath.
