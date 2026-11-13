@@ -885,7 +885,8 @@ void AudioEngine::renderWorkerLoop() {
             // the delay estimate never saturates keeps the history advancing.
             effectiveTarget = std::min(effectiveTarget, kScopeVisibleRecoveryMaxQueueFrames);
         }
-        if (spatializerEngine.isRenderingMultichannel()) {
+        if (spatializerEngine.isRenderingMultichannel() &&
+            activeMiniaudioBackend != ma_backend_aaudio) {
             const int queueRate = streamSampleRate > 0 ? streamSampleRate : 48000;
             const int spatializerCeiling = std::max(
                     baseChunkFrames * 2,
