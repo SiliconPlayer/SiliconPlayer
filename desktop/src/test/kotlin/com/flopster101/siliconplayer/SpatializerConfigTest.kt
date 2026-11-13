@@ -59,11 +59,17 @@ class SpatializerConfigTest {
     }
 
     @Test
-    fun defaultsToSteamAudio() {
+    fun defaultsToSteamAudioAtmosphere() {
         val config = SpatializerConfig.fromJson(null)
         assertEquals(SpatializerBackend.SteamAudio, config.backend)
         assertTrue(config.enabled)
         assertFalse(config.spatializeStereo)
+        assertEquals(SpatializerPreset.Atmosphere, config.preset)
+        assertTrue(config.frontDiffuse)
+        assertTrue(config.frontAmbience)
+        assertTrue(config.wideSurround)
+        assertEquals(1.5f, config.virtualizerWidth, 0.0001f)
+        assertEquals(2, config.compressorMode)
         assertEquals(1f, config.wetMix, 0.0001f)
     }
 
