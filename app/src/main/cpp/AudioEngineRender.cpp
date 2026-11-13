@@ -8,6 +8,7 @@
 #include <cstring>
 #include <cerrno>
 #include <pthread.h>
+#include <sched.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <thread>
@@ -44,6 +45,18 @@ namespace {
 
     void promoteThreadForAudio(const char* role, int targetNice) {
         const pid_t tid = currentThreadId();
+#ifdef __linux__
+        sched_param realTimeParams{};
+        realTimeParams.sched_priority = 1;
+        if (pthread_setschedparam(pthread_self(), SCHED_RR, &realTimeParams) == 0) {
+            LOGD(
+                    "Thread real-time scheduling enabled for %s: tid=%d policy=SCHED_RR priority=1",
+                    role,
+                    static_cast<int>(tid)
+            );
+            return;
+        }
+#endif
         const int before = getpriority(PRIO_PROCESS, tid);
         errno = 0;
         if (setpriority(PRIO_PROCESS, tid, targetNice) == 0) {
