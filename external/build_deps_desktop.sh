@@ -143,7 +143,26 @@ configure_desktop_toolchain() {
 
     CFLAGS="-fPIC $ARCH_FLAGS $DEP_OPT_FLAGS"
     CXXFLAGS="-fPIC $ARCH_FLAGS $DEP_OPT_FLAGS"
-    CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_VERSION_MINIMUM=3.5 $CMAKE_ARCH_FLAGS"
+    CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_VERSION_MINIMUM=3.5 $CMAKE_ARCH_FLAGS -DCMAKE_BUILD_RPATH=\$ORIGIN -DCMAKE_INSTALL_RPATH=\$ORIGIN"
+    export LD_RUN_PATH='$ORIGIN'
+    printf -- '-Wl,-rpath,$ORIGIN\n' > "$INSTALL_DIR/rpath.args"
+    printf -- '-Wl,-rpath,$ORIGIN/..\n' > "$INSTALL_DIR/rpath-parent.args"
+}
+
+verify_desktop_rpaths() {
+    local install_dir="$1"
+    local so runpath needed bad=0
+    for so in "$install_dir"/lib/*.so*; do
+        [ -f "$so" ] && [ ! -L "$so" ] || continue
+        runpath="$(readelf -d "$so" 2>/dev/null | sed -n 's/.*(\(RUNPATH\|RPATH\)).*\[\(.*\)\]/\2/p')"
+        while IFS= read -r needed; do
+            [ -e "$install_dir/lib/$needed" ] || continue
+            case "$runpath" in *'$ORIGIN'*) continue ;; esac
+            echo "Error: $(basename "$so") needs $needed but RUNPATH is '$runpath'"
+            bad=1
+        done < <(readelf -d "$so" 2>/dev/null | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p')
+    done
+    return $bad
 }
 
 clean_target_artifacts() {
@@ -528,7 +547,7 @@ build_libsidplayfp() {
         RESIDFP_CFLAGS="-I$INSTALL_DIR/include" \
         RESIDFP_LIBS="-L$INSTALL_DIR/lib -lresidfp" \
         "$PROJECT_PATH/configure" --prefix="$INSTALL_DIR" --enable-shared --disable-static \
-            --with-usbsid=no --with-exsid=no CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS"
+            --with-usbsid=no --with-exsid=no CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" LDFLAGS="@$INSTALL_DIR/rpath.args"
         make -j"$NPROC"
         make install
     )
@@ -657,7 +676,8 @@ build_sc68() {
         cd "$PROJECT_PATH/file68"
         [ ! -f configure ] && autoreconf -vfi
         ./configure --prefix="$INSTALL_DIR" --enable-shared --disable-static \
-            UNICE68_CFLAGS="-I$INSTALL_DIR/include" UNICE68_LIBS="-L$INSTALL_DIR/lib -lunice68" CFLAGS="$CFLAGS"
+            UNICE68_CFLAGS="-I$INSTALL_DIR/include" UNICE68_LIBS="-L$INSTALL_DIR/lib -lunice68" \
+            CFLAGS="$CFLAGS" LDFLAGS="@$INSTALL_DIR/rpath.args"
         make -j"$NPROC" && make install
     )
     (
@@ -665,7 +685,8 @@ build_sc68() {
         [ ! -f configure ] && autoreconf -vfi
         PATH="$PROJECT_PATH/as68:$PATH" ./configure --prefix="$INSTALL_DIR" --enable-shared --disable-static \
             UNICE68_CFLAGS="-I$INSTALL_DIR/include" UNICE68_LIBS="-L$INSTALL_DIR/lib -lunice68" \
-            FILE68_CFLAGS="-I$INSTALL_DIR/include" FILE68_LIBS="-L$INSTALL_DIR/lib -lfile68" CFLAGS="$CFLAGS"
+            FILE68_CFLAGS="-I$INSTALL_DIR/include" FILE68_LIBS="-L$INSTALL_DIR/lib -lfile68" \
+            CFLAGS="$CFLAGS" LDFLAGS="@$INSTALL_DIR/rpath.args"
         PATH="$PROJECT_PATH/as68:$PATH" make -j"$NPROC"
         PATH="$PROJECT_PATH/as68:$PATH" make install
     )
@@ -812,7 +833,7 @@ EOF
             --bencode-tools-prefix="$UADE_DEPS" \
             --libzakalwe-prefix="$UADE_DEPS" \
             CFLAGS="$CFLAGS" \
-            LDFLAGS="-L$INSTALL_DIR/lib -Wl,-rpath,$INSTALL_DIR/lib"
+            LDFLAGS="-L$INSTALL_DIR/lib @$INSTALL_DIR/rpath-parent.args"
         PATH="$BUILD_DIR/tools:$PATH" make --no-print-directory V=0 -j"$NPROC" staticlibuade uadecore score
     )
     if [ ! -f "$BUILD_DIR/src/frontends/common/libuade.a" ]; then
@@ -821,7 +842,7 @@ EOF
     fi
     "$CC" -shared -o "$INSTALL_DIR/lib/libuade.so" -Wl,-soname,libuade.so -fPIC \
         -Wl,--whole-archive "$BUILD_DIR/src/frontends/common/libuade.a" -Wl,--no-whole-archive \
-        -L"$INSTALL_DIR/lib" -lzakalwe -lbencodetools -Wl,-rpath,"$INSTALL_DIR/lib"
+        -L"$INSTALL_DIR/lib" -lzakalwe -lbencodetools
     mkdir -p "$INSTALL_DIR/include/uade" "$INSTALL_DIR/lib/uade" "$INSTALL_DIR/share/uade"
     cp "$BUILD_DIR/src/frontends/include/uade/"*.h "$INSTALL_DIR/include/uade/" 2>/dev/null || true
     cp "$BUILD_DIR/src/uadecore" "$INSTALL_DIR/lib/uade/uadecore"
@@ -1463,6 +1484,8 @@ for ARCH in "${TARGET_ARCHES[@]}"; do
     if target_has_lib "libspatialaudio"; then build_libspatialaudio; fi
     if target_has_lib "pffft"; then build_pffft; fi
     if target_has_lib "steamaudio"; then build_steamaudio; fi
+
+    verify_desktop_rpaths "$INSTALL_DIR"
 
     echo "========================================"
     echo "Desktop Dependency Build Complete for $ARCH!"

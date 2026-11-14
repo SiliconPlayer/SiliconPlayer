@@ -264,13 +264,15 @@ apply_steamaudio_patches() {
         return
     fi
 
-    if grep -Fq "set(CMAKE_CXX_STANDARD 17)" "$CMAKE_FILE"; then
-        echo "steam-audio C++17 patch already applied."
-        return
+    if ! grep -Fq "set(CMAKE_CXX_STANDARD 17)" "$CMAKE_FILE"; then
+        echo "Applying steam-audio patch: C++17 for the flatbuffers headers"
+        sed -i 's/^set(CMAKE_CXX_STANDARD 14)$/set(CMAKE_CXX_STANDARD 17)/' "$CMAKE_FILE"
     fi
 
-    echo "Applying steam-audio patch: C++17 for the flatbuffers headers"
-    sed -i 's/^set(CMAKE_CXX_STANDARD 14)$/set(CMAKE_CXX_STANDARD 17)/' "$CMAKE_FILE"
+    if grep -Fq "add_compile_options(-fabi-version=6)" "$CMAKE_FILE"; then
+        echo "Applying steam-audio patch: drop -fabi-version=6 (breaks std::unique_ptr on GCC 13)"
+        sed -i '/add_compile_options(-fabi-version=6)/d' "$CMAKE_FILE"
+    fi
 }
 
 build_vasm_host() {
