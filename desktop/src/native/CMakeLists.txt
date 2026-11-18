@@ -110,6 +110,7 @@ set(MAIN_SOURCES
     "${APP_CPP_DIR}/spatial/SpatializerConfigJson.cpp"
     "${APP_CPP_DIR}/spatial/SteamAudioContext.cpp"
     "${APP_CPP_DIR}/spatial/SteamAudioBackend.cpp"
+    "${APP_CPP_DIR}/effects/nodes/OpenMptBassEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/ChipgoodizerEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptSurroundEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptReverbEffect.cpp"
