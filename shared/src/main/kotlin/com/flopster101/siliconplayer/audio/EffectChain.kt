@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToInt
 
 internal object EffectNodeIds {
+    const val CHIPGOODIZER = "chipgoodizer"
     const val OPENMPT_BASS = "openmpt.bass"
     const val OPENMPT_SURROUND = "openmpt.surround"
     const val OPENMPT_REVERB = "openmpt.reverb"
@@ -61,6 +62,27 @@ internal data class EffectDescriptor(
 )
 
 internal val DefaultEffectDescriptors: List<EffectDescriptor> = listOf(
+    EffectDescriptor(
+        id = EffectNodeIds.CHIPGOODIZER,
+        displayName = "Chipgoodizer",
+        schemaVersion = 1,
+        supportsDryWet = false,
+        params = listOf(
+            EffectParamDescriptor(id = "amount", label = "Blend", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 0.85f),
+            EffectParamDescriptor(id = "rubber", label = "Rubber", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 0.85f),
+            EffectParamDescriptor(id = "punch", label = "Punch", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 0.85f),
+            EffectParamDescriptor(id = "air", label = "Air", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 0.70f),
+            EffectParamDescriptor(id = "deharsh", label = "De-Harsh", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 1f),
+            EffectParamDescriptor(id = "warmth", label = "Warmth", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 1f),
+            EffectParamDescriptor(id = "width", label = "Width", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 0.60f),
+            EffectParamDescriptor(id = "ambience", label = "Ambience", type = EffectParamType.Float, minValue = 0f, maxValue = 0.30f, defaultValue = 0.10f),
+            EffectParamDescriptor(id = "drive", label = "Drive (dB)", type = EffectParamType.Float, minValue = -12f, maxValue = 12f, defaultValue = 0f),
+            EffectParamDescriptor(id = "ceiling", label = "Ceiling (dB)", type = EffectParamType.Float, minValue = -12f, maxValue = 0f, defaultValue = -1.2f),
+            EffectParamDescriptor(id = "xoverLow", label = "Low X-Over (Hz)", type = EffectParamType.Float, minValue = 120f, maxValue = 400f, defaultValue = 220f),
+            EffectParamDescriptor(id = "xoverHigh", label = "High X-Over (Hz)", type = EffectParamType.Float, minValue = 2500f, maxValue = 6000f, defaultValue = 3800f),
+            EffectParamDescriptor(id = "phaseRotation", label = "Kick Phase Rotation", type = EffectParamType.Bool, minValue = 0f, maxValue = 1f, defaultValue = 1f)
+        )
+    ),
     EffectDescriptor(
         id = EffectNodeIds.OPENMPT_BASS,
         displayName = "OpenMPT Bass Expansion",
