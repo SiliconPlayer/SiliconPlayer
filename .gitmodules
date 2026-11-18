@@ -141,3 +141,6 @@
 	path = external/flatbuffers
 	url = https://github.com/google/flatbuffers.git
 	ignore = dirty
+[submodule "external/chipgoodizer"]
+	path = external/chipgoodizer
+	url = https://github.com/Flopster101/chipgoodizer
