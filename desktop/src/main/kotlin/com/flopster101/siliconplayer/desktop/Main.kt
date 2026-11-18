@@ -2229,6 +2229,25 @@ fun main(args: Array<String>) = application {
             SiliconPlayerBaseTheme(darkTheme = darkTheme) {
                 // Drops are external opens; honor the same Play-with gate as Android.
                 var pendingDropPlayWithFile by remember { mutableStateOf<File?>(null) }
+                val onDroppedFile: (File) -> Unit = { file ->
+                    if (prefs.getBoolean(AppPreferenceKeys.PLAY_WITH_EXTERNAL_OPEN_DIALOG, true)) {
+                        pendingDropPlayWithFile = file
+                    } else {
+                        playFile(file)
+                    }
+                }
+                val onDroppedDirectory: (File) -> Unit = { openLocalBrowser(it) }
+                val onDroppedUnsupported: () -> Unit = { toastHandler.showToast(DROP_UNSUPPORTED_MESSAGE) }
+                DisposableEffect(window) {
+                    val detachFileDrop = attachDesktopFileDropTarget(
+                        window = window,
+                        supportedExtensions = supportedExtensions,
+                        onPlayFile = onDroppedFile,
+                        onBrowseDirectory = onDroppedDirectory,
+                        onUnsupported = onDroppedUnsupported
+                    )
+                    onDispose { detachFileDrop() }
+                }
                 val dropPlayWithFile = pendingDropPlayWithFile
                 if (dropPlayWithFile != null) {
                     PlayWithDialog(
@@ -2292,19 +2311,15 @@ fun main(args: Array<String>) = application {
                     onDispose { mprisBridge.stop() }
                 }
                 Surface(
+                    // Keeps a second, Compose-native entry point for drops; the
+                    // AWT target above is the one that always stays registered.
                     modifier = Modifier
                         .fillMaxSize()
                         .desktopFileDropTarget(
                             supportedExtensions = supportedExtensions,
-                            onPlayFile = { file ->
-                                if (prefs.getBoolean(AppPreferenceKeys.PLAY_WITH_EXTERNAL_OPEN_DIALOG, true)) {
-                                    pendingDropPlayWithFile = file
-                                } else {
-                                    playFile(file)
-                                }
-                            },
-                            onBrowseDirectory = { openLocalBrowser(it) },
-                            onUnsupported = { toastHandler.showToast(DROP_UNSUPPORTED_MESSAGE) }
+                            onPlayFile = onDroppedFile,
+                            onBrowseDirectory = onDroppedDirectory,
+                            onUnsupported = onDroppedUnsupported
                         ),
                     color = MaterialTheme.colorScheme.background,
                     contentColor = MaterialTheme.colorScheme.onBackground
