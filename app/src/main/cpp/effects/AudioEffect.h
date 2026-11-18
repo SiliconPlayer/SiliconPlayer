@@ -5,6 +5,11 @@ namespace siliconplayer::effects {
 
 enum class ParamType { Bool, Int, Float, Enum };
 
+struct ParamOptionValue {
+    const char* id;
+    float value;
+};
+
 struct ParamDescriptor {
     const char* id;
     const char* label;
@@ -14,6 +19,12 @@ struct ParamDescriptor {
     float defaultValue;
     float step;
     int enumCount = 0;
+    // Knob values each enum option stands for, packed as
+    // [option * optionValueCount + entry]. Lets the UI mirror the values the
+    // engine ends up with after the option is picked.
+    const ParamOptionValue* optionValues = nullptr;
+    int optionValueCount = 0;
+    int optionCount = 0;
 };
 
 class IAudioEffect {

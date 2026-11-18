@@ -135,6 +135,24 @@ std::string EffectRegistry::getEffectDescriptorsJson() const {
             appendJsonFloat(out, param.step);
             if (param.type == ParamType::Enum) {
                 out += ",\"enumCount\":" + std::to_string(param.enumCount);
+                if (param.optionValues && param.optionCount > 0 && param.optionValueCount > 0) {
+                    out += ",\"optionValues\":[";
+                    for (int o = 0; o < param.optionCount; ++o) {
+                        if (o > 0) out.push_back(',');
+                        out.push_back('[');
+                        for (int e = 0; e < param.optionValueCount; ++e) {
+                            if (e > 0) out.push_back(',');
+                            const auto& entry = param.optionValues[o * param.optionValueCount + e];
+                            out += "{\"id\":";
+                            appendJsonEscaped(out, entry.id);
+                            out += ",\"value\":";
+                            appendJsonFloat(out, entry.value);
+                            out.push_back('}');
+                        }
+                        out.push_back(']');
+                    }
+                    out.push_back(']');
+                }
             }
             out.push_back('}');
         }
