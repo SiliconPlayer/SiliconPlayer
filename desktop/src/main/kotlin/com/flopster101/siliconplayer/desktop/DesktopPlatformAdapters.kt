@@ -260,7 +260,7 @@ private class DesktopAudioExportPlatformAdapter(
         val chooser = JFileChooser().apply {
             fileSelectionMode = JFileChooser.FILES_ONLY
             dialogTitle = "Export Audio"
-            selectedFile = File(suggestedFileName)
+            selectedFile = File(destinationLocation ?: suggestedFileName)
         }
         if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
             destinationLocation = chooser.selectedFile.absolutePath
@@ -450,6 +450,8 @@ internal fun buildDesktopAudioExportArguments(request: AudioExportUiRequest): Li
     add(input.absolutePath)
     add("--output")
     add(request.destinationLocation)
+    add("--container")
+    add(request.container.name)
     if (request.source.subtuneCount > 1 || request.source.subtuneIndex > 0) {
         add("--subtune")
         add((request.source.subtuneIndex + 1).toString())

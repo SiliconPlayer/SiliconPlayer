@@ -38,6 +38,7 @@ class DesktopAudioExportArgumentsTest {
         assertEquals("tail", arguments.valueAfter("--fadePlacement"))
         assertEquals("false", arguments.valueAfter("--useGain"))
         assertEquals("false", arguments.valueAfter("--useEffects"))
+        assertEquals("Flac", arguments.valueAfter("--container"))
         assertEquals("ffmpeg-custom", arguments.valueAfter("--ffmpeg"))
         assertEquals("-c:a flac", arguments.valueAfter("--ffmpegArgs"))
         assertFalse(arguments.contains("--force"))
