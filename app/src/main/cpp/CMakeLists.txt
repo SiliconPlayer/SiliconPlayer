@@ -54,6 +54,15 @@ target_include_directories(siliconplayer PRIVATE
     "${CMAKE_SOURCE_DIR}/prebuilt/${ANDROID_ABI}/pffft/include"
 )
 
+# Chipgoodizer effect library (built as its own shared library)
+add_library(chipgoodizer SHARED
+        ../../../../external/chipgoodizer/src/dsp/Chipgoodizer.cpp
+        ../../../../external/chipgoodizer/src/capi/chipgoodizer_c.cpp
+)
+target_include_directories(chipgoodizer PUBLIC
+        ../../../../external/chipgoodizer/include
+)
+
 target_compile_definitions(
         siliconplayer
         PRIVATE

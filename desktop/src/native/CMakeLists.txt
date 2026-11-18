@@ -77,6 +77,17 @@ set(COMMON_INCLUDES
 )
 
 # -----------------------------------------------------------------------------
+# Chipgoodizer effect library (built as its own shared library)
+# -----------------------------------------------------------------------------
+add_library(chipgoodizer SHARED
+    "${EXTERNAL_DIR}/chipgoodizer/src/dsp/Chipgoodizer.cpp"
+    "${EXTERNAL_DIR}/chipgoodizer/src/capi/chipgoodizer_c.cpp"
+)
+target_include_directories(chipgoodizer PUBLIC
+    "${EXTERNAL_DIR}/chipgoodizer/include"
+)
+
+# -----------------------------------------------------------------------------
 # Main Desktop JNI Playback Library
 # -----------------------------------------------------------------------------
 set(MAIN_SOURCES
