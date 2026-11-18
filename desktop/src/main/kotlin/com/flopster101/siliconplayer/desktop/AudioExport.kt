@@ -325,9 +325,9 @@ internal fun runAudioExport(
                         options.renderOptions.sampleRateHz
                     )
                 }
-                if (rendered == 0 && continueSession) {
-                    // The decoder finished inside the fade extension; pad the tail
-                    // with silence instead of restarting the track.
+                if (rendered == 0 && (continueSession || framesLeftInPass <= options.renderOptions.sampleRateHz)) {
+                    // The decoder ended before the planned frame count (duration
+                    // metadata overshoots the decoded tail); pad with silence.
                     samples.fill(0f, 0, frames * EXPORT_CHANNELS)
                     rendered = frames
                 }
