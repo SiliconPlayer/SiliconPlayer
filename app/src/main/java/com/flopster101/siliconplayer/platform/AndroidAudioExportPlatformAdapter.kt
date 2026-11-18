@@ -124,6 +124,8 @@ internal fun rememberAndroidAudioExportPlatformAdapter(
                 destinationLauncher.launch(suggestedFileName)
             }
 
+            override fun setDestination(location: String) = Unit
+
             override fun resetDestination(suggestedFileName: String) {
                 destinationLocationState = AndroidAudioExportService.DESTINATION_MUSIC
                 destinationLabelState = null

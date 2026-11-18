@@ -3,6 +3,7 @@ package com.flopster101.siliconplayer.export
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.flopster101.siliconplayer.EndFadeCurve
 import com.flopster101.siliconplayer.formatByteCount
+import java.io.File
 import kotlin.math.roundToLong
 
 internal enum class AudioExportEncoder(val label: String) {
@@ -107,6 +108,7 @@ internal interface AudioExportPlatformAdapter {
     fun chooseExternalBinary()
     fun chooseDestination(suggestedFileName: String)
     fun resetDestination(suggestedFileName: String)
+    fun setDestination(location: String)
     fun startExport(request: AudioExportUiRequest)
     fun cancelExport()
     fun shareCompletion(completion: AudioExportCompletion) = Unit
@@ -135,6 +137,12 @@ internal fun AudioExportCodec.impliedContainer(): AudioExportContainer = when (t
     AudioExportCodec.Mp3 -> AudioExportContainer.Mp3
     AudioExportCodec.Opus -> AudioExportContainer.Ogg
     AudioExportCodec.Pcm24 -> AudioExportContainer.Wav
+}
+
+internal fun audioExportDestinationWithExtension(location: String, container: AudioExportContainer): String? {
+    val file = File(location)
+    val renamed = file.resolveSibling("${file.nameWithoutExtension}.${container.extension}")
+    return if (renamed.name != file.name) renamed.absolutePath else null
 }
 
 internal fun suggestedAudioExportFileName(title: String, container: AudioExportContainer): String {

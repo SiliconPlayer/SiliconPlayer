@@ -267,6 +267,10 @@ private class DesktopAudioExportPlatformAdapter(
         }
     }
 
+    override fun setDestination(location: String) {
+        destinationLocation = location
+    }
+
     override fun resetDestination(suggestedFileName: String) {
         val home = System.getProperty("user.home")
         val directory = defaultMusicScanRoot()?.let(::File)

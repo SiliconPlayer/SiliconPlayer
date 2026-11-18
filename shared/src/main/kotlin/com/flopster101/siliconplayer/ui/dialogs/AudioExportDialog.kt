@@ -90,6 +90,7 @@ import com.flopster101.siliconplayer.export.AudioExportRepeatMode
 import com.flopster101.siliconplayer.export.AudioExportSampleFormat
 import com.flopster101.siliconplayer.export.AudioExportUiRequest
 import com.flopster101.siliconplayer.export.audioExportBitrates
+import com.flopster101.siliconplayer.export.audioExportDestinationWithExtension
 import com.flopster101.siliconplayer.export.audioExportEstimatedRemainingSeconds
 import com.flopster101.siliconplayer.export.audioExportSubtuneLabel
 import com.flopster101.siliconplayer.export.defaultAudioExportBitrate
@@ -198,6 +199,11 @@ internal fun AudioExportDialog(
     val suggestedFileName = suggestedAudioExportFileName(source.title, container)
     LaunchedEffect(source.sourceId) {
         platform.resetDestination(suggestedFileName)
+    }
+    LaunchedEffect(container) {
+        platform.destinationLocation
+            ?.let { audioExportDestinationWithExtension(it, container) }
+            ?.let { platform.setDestination(it) }
     }
     val plannedAudioSeconds = if (loopType == AudioExportLoopType.Duration) {
         loopDurationSeconds ?: source.durationSeconds
@@ -325,7 +331,6 @@ internal fun AudioExportDialog(
                                         valueLabel = { it.label },
                                         onValueChange = {
                                             encoder = it
-                                            platform.resetDestination(suggestedFileName)
                                             if (it == AudioExportEncoder.MediaCodec) {
                                                 codec = platform.supportedMediaCodecs.minByOrNull { codec ->
                                                     codec.ordinal
@@ -411,7 +416,6 @@ internal fun AudioExportDialog(
                                             bitrateBps = defaultAudioExportBitrate(it) ?: 256_000
                                             if (it == AudioExportCodec.AmrNb) sampleRateHz = 8_000
                                             if (it == AudioExportCodec.Opus) sampleRateHz = 48_000
-                                            platform.resetDestination(suggestedFileName)
                                         },
                                         modifier = Modifier.weight(1f)
                                     )
@@ -422,7 +426,6 @@ internal fun AudioExportDialog(
                                         valueLabel = { it.label },
                                         onValueChange = {
                                             container = it
-                                            platform.resetDestination(suggestedFileName)
                                         },
                                         modifier = Modifier.weight(1f)
                                     )

@@ -5,6 +5,7 @@ import com.flopster101.siliconplayer.export.AudioExportContainer
 import com.flopster101.siliconplayer.export.AudioExportEncoder
 import com.flopster101.siliconplayer.export.AudioExportRenderOptions
 import com.flopster101.siliconplayer.export.audioExportBitrates
+import com.flopster101.siliconplayer.export.audioExportDestinationWithExtension
 import com.flopster101.siliconplayer.export.audioExportSubtuneLabel
 import com.flopster101.siliconplayer.export.formatAudioExportBitrate
 import com.flopster101.siliconplayer.export.formatAudioExportSizeEstimate
@@ -124,6 +125,21 @@ class AudioExportUiModelsTest {
         assertEquals(
             listOf(AudioExportContainer.Wav),
             supportedAudioExportContainers(AudioExportCodec.Pcm24, AudioExportEncoder.SystemFfmpeg)
+        )
+    }
+
+    @Test
+    fun destinationExtensionSwapKeepsBasenameAndDirectory() {
+        assertEquals(
+            "/music/Rez #7.m4a",
+            audioExportDestinationWithExtension("/music/Rez #7.wav", AudioExportContainer.M4a)
+        )
+        assertEquals(
+            "/music/Rez #7.wav",
+            audioExportDestinationWithExtension("/music/Rez #7", AudioExportContainer.Wav)
+        )
+        assertNull(
+            audioExportDestinationWithExtension("/music/Rez #7.wav", AudioExportContainer.Wav)
         )
     }
 }
