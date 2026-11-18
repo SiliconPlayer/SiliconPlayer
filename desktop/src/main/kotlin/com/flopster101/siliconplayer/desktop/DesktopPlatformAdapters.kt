@@ -342,6 +342,7 @@ private class DesktopAudioExportPlatformAdapter(
             val errorThread = Thread {
                 process.errorStream.bufferedReader().useLines { lines ->
                     lines.filter { it.isNotBlank() }.forEach {
+                        System.err.println(it)
                         synchronized(errors) {
                             errors += it
                             if (errors.size > 8) errors.removeAt(0)
@@ -369,7 +370,10 @@ private class DesktopAudioExportPlatformAdapter(
             val exitCode = process.waitFor()
             errorThread.join()
             when {
-                cancelRequested -> toastHandler.showToast("Audio export cancelled")
+                cancelRequested -> {
+                    executionState = AudioExportExecutionState()
+                    toastHandler.showToast("Audio export cancelled")
+                }
                 exitCode == 0 -> executionState = executionState.copy(
                     running = false,
                     status = "",
@@ -377,17 +381,20 @@ private class DesktopAudioExportPlatformAdapter(
                     completion = request.toCompletion(workerStartedNs)
                 )
                 else -> {
-                    val detail = synchronized(errors) { errors.lastOrNull() }
+                    executionState = AudioExportExecutionState()
+                    val detail = synchronized(errors) {
+                        errors.lastOrNull { !it.startsWith("[SiliconPlayer]") }
+                    }?.removePrefix("Audio export failed: ")
                     toastHandler.showToast(detail ?: "Audio export failed with exit code $exitCode")
                 }
             }
         } catch (error: Exception) {
+            executionState = AudioExportExecutionState()
             if (!cancelRequested) {
                 toastHandler.showToast(error.message ?: "Audio export failed")
             }
         } finally {
             worker = null
-            executionState = AudioExportExecutionState()
         }
     }
 
