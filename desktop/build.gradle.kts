@@ -145,6 +145,7 @@ val nativeBuildDir = layout.buildDirectory.dir("native")
 val configureDesktopNative by tasks.registering(Exec::class) {
     val srcDir = file("src/native")
     inputs.dir(srcDir)
+    inputs.dir(file("../external/chipgoodizer"))
     outputs.file(nativeBuildDir.get().file("Makefile"))
 
     workingDir = rootDir
@@ -160,6 +161,7 @@ val buildDesktopNative by tasks.registering(Exec::class) {
     val nativeDir = nativeBuildDir.get().asFile
     inputs.dir(file("src/native"))
     inputs.dir(file("../app/src/main/cpp"))
+    inputs.dir(file("../external/chipgoodizer"))
     inputs.dir(file("../external/silicon/silicon_vis"))
     outputs.file(nativeDir.resolve("libsiliconplayer_desktop.so"))
 
