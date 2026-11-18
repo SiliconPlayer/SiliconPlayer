@@ -1,5 +1,6 @@
 #include "EffectRegistry.h"
 
+#include "nodes/ChipgoodizerEffect.h"
 #include "nodes/GainEffect.h"
 #include "nodes/OpenMptBassEffect.h"
 #include "nodes/OpenMptBitCrushEffect.h"
@@ -64,6 +65,7 @@ EffectRegistry& EffectRegistry::getInstance() {
 }
 
 EffectRegistry::EffectRegistry() {
+    registerEffect(ChipgoodizerEffect::descriptor());
     registerEffect(OpenMptBassEffect::descriptor());
     registerEffect(OpenMptSurroundEffect::descriptor());
     registerEffect(OpenMptReverbEffect::descriptor());

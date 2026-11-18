@@ -38,6 +38,7 @@ add_library(
         spatial/SteamAudioContext.cpp
         spatial/SteamAudioBackend.cpp
         effects/nodes/OpenMptBassEffect.cpp
+        effects/nodes/ChipgoodizerEffect.cpp
         effects/nodes/OpenMptSurroundEffect.cpp
         effects/nodes/OpenMptReverbEffect.cpp
         effects/nodes/OpenMptBitCrushEffect.cpp
@@ -298,6 +299,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/libusb_gen)
     # Link libraries
     target_link_libraries(
             siliconplayer
+            chipgoodizer
             silicon_vis
             ${log-lib}
             ${android-lib}

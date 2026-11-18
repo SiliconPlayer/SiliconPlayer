@@ -110,7 +110,7 @@ set(MAIN_SOURCES
     "${APP_CPP_DIR}/spatial/SpatializerConfigJson.cpp"
     "${APP_CPP_DIR}/spatial/SteamAudioContext.cpp"
     "${APP_CPP_DIR}/spatial/SteamAudioBackend.cpp"
-    "${APP_CPP_DIR}/effects/nodes/OpenMptBassEffect.cpp"
+    "${APP_CPP_DIR}/effects/nodes/ChipgoodizerEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptSurroundEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptReverbEffect.cpp"
     "${APP_CPP_DIR}/effects/nodes/OpenMptBitCrushEffect.cpp"
@@ -169,6 +169,7 @@ target_compile_definitions(siliconplayer_desktop PRIVATE
 )
 
 target_link_libraries(siliconplayer_desktop PRIVATE
+    chipgoodizer
     silicon_vis
     libprojectM-4
     libmysofa_prebuilt
