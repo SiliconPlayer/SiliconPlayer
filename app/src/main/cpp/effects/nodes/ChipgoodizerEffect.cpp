@@ -7,12 +7,13 @@ namespace siliconplayer::effects {
 namespace {
 
 // The C API owns the parameter table; surface it verbatim so the descriptor
-// stays in sync with the engine.
+// stays in sync with the engine. The preset selector is prepended separately.
 const std::vector<ParamDescriptor>& effectParams() {
     static const std::vector<ParamDescriptor> params = [] {
         std::vector<ParamDescriptor> list;
+        list.push_back(ParamDescriptor{ "preset", "Preset", ParamType::Enum, 0.0f, 3.0f, 0.0f, 0.0f, 4 });
         const int count = cg_param_count();
-        list.reserve(static_cast<size_t>(count));
+        list.reserve(static_cast<size_t>(count) + 1);
         for (int i = 0; i < count; ++i) {
             const cg_param_info* info = cg_param_at(i);
             if (!info || !info->id) {
@@ -76,7 +77,11 @@ void ChipgoodizerEffect::process(float* interleaved, int frames, int channels) {
 }
 
 void ChipgoodizerEffect::setParam(int index, float value) {
-    cg_set_param(handle, index, value);
+    if (index == 0) {
+        cg_apply_preset(handle, static_cast<cg_preset>(static_cast<int>(value)));
+        return;
+    }
+    cg_set_param(handle, index - 1, value);
 }
 
 } // namespace siliconplayer::effects

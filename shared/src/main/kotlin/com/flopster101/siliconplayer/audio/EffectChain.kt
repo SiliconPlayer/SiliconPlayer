@@ -68,6 +68,7 @@ internal val DefaultEffectDescriptors: List<EffectDescriptor> = listOf(
         schemaVersion = 1,
         supportsDryWet = false,
         params = listOf(
+            EffectParamDescriptor(id = "preset", label = "Preset", type = EffectParamType.Enum, minValue = 0f, maxValue = 3f, defaultValue = 0f),
             EffectParamDescriptor(id = "amount", label = "Blend", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 0.85f),
             EffectParamDescriptor(id = "rubber", label = "Rubber", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 0.85f),
             EffectParamDescriptor(id = "punch", label = "Punch", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 0.85f),

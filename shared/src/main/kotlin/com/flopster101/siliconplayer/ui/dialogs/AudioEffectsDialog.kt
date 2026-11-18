@@ -132,6 +132,13 @@ import kotlin.math.roundToInt
 private const val PRESET_EMPTY_ID = "__empty__"
 private const val PRESET_CUSTOM_ID = "__custom__"
 
+private val chipgoodizerPresetNames = listOf(
+    "Commercial",
+    "Scope Safe",
+    "Warm Chiptune",
+    "Punchy Club"
+)
+
 private val reverbPresetNames = listOf(
     "GM Plate",
     "GM Small Room",
@@ -2241,10 +2248,10 @@ private fun EffectParamControlRow(
         EffectParamType.Enum -> {
             val intVal = rawValue.roundToInt()
             val maxIdx = (param.enumCount - 1).coerceAtLeast(param.maxValue.roundToInt())
-            val names = if (effectId == EffectNodeIds.OPENMPT_REVERB && param.id == "preset") {
-                reverbPresetNames
-            } else {
-                (0..maxIdx).map { "Option $it" }
+            val names = when (effectId) {
+                EffectNodeIds.OPENMPT_REVERB -> reverbPresetNames
+                EffectNodeIds.CHIPGOODIZER -> chipgoodizerPresetNames
+                else -> (0..maxIdx).map { "Option $it" }
             }
             CompactEnumDropdownRow(
                 label = param.label,
