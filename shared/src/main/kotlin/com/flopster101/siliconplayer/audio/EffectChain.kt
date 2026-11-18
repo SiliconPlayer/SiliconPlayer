@@ -47,7 +47,10 @@ internal data class EffectParamDescriptor(
     val maxValue: Float,
     val defaultValue: Float,
     val step: Float = 0f,
-    val enumCount: Int = 0
+    val enumCount: Int = 0,
+    // Knob values each enum option stands for; picking such an option writes
+    // them to the sibling params so the sliders show the real values.
+    val optionValues: List<Map<String, Float>> = emptyList()
 ) {
     val isInteger: Boolean
         get() = type == EffectParamType.Int || type == EffectParamType.Enum || type == EffectParamType.Bool
@@ -61,6 +64,75 @@ internal data class EffectDescriptor(
     val params: List<EffectParamDescriptor> = emptyList()
 )
 
+// Fallback preset values, mirroring the engine's own preset table; the native
+// descriptor ships them, so only the offline path relies on this copy.
+internal val ChipgoodizerPresetValues: List<Map<String, Float>> = listOf(
+    // Commercial
+    mapOf(
+        "amount" to 0.85f,
+        "rubber" to 0.85f,
+        "punch" to 0.85f,
+        "air" to 0.70f,
+        "deharsh" to 1f,
+        "warmth" to 1f,
+        "width" to 0.60f,
+        "ambience" to 0.10f,
+        "drive" to 0f,
+        "ceiling" to -1.2f,
+        "xoverLow" to 220f,
+        "xoverHigh" to 3800f,
+        "phaseRotation" to 1f
+    ),
+    // Scope Safe
+    mapOf(
+        "amount" to 0.85f,
+        "rubber" to 0.85f,
+        "punch" to 0.85f,
+        "air" to 0.70f,
+        "deharsh" to 1f,
+        "warmth" to 1f,
+        "width" to 0.60f,
+        "ambience" to 0.10f,
+        "drive" to 0f,
+        "ceiling" to -4.8f,
+        "xoverLow" to 220f,
+        "xoverHigh" to 3800f,
+        "phaseRotation" to 1f
+    ),
+    // Warm Chiptune
+    mapOf(
+        "amount" to 0.85f,
+        "rubber" to 0.90f,
+        "punch" to 0.70f,
+        "air" to 0.50f,
+        "deharsh" to 1f,
+        "warmth" to 1f,
+        "width" to 0.50f,
+        "ambience" to 0.12f,
+        "drive" to 0f,
+        "ceiling" to -1.5f,
+        "xoverLow" to 220f,
+        "xoverHigh" to 3800f,
+        "phaseRotation" to 1f
+    ),
+    // Punchy Club
+    mapOf(
+        "amount" to 0.95f,
+        "rubber" to 0.90f,
+        "punch" to 1f,
+        "air" to 0.85f,
+        "deharsh" to 0.88f,
+        "warmth" to 0.88f,
+        "width" to 0.75f,
+        "ambience" to 0.15f,
+        "drive" to 1.5f,
+        "ceiling" to -1f,
+        "xoverLow" to 220f,
+        "xoverHigh" to 3800f,
+        "phaseRotation" to 1f
+    )
+)
+
 internal val DefaultEffectDescriptors: List<EffectDescriptor> = listOf(
     EffectDescriptor(
         id = EffectNodeIds.CHIPGOODIZER,
@@ -68,7 +140,18 @@ internal val DefaultEffectDescriptors: List<EffectDescriptor> = listOf(
         schemaVersion = 1,
         supportsDryWet = false,
         params = listOf(
-            EffectParamDescriptor(id = "preset", label = "Preset", type = EffectParamType.Enum, minValue = 0f, maxValue = 3f, defaultValue = 0f),
+            EffectParamDescriptor(
+                id = "preset",
+                label = "Preset",
+                type = EffectParamType.Enum,
+                minValue = 0f,
+                // One extra option past the presets: "Custom".
+                maxValue = ChipgoodizerPresetValues.size.toFloat(),
+                defaultValue = 0f,
+                step = 1f,
+                enumCount = ChipgoodizerPresetValues.size + 1,
+                optionValues = ChipgoodizerPresetValues
+            ),
             EffectParamDescriptor(id = "amount", label = "Blend", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 0.85f),
             EffectParamDescriptor(id = "rubber", label = "Rubber", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 0.85f),
             EffectParamDescriptor(id = "punch", label = "Punch", type = EffectParamType.Float, minValue = 0f, maxValue = 1f, defaultValue = 0.85f),
@@ -202,6 +285,25 @@ internal val DefaultEffectDescriptors: List<EffectDescriptor> = listOf(
 private val KnownEffectSchemas: Map<String, EffectDescriptor> =
     DefaultEffectDescriptors.associateBy { it.id }
 
+private fun parseOptionValues(array: JSONArray?): List<Map<String, Float>> {
+    if (array == null || array.length() == 0) return emptyList()
+    val out = ArrayList<Map<String, Float>>(array.length())
+    for (i in 0 until array.length()) {
+        val entries = array.optJSONArray(i) ?: continue
+        val values = LinkedHashMap<String, Float>(entries.length())
+        for (e in 0 until entries.length()) {
+            val entry = entries.optJSONObject(e) ?: continue
+            val id = entry.optString("id", "").trim().takeIf { it.isNotEmpty() } ?: continue
+            val value = entry.optDouble("value", Double.NaN).toFloat()
+            if (value.isFinite()) {
+                values[id] = value
+            }
+        }
+        out.add(values)
+    }
+    return out
+}
+
 internal fun parseEffectDescriptorsJson(json: String?): List<EffectDescriptor> {
     if (json.isNullOrBlank()) return emptyList()
     val array = try {
@@ -229,6 +331,7 @@ internal fun parseEffectDescriptorsJson(json: String?): List<EffectDescriptor> {
                 val defVal = pObj.optDouble("default", minVal.toDouble()).toFloat().takeIf { it.isFinite() } ?: minVal
                 val stepVal = pObj.optDouble("step", 0.0).toFloat().takeIf { it.isFinite() && it >= 0f } ?: 0f
                 val enumCount = pObj.optInt("enumCount", 0).coerceAtLeast(0)
+                val optionValues = parseOptionValues(pObj.optJSONArray("optionValues"))
                 params.add(
                     EffectParamDescriptor(
                         id = pId,
@@ -238,7 +341,8 @@ internal fun parseEffectDescriptorsJson(json: String?): List<EffectDescriptor> {
                         maxValue = maxVal,
                         defaultValue = defVal,
                         step = stepVal,
-                        enumCount = enumCount
+                        enumCount = enumCount,
+                        optionValues = optionValues
                     )
                 )
             }
@@ -400,6 +504,15 @@ internal data class EffectChain(
         val descriptor = findEffectDescriptor(current.id, descriptors) ?: return this
         val mergedParams = LinkedHashMap(current.params)
         mergedParams[paramId] = value
+        val changedParam = descriptor.params.firstOrNull { it.id == paramId }
+        val optionParam = descriptor.params.firstOrNull { it.optionValues.isNotEmpty() }
+        if (changedParam != null && changedParam.optionValues.isNotEmpty()) {
+            // Picking an option also writes the knob values it stands for.
+            changedParam.optionValues.getOrNull(value.roundToInt())?.let(mergedParams::putAll)
+        } else if (optionParam != null) {
+            // Hand-tuned knobs no longer match any option.
+            mergedParams[optionParam.id] = optionParam.optionValues.size.toFloat()
+        }
         val normalized = normalizeParamsForSchema(descriptor, mergedParams)
         if (current.params == normalized) return this
         val updated = nodes.toMutableList()

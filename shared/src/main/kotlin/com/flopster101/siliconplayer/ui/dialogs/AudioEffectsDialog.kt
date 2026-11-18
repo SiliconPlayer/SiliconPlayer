@@ -136,7 +136,8 @@ private val chipgoodizerPresetNames = listOf(
     "Commercial",
     "Scope Safe",
     "Warm Chiptune",
-    "Punchy Club"
+    "Punchy Club",
+    "Custom"
 )
 
 private val reverbPresetNames = listOf(
