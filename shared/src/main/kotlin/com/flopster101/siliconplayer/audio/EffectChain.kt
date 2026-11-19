@@ -83,7 +83,7 @@ internal val ChipgoodizerPresetValues: List<Map<String, Float>> = listOf(
         "xoverHigh" to 3800f,
         "phaseRotation" to 1f
     ),
-    // Scope Safe
+    // Safe
     mapOf(
         "amount" to 0.85f,
         "rubber" to 0.85f,

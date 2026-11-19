@@ -134,7 +134,7 @@ private const val PRESET_CUSTOM_ID = "__custom__"
 
 private val chipgoodizerPresetNames = listOf(
     "Commercial",
-    "Scope Safe",
+    "Safe",
     "Warm Chiptune",
     "Punchy Club",
     "Custom"
