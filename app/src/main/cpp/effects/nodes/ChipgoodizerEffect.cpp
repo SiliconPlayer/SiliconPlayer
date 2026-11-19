@@ -41,7 +41,7 @@ const std::vector<ParamDescriptor>& effectParams() {
         preset.minValue = 0.0f;
         // The trailing "Custom" option sits one past the engine's presets.
         preset.maxValue = static_cast<float>(chipgoodizer::kPresetCount);
-        preset.defaultValue = 0.0f;
+        preset.defaultValue = 3.0f; // Punchy Club, the flagship preset.
         preset.step = 1.0f;
         preset.enumCount = chipgoodizer::kPresetCount + 1;
         preset.optionValues = presetValues().data();
