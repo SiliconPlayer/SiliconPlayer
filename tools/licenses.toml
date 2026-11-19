@@ -305,6 +305,12 @@ source = "external/pffft"
 note = "FFT backend statically linked into the Steam Audio core."
 
 [[dep]]
+id = "lib.chipgoodizer"
+spdx = "MIT"
+source = "external/chipgoodizer"
+note = "2-bus mastering effect for chiptune and tracker mixes."
+
+[[dep]]
 id = "app.siliconplayer"
 spdx = "GPL-3.0"
 license_dir = "."

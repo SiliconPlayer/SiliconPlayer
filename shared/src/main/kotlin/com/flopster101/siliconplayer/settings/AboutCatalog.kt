@@ -291,6 +291,17 @@ internal object AboutCatalog {
             )
         ),
         AboutEntity(
+            id = "lib.chipgoodizer",
+            kind = AboutEntityKind.Library,
+            name = "Chipgoodizer",
+            description = "2-bus mastering effect for chiptune and tracker mixes: three-band dynamics and saturation, kick phase rotation, de-harshing, stereo width, room ambience and a soft-knee ceiling.",
+            author = "Flopster101",
+            license = "MIT",
+            links = listOf(
+                AboutEntityLink("Source", "https://github.com/Flopster101/chipgoodizer")
+            )
+        ),
+        AboutEntity(
             id = "lib.psflib",
             kind = AboutEntityKind.Library,
             name = "PSFLib",
